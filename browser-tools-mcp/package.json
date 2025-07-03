@@ -1,0 +1,48 @@
+{
+  "name": "@Winds-AI/Frontend-development-mcp-tools",
+  "version": "1.2.0",
+  "description": "MCP (Model Context Protocol) server for browser tools integration",
+  "main": "dist/mcp-server.js",
+  "git": "https://github.com/Winds-AI/Frontend-development-mcp-tools.git",
+  "type": "module",
+  "bin": {
+    "browser-tools-mcp": "dist/mcp-server.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && node dist/mcp-server.js",
+    "prepublishOnly": "npm run build",
+    "update": "npm run build && npm version patch && npm publish"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "browser",
+    "tools",
+    "debugging",
+    "ai",
+    "chrome",
+    "extension"
+  ],
+  "author": "Winds AI",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.4.1",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "node-fetch": "^2.7.0",
+    "ws": "^8.18.1",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "@types/body-parser": "^1.19.5",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.1",
+    "@types/node-fetch": "^2.6.11",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.14",
+    "typescript": "^5.7.3"
+  }
+}

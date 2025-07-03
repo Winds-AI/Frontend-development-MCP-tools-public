@@ -1,0 +1,16 @@
+{
+  "name": "browser-mcp-root",
+  "version": "1.0.0",
+  "git": "https://github.com/Winds-AI/Frontend-development-mcp-tools.git",
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "node start-server.js",
+    "install:mcp": "cd browser-tools-mcp && pnpm install",
+    "install:server": "cd browser-tools-server && pnpm install",
+    "install:all": "pnpm install:mcp && pnpm install:server",
+    "build:mcp": "cd browser-tools-mcp && pnpm build",
+    "build:server": "cd browser-tools-server && pnpm build",
+    "build:all": "pnpm build:mcp && pnpm build:server",
+    "start:server": "cd browser-tools-server && pnpm start"
+  }
+}

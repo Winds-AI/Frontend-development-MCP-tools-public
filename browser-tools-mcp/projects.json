@@ -1,0 +1,29 @@
+{
+  "projects": {
+    "demo-ecommerce-app": {
+      "name": "demo-ecommerce-app",
+      "description": "Sample e-commerce application for demonstration",
+      "config": {
+        "SWAGGER_URL": "https://api.example.com/docs/swagger.json",
+        "AUTH_ORIGIN": "http://localhost:5173",
+        "AUTH_STORAGE_TYPE": "localStorage",
+        "AUTH_TOKEN_KEY": "authToken",
+        "API_BASE_URL": "https://api.example.com",
+        "SCREENSHOT_STORAGE_PATH": "/path/to/screenshots"
+      }
+    },
+    "sample-admin-dashboard": {
+      "name": "sample-admin-dashboard",
+      "description": "Example admin dashboard project",
+      "config": {
+        "SWAGGER_URL": "https://admin-api.example.com/openapi.json",
+        "AUTH_ORIGIN": "http://localhost:3000",
+        "AUTH_STORAGE_TYPE": "cookie",
+        "AUTH_TOKEN_KEY": "accessToken",
+        "API_BASE_URL": "https://admin-api.example.com",
+        "SCREENSHOT_STORAGE_PATH": "/path/to/admin-screenshots"
+      }
+    }
+  },
+  "defaultProject": "demo-ecommerce-app"
+}

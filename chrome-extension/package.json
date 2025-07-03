@@ -1,0 +1,17 @@
+{
+  "name": "@Winds-AI/Frontend-development-mcp-tools",
+  "version": "1.2.0",
+  "description": "Chrome extension for Frontend development MCP tools integration",
+  "main": "background.js",
+  "git": "https://github.com/Winds-AI/Frontend-development-mcp-tools.git",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "chrome-extension",
+    "mcp",
+    "browser-tools"
+  ],
+  "author": "Winds AI",
+  "license": "MIT"
+}

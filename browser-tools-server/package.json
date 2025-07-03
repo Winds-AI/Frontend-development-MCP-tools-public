@@ -1,0 +1,47 @@
+{
+  "name": "@Winds-AI/Frontend-development-mcp-tools",
+  "version": "1.2.1",
+  "description": "A browser tools server for capturing and managing browser events, logs, and screenshots",
+  "type": "module",
+  "main": "dist/browser-connector.js",
+  "git": "https://github.com/Winds-AI/Frontend-development-mcp-tools.git",
+  "bin": {
+    "browser-tools-server": "./dist/browser-connector.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsc && node dist/browser-connector.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "browser",
+    "tools",
+    "debugging",
+    "logging",
+    "screenshots",
+    "chrome",
+    "extension"
+  ],
+  "author": "Winds AI",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.4.1",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "node-fetch": "^2.7.0",
+    "ws": "^8.18.0"
+  },
+  "optionalDependencies": {
+    "chrome-launcher": "^1.1.2"
+  },
+  "devDependencies": {
+    "@types/body-parser": "^1.19.5",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.15.20",
+    "@types/node-fetch": "^2.6.11",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.7.3"
+  }
+}
