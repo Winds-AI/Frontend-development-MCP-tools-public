@@ -152,8 +152,8 @@ let currentSettings = {
   model: "claude-3-sonnet",
   stringSizeLimit: 500,
   maxLogSize: 20000,
-  // Add server host configuration
-  serverHost: process.env.SERVER_HOST || "0.0.0.0", // Default to all interfaces
+  // Add server host configuration  
+  serverHost: "0.0.0.0", // Bind to all interfaces so extension can connect
 };
 
 // Add new storage for selected element
@@ -658,13 +658,17 @@ export class BrowserConnector {
     // Add connection health endpoint for autonomous operation monitoring
     this.app.get("/connection-health", (req, res) => {
       const status = this.getConnectionStatus();
+      const timeSinceLastHeartbeat = Date.now() - this.lastHeartbeatTime;
       const isHealthy =
         this.hasActiveConnection() &&
-        Date.now() - this.lastHeartbeatTime < this.HEARTBEAT_TIMEOUT;
+        timeSinceLastHeartbeat < this.HEARTBEAT_TIMEOUT;
 
       res.json({
         ...status,
         healthy: isHealthy,
+        timeSinceLastHeartbeat,
+        heartbeatTimeout: this.HEARTBEAT_TIMEOUT,
+        heartbeatInterval: this.HEARTBEAT_INTERVAL,
         pendingScreenshots: screenshotCallbacks.size,
         uptime: process.uptime(),
         timestamp: new Date().toISOString(),
@@ -684,6 +688,14 @@ export class BrowserConnector {
       "/navigate-tab",
       async (req: express.Request, res: express.Response): Promise<void> => {
         await this.navigateTab(req, res);
+      }
+    );
+
+    // Add MCP tool call endpoint for Chrome extension integration
+    this.app.post(
+      "/mcp-tool-call",
+      async (req: express.Request, res: express.Response): Promise<void> => {
+        await this.mcpToolCall(req, res);
       }
     );
 
@@ -1577,6 +1589,110 @@ export class BrowserConnector {
           error instanceof Error
             ? error.message
             : "An unknown error occurred during navigation",
+      });
+    }
+  }
+
+  // Add MCP tool call endpoint for Chrome extension integration
+  async mcpToolCall(
+    req: express.Request,
+    res: express.Response
+  ): Promise<void> {
+    console.log("Browser Connector: Received MCP tool call request");
+    console.log("Browser Connector: Request body:", req.body);
+
+    const { tool, arguments: toolArgs } = req.body;
+
+    if (!tool) {
+      res.status(400).json({ error: "Missing tool parameter" });
+      return;
+    }
+
+    try {
+      // For now, we'll handle the reindexApiDocumentation tool specifically
+      // In the future, this could be extended to handle other MCP tools
+      if (tool === "reindexApiDocumentation") {
+        console.log("Browser Connector: Handling reindexApiDocumentation tool call");
+        
+        // Import and call the MCP server's reindexApiDocumentation tool
+        // We need to dynamically import the MCP server module
+        const { spawn } = await import('child_process');
+        
+        // Create a promise to handle the MCP tool execution
+        const mcpResult = await new Promise<any>((resolve, reject) => {
+          // Prepare the MCP tool call
+          const mcpInput = {
+            jsonrpc: "2.0",
+            id: Date.now(),
+            method: "tools/call",
+            params: {
+              name: tool,
+              arguments: toolArgs || {}
+            }
+          };
+
+          // Spawn the MCP server process
+          const mcpProcess = spawn('node', ['dist/mcp-server.js'], {
+            cwd: '../browser-tools-mcp',
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+
+          let stdout = '';
+          let stderr = '';
+
+          mcpProcess.stdout.on('data', (data) => {
+            stdout += data.toString();
+          });
+
+          mcpProcess.stderr.on('data', (data) => {
+            stderr += data.toString();
+          });
+
+          mcpProcess.on('close', (code) => {
+            if (code === 0) {
+              try {
+                // Parse the JSON response from the MCP server
+                const lines = stdout.trim().split('\n');
+                const lastLine = lines[lines.length - 1];
+                const result = JSON.parse(lastLine);
+                resolve(result);
+              } catch (error) {
+                reject(new Error(`Failed to parse MCP response: ${error}`));
+              }
+            } else {
+              reject(new Error(`MCP process exited with code ${code}: ${stderr}`));
+            }
+          });
+
+          mcpProcess.on('error', (error) => {
+            reject(new Error(`Failed to spawn MCP process: ${error.message}`));
+          });
+
+          // Send the tool call request to the MCP server
+          mcpProcess.stdin.write(JSON.stringify(mcpInput) + '\n');
+          mcpProcess.stdin.end();
+        });
+
+        console.log("Browser Connector: MCP tool call completed successfully");
+        res.json({
+          success: true,
+          tool: tool,
+          result: mcpResult
+        });
+
+      } else {
+        // Unsupported tool
+        res.status(400).json({ 
+          error: `Unsupported MCP tool: ${tool}`,
+          supportedTools: ['reindexApiDocumentation']
+        });
+      }
+
+    } catch (error) {
+      console.error("Browser Connector: Error during MCP tool call:", error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : "An unknown error occurred during MCP tool call",
+        tool: tool
       });
     }
   }

@@ -1,0 +1,30 @@
+2. Lightweight Vector Search (Recommended Balanced Solution)
+Given your 16GB RAM constraint and need for accuracy, a lightweight embedding approach offers the best balance
+Architecture:
+// Lightweight semantic search implementation
+class LightweightSemanticSearch {
+  constructor() {
+    this.model = new SentenceTransformer('all-MiniLM-L6-v2'); // 23MB model
+    this.vectorDb = new FAISSIndex(384); // dimensions
+    this.apiMetadata = new Map();
+  }
+  
+  async indexAPI(apiId, path, description, parameters) {
+    // Create rich text representation
+    const text = `${path} ${description} ${parameters.join(' ')}`;
+    const embedding = await this.model.encode(text);
+    
+    this.vectorDb.add(apiId, embedding);
+    this.apiMetadata.set(apiId, { path, description, parameters });
+  }
+  
+  async search(query, topK = 5) {
+    const queryEmbedding = await this.model.encode(query);
+    const results = this.vectorDb.search(queryEmbedding, topK);
+    
+    return results.map(({ id, score }) => ({
+      ...this.apiMetadata.get(id),
+      relevanceScore: score
+    }));
+  }
+}

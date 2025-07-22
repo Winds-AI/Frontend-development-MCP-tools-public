@@ -31,8 +31,8 @@ chrome.storage.local.get(["browserConnectorSettings"], (result) => {
   // Create connection status banner at the top
   createConnectionBanner();
 
-  // Automatically discover server on panel load with quiet mode enabled
-  discoverServer(true);
+  // Try direct connection first, then fallback to discovery
+  tryDirectConnection();
 });
 
 // Add listener for connection status updates from background script (page refresh events)
@@ -210,8 +210,8 @@ function createConnectionBanner() {
     // Update UI to show searching state
     updateConnectionBanner(false, null);
 
-    // Try to discover server
-    discoverServer(false);
+    // Try direct connection first, then fallback to discovery
+    tryDirectConnection();
   });
 
   // Create a container for the status indicator and text
@@ -273,7 +273,7 @@ function updateConnectionBanner(connected, serverInfo) {
     // Connected state with server info
     indicator.style.backgroundColor = "#4CAF50"; // Green indicator
     statusText.style.color = "#ffffff"; // White text for contrast on black
-    statusText.textContent = `Connected to ${serverInfo.name} v${serverInfo.version} at ${settings.serverHost}:${settings.serverPort}`;
+    statusText.textContent = `✓ Connected to ${serverInfo.name} v${serverInfo.version} at ${settings.serverHost}:${settings.serverPort}`;
 
     // Hide reconnect button when connected
     reconnectButton.style.display = "none";
@@ -281,7 +281,7 @@ function updateConnectionBanner(connected, serverInfo) {
     // Connected without server info
     indicator.style.backgroundColor = "#4CAF50"; // Green indicator
     statusText.style.color = "#ffffff"; // White text for contrast on black
-    statusText.textContent = `Connected to server at ${settings.serverHost}:${settings.serverPort}`;
+    statusText.textContent = `✓ Connected to server at ${settings.serverHost}:${settings.serverPort}`;
 
     // Hide reconnect button when connected
     reconnectButton.style.display = "none";
@@ -292,11 +292,11 @@ function updateConnectionBanner(connected, serverInfo) {
 
     // Only show "searching" message if discovery is in progress
     if (isDiscoveryInProgress) {
-      statusText.textContent = "Not connected to server. Searching...";
+      statusText.textContent = "⚠ Not connected. Searching for server...";
       // Hide reconnect button while actively searching
       reconnectButton.style.display = "none";
     } else {
-      statusText.textContent = "Not connected to server.";
+      statusText.textContent = "⚠ Not connected to server.";
       // Show reconnect button above status message when disconnected and not searching
       reconnectButton.style.display = "block";
       reconnectButton.textContent = "Reconnect";
@@ -317,6 +317,7 @@ const showResponseHeadersCheckbox = document.getElementById(
 const maxLogSizeInput = document.getElementById("max-log-size");
 const screenshotPathInput = document.getElementById("screenshot-path");
 const captureScreenshotButton = document.getElementById("capture-screenshot");
+const reindexApiDocsButton = document.getElementById("reindex-api-docs");
 
 // Server connection UI elements
 const serverHostInput = document.getElementById("server-host");
@@ -424,6 +425,27 @@ allowAutoPasteCheckbox.addEventListener("change", (e) => {
   settings.allowAutoPaste = e.target.checked;
   saveSettings();
 });
+
+// Try direct connection first, then fallback to discovery
+async function tryDirectConnection() {
+  console.log("Attempting direct connection to configured server...");
+  
+  // Update UI to show we're trying direct connection
+  updateConnectionBanner(false, null);
+  
+  // Try the configured host and port first
+  const success = await testConnection(settings.serverHost, settings.serverPort);
+  
+  if (success) {
+    console.log("Direct connection successful");
+    return true;
+  }
+  
+  console.log("Direct connection failed, falling back to discovery...");
+  // Only run discovery as fallback if direct connection fails
+  discoverServer(true);
+  return false;
+}
 
 // Function to cancel any ongoing discovery operations
 function cancelOngoingDiscovery() {
@@ -947,6 +969,39 @@ captureScreenshotButton.addEventListener("click", () => {
       setTimeout(() => {
         captureScreenshotButton.textContent = "Capture Screenshot";
       }, 2000);
+    }
+  );
+});
+
+// Re-index API documentation functionality
+reindexApiDocsButton.addEventListener("click", () => {
+  reindexApiDocsButton.textContent = "Indexing...";
+  reindexApiDocsButton.disabled = true;
+
+  // Send message to background script to trigger API documentation re-indexing
+  chrome.runtime.sendMessage(
+    {
+      type: "REINDEX_API_DOCS",
+      tabId: chrome.devtools.inspectedWindow.tabId,
+      forceReindex: true, // Always force reindex when manually triggered
+    },
+    (response) => {
+      console.log("API docs reindex response:", response);
+      if (!response) {
+        reindexApiDocsButton.textContent = "Failed to index!";
+        console.error("API docs reindex failed: No response received");
+      } else if (!response.success) {
+        reindexApiDocsButton.textContent = "Failed to index!";
+        console.error("API docs reindex failed:", response.error);
+      } else {
+        reindexApiDocsButton.textContent = `Indexed ${response.totalEndpoints || 0} APIs`;
+        console.log("API docs indexed successfully:", response);
+      }
+      
+      reindexApiDocsButton.disabled = false;
+      setTimeout(() => {
+        reindexApiDocsButton.textContent = "Re-index API Docs";
+      }, 3000);
     }
   );
 });

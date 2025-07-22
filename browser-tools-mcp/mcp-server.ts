@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { z } from "zod";
+import { LightweightSemanticSearch } from "./vector-search/semantic-search.js";
 
 // Helper constants for ES module scope
 const __filename = fileURLToPath(import.meta.url);
@@ -108,6 +109,23 @@ const server = new McpServer({
   version: "1.2.0",
 });
 
+// Initialize semantic search system
+const semanticSearch = new LightweightSemanticSearch();
+let semanticSearchInitialized = false;
+
+// Initialize semantic search on startup
+async function initializeSemanticSearch() {
+  try {
+    console.log('🔄 Initializing semantic search system...');
+    await semanticSearch.initialize();
+    semanticSearchInitialized = true;
+    console.log('✅ Semantic search system ready');
+  } catch (error) {
+    console.error('❌ Failed to initialize semantic search:', error);
+    semanticSearchInitialized = false;
+  }
+}
+
 // Log active project on startup
 logActiveProject();
 
@@ -115,6 +133,7 @@ logActiveProject();
 let discoveredHost = "127.0.0.1";
 let discoveredPort = 3025;
 let serverDiscovered = false;
+let lastSuccessfulConnection = 0; // Timestamp of last successful connection
 
 // Function to get the default port from environment variable or default
 function getDefaultServerPort(): number {
@@ -141,12 +160,12 @@ function getDefaultServerHost(): string {
   return "127.0.0.1";
 }
 
-// Server discovery function - similar to what you have in the Chrome extension
+// Enhanced server discovery function with health checks
 async function discoverServer(): Promise<boolean> {
-  console.log("Starting server discovery process");
+  console.log("🔍 Starting server discovery process...");
 
-  // Common hosts to try
-  const hosts = [getDefaultServerHost(), "127.0.0.1", "localhost"];
+  // Common hosts to try (prioritize localhost for speed)
+  const hosts = ["localhost", "127.0.0.1", getDefaultServerHost()];
 
   // Ports to try (start with default, then try others)
   const defaultPort = getDefaultServerPort();
@@ -159,18 +178,18 @@ async function discoverServer(): Promise<boolean> {
     }
   }
 
-  // console.log(`Will try hosts: ${hosts.join(", ")}`);
-  // console.log(`Will try ports: ${ports.join(", ")}`);
+  console.log(`🔍 Will try hosts: ${hosts.join(", ")}`);
+  console.log(`🔍 Will try ports: ${ports.join(", ")}`);
 
   // Try to find the server
   for (const host of hosts) {
     for (const port of ports) {
       try {
-        // console.log(`Checking ${host}:${port}...`);
+        console.log(`🔍 Checking ${host}:${port}...`);
 
         // Use the identity endpoint for validation
         const response = await fetch(`http://${host}:${port}/.identity`, {
-          signal: AbortSignal.timeout(1000), // 1 second timeout
+          signal: AbortSignal.timeout(2000), // Increased timeout for better reliability
         });
 
         if (response.ok) {
@@ -178,85 +197,129 @@ async function discoverServer(): Promise<boolean> {
 
           // Verify this is actually our server by checking the signature
           if (identity.signature === "mcp-browser-connector-24x7") {
-            console.log(`Successfully found server at ${host}:${port}`);
+            console.log(`✅ Found server at ${host}:${port}`);
 
-            // Save the discovered connection
-            discoveredHost = host;
-            discoveredPort = port;
-            serverDiscovered = true;
+            // Additional health check to ensure server is ready
+            const healthCheck = await checkServerHealth(host, port);
+            if (healthCheck) {
+              // Save the discovered connection
+              discoveredHost = host;
+              discoveredPort = port;
+              serverDiscovered = true;
 
-            return true;
+              console.log(`✅ Server at ${host}:${port} is healthy and ready`);
+              return true;
+            } else {
+              console.log(`⚠️ Server at ${host}:${port} found but not healthy, continuing search...`);
+            }
+          } else {
+            console.log(`⚠️ Server at ${host}:${port} has wrong signature, continuing search...`);
           }
         }
       } catch (error: any) {
-        // Ignore connection errors during discovery
-        console.error(`Error checking ${host}:${port}: ${error.message}`);
+        // Only log errors for the default port to reduce noise
+        if (port === defaultPort) {
+          console.log(`❌ Error checking ${host}:${port}: ${error.message}`);
+        }
       }
     }
   }
 
-  console.error("No server found during discovery");
+  console.error("❌ No healthy server found during discovery");
   return false;
 }
 
-// Wrapper function to ensure server connection before making requests
-async function withServerConnection<T>(
-  apiCall: () => Promise<T>
-): Promise<T | any> {
-  // Attempt to discover server if not already discovered
-  if (!serverDiscovered) {
-    const discovered = await discoverServer();
-    if (!discovered) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "Failed to discover browser connector server. Please ensure it's running.",
-          },
-        ],
-        isError: true,
-      };
-    }
-  }
-
-  // Now make the actual API call with discovered host/port
+// Function to check if server is healthy and ready to handle requests
+async function checkServerHealth(host: string, port: number): Promise<boolean> {
   try {
-    return await apiCall();
-  } catch (error: any) {
-    // If the request fails, try rediscovering the server once
-    console.error(
-      `API call failed: ${error.message}. Attempting rediscovery...`
-    );
-    serverDiscovered = false;
+    const response = await fetch(`http://${host}:${port}/connection-health`, {
+      signal: AbortSignal.timeout(1000),
+    });
 
-    if (await discoverServer()) {
-      console.error("Rediscovery successful. Retrying API call...");
-      try {
-        // Retry the API call with the newly discovered connection
-        return await apiCall();
-      } catch (retryError: any) {
-        console.error(`Retry failed: ${retryError.message}`);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error after reconnection attempt: ${retryError.message}`,
-            },
-          ],
-        };
+    if (response.ok) {
+      const health = await response.json();
+      // Check if server reports itself as healthy
+      return health.healthy === true;
+    }
+    return false;
+  } catch (error) {
+    // If health endpoint doesn't exist or fails, assume server is still usable
+    // This maintains backward compatibility
+    console.log(`⚠️ Health check failed for ${host}:${port}, assuming server is usable`);
+    return true;
+  }
+}
+
+// Enhanced wrapper function to ensure server connection with robust reconnection
+async function withServerConnection<T>(
+  apiCall: () => Promise<T>,
+  maxRetries: number = 3
+): Promise<T | any> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Attempt to discover server if not already discovered or if this is a retry
+    if (!serverDiscovered || attempt > 1) {
+      console.log(`Attempting server discovery (attempt ${attempt}/${maxRetries})...`);
+      const discovered = await discoverServer();
+
+      if (!discovered) {
+        lastError = new Error("Failed to discover browser connector server");
+        if (attempt === maxRetries) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ Failed to discover browser connector server after ${maxRetries} attempts. Please ensure the server is running on localhost:3025 or nearby ports.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        // Wait before next attempt
+        await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+        continue;
       }
-    } else {
-      console.error("Rediscovery failed. Could not reconnect to server.");
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Failed to reconnect to server: ${error.message}`,
-          },
-        ],
-      };
+    }
+
+    // Now make the actual API call with discovered host/port
+    try {
+      console.log(`Making API call to ${discoveredHost}:${discoveredPort} (attempt ${attempt}/${maxRetries})`);
+      const result = await apiCall();
+
+      // If we get here, the call was successful
+      if (attempt > 1) {
+        console.log(`✅ API call succeeded after ${attempt} attempts`);
+      }
+      return result;
+
+    } catch (error: any) {
+      lastError = error;
+      console.error(`API call failed on attempt ${attempt}/${maxRetries}: ${error.message}`);
+
+      // Mark server as not discovered so we'll try to rediscover on next attempt
+      serverDiscovered = false;
+
+      // If this is not the last attempt, wait before retrying
+      if (attempt < maxRetries) {
+        const delay = 1000 * attempt; // Exponential backoff: 1s, 2s, 3s
+        console.log(`Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
   }
+
+  // If we get here, all attempts failed
+  console.error(`❌ All ${maxRetries} attempts failed. Last error: ${lastError?.message}`);
+  return {
+    content: [
+      {
+        type: "text",
+        text: `❌ Failed to execute tool after ${maxRetries} attempts. Last error: ${lastError?.message}\n\n🔧 Troubleshooting:\n• Ensure the browser tools server is running\n• Check if server is accessible at localhost:3025\n• Try restarting the server\n• Check server logs for connection issues`,
+      },
+    ],
+    isError: true,
+  };
 }
 
 // Tool 1: inspectBrowserNetworkActivity
@@ -380,11 +443,9 @@ server.tool(
     // Build query parameters with includeTimestamp=true to always include timestamps but only for filtered results
     const queryString = `?urlFilter=${encodeURIComponent(
       urlFilter
-    )}&details=${details.join(",")}&includeTimestamp=true${
-      timeStart ? `&timeStart=${timeStart}` : ""
-    }${timeEnd ? `&timeEnd=${timeEnd}` : ""}&orderBy=${
-      orderBy || "timestamp"
-    }&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
+    )}&details=${details.join(",")}&includeTimestamp=true${timeStart ? `&timeStart=${timeStart}` : ""
+      }${timeEnd ? `&timeEnd=${timeEnd}` : ""}&orderBy=${orderBy || "timestamp"
+      }&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
     const targetUrl = `http://${discoveredHost}:${discoveredPort}/network-request-details${queryString}`;
 
     console.log(`MCP Tool: Fetching network details from ${targetUrl}`);
@@ -396,8 +457,7 @@ server.tool(
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(
-            `Server returned ${response.status}: ${
-              errorText || response.statusText
+            `Server returned ${response.status}: ${errorText || response.statusText
             }`
           );
         }
@@ -471,11 +531,9 @@ server.tool(
           const responseContent: any[] = [
             {
               type: "text",
-              text: `✅ Screenshot captured successfully!\n📁 Project: ${
-                result.projectDirectory || "default-project"
-              }\n📌 Now Analyze the UI it's structure properly\n💾 Saved to: ${
-                result.filePath || "browser extension panel"
-              }`,
+              text: `✅ Screenshot captured successfully!\n📁 Project: ${result.projectDirectory || "default-project"
+                }\n📌 Now Analyze the UI it's structure properly\n💾 Saved to: ${result.filePath || "browser extension panel"
+                }`,
             },
           ];
 
@@ -545,13 +603,11 @@ server.tool(
       let formattedContent = "🔍 **Enhanced Element Debugging Context**\n\n";
 
       if (json && json.tagName) {
-        formattedContent += `**Element**: ${json.tagName}${
-          json.id ? "#" + json.id : ""
-        }${
-          json.className
+        formattedContent += `**Element**: ${json.tagName}${json.id ? "#" + json.id : ""
+          }${json.className
             ? "." + json.className.split(" ").slice(0, 2).join(".")
             : ""
-        }\n\n`;
+          }\n\n`;
 
         // Highlight critical issues first
         if (
@@ -620,7 +676,7 @@ server.tool(
 
 server.tool(
   "fetchLiveApiResponse",
-  "Executes a live, authenticated API call to a known endpoint. **Use after `searchApiDocumentation` or for known endpoints** to get real server responses and verify data structures.",
+  "Get real API response data from authenticated endpoints. **Required**: endpoint path (e.g. '/api/users'). **Optional**: method (GET/POST/PUT/PATCH/DELETE), requestBody for POST/PUT/PATCH, queryParams object, additionalHeaders. **Use when**: You need actual API response structure to write frontend code or test endpoints.",
   {
     endpoint: z
       .string()
@@ -721,9 +777,8 @@ server.tool(
             content: [
               {
                 type: "text",
-                text: `Failed to execute authenticated API call: ${
-                  result.error || "Unknown error"
-                }`,
+                text: `Failed to execute authenticated API call: ${result.error || "Unknown error"
+                  }`,
               },
             ],
             isError: true,
@@ -749,8 +804,8 @@ server.tool(
         return {
           content: [
             {
-              type: "json",
-              data: jsonResponse,
+              type: "text",
+              text: JSON.stringify(jsonResponse, null, 2),
             },
           ],
         };
@@ -759,9 +814,8 @@ server.tool(
           content: [
             {
               type: "text",
-              text: `Error executing authenticated API call: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
+              text: `Error executing authenticated API call: ${error instanceof Error ? error.message : String(error)
+                }`,
             },
           ],
           isError: true,
@@ -1022,9 +1076,8 @@ function createSimplifiedEndpoint(
       tool: "fetchLiveApiResponse",
       reason:
         "No response schema found in documentation. Use this tool to make a live API call and understand the actual response structure.",
-      suggestion: `fetchLiveApiResponse(endpoint: "${path}", method: "${upperMethod}"${
-        upperMethod !== "GET" ? ", requestBody: <your_payload>" : ""
-      })`,
+      suggestion: `fetchLiveApiResponse(endpoint: "${path}", method: "${upperMethod}"${upperMethod !== "GET" ? ", requestBody: <your_payload>" : ""
+        })`,
     };
   }
 
@@ -1037,7 +1090,7 @@ function createSimplifiedEndpoint(
 
 server.tool(
   "searchApiDocumentation",
-  "Simplified API documentation search that returns only essential information: API paths, parameters (GET), request payloads (POST/PUT/PATCH/DELETE), and success responses. If response schemas are missing, provides guidance to use fetchLiveApiResponse for live testing.",
+  "Enhanced API documentation search with both keyword and semantic search capabilities. Returns essential information: API paths, parameters, request payloads, and success responses. Semantic search provides better results for natural language queries.",
   {
     searchTerms: z
       .array(z.string())
@@ -1053,10 +1106,19 @@ server.tool(
       .optional()
       .default(10)
       .describe("Maximum number of endpoints to return (default: 10)"),
+    useSemanticSearch: z
+      .boolean()
+      .optional()
+      .default(true)
+      .describe("Use semantic search for better natural language understanding (default: true)"),
+    semanticQuery: z
+      .string()
+      .optional()
+      .describe("Natural language query for semantic search (e.g., 'find user authentication endpoints')"),
   },
   async (params) => {
     try {
-      const { searchTerms, method, maxResults } = params;
+      const { searchTerms, method, maxResults, useSemanticSearch, semanticQuery } = params;
 
       const swaggerSource = getConfigValue("SWAGGER_URL");
       if (!swaggerSource) {
@@ -1066,7 +1128,8 @@ server.tool(
       }
 
       const swaggerDoc = await loadSwaggerDoc(swaggerSource);
-      const endpoints: any[] = [];
+      let endpoints: any[] = [];
+      let semanticResults: any[] = [];
 
       // Remove duplicates from search terms
       const uniqueSearchTerms = [...new Set(searchTerms)];
@@ -1089,7 +1152,27 @@ server.tool(
         };
       }
 
-      // Search through all paths and methods
+      // Perform semantic search if enabled and initialized
+      if (useSemanticSearch && semanticSearchInitialized && (semanticQuery || searchTerms.length > 0)) {
+        try {
+          const query = semanticQuery || searchTerms.join(' ');
+          const semanticSearchResults = await semanticSearch.search(query, maxResults || 10);
+          
+          // Convert semantic results to endpoint format
+          semanticResults = semanticSearchResults.map(result => ({
+            ...result.metadata,
+            semanticScore: result.relevanceScore,
+            searchMethod: 'semantic'
+          }));
+
+          console.log(`🔍 Semantic search found ${semanticResults.length} results for: "${query}"`);
+        } catch (error) {
+          console.warn('Semantic search failed, falling back to keyword search:', error);
+        }
+      }
+
+      // Perform traditional keyword search
+      const keywordEndpoints: any[] = [];
       for (const [path, pathItem] of Object.entries(swaggerDoc.paths)) {
         for (const [httpMethod, operation] of Object.entries(
           pathItem as object
@@ -1125,19 +1208,42 @@ server.tool(
               httpMethod,
               op
             );
-            endpoints.push(simplifiedEndpoint);
+            simplifiedEndpoint.searchMethod = 'keyword';
+            keywordEndpoints.push(simplifiedEndpoint);
 
             // Stop if we've reached max results
-            if (endpoints.length >= (maxResults || 10)) {
+            if (keywordEndpoints.length >= (maxResults || 10)) {
               break;
             }
           }
         }
 
-        if (endpoints.length >= (maxResults || 10)) {
+        if (keywordEndpoints.length >= (maxResults || 10)) {
           break;
         }
       }
+
+      // Combine and deduplicate results
+      const allResults = [...semanticResults, ...keywordEndpoints];
+      const uniqueResults = new Map();
+      
+      allResults.forEach(endpoint => {
+        const key = `${endpoint.method || 'GET'}_${endpoint.path}`;
+        if (!uniqueResults.has(key)) {
+          uniqueResults.set(key, endpoint);
+        } else {
+          // If we have both semantic and keyword results for the same endpoint,
+          // prefer the semantic result but add keyword match info
+          const existing = uniqueResults.get(key);
+          if (existing.searchMethod === 'keyword' && endpoint.searchMethod === 'semantic') {
+            uniqueResults.set(key, { ...endpoint, alsoFoundByKeyword: true });
+          } else if (existing.searchMethod === 'semantic' && endpoint.searchMethod === 'keyword') {
+            existing.alsoFoundByKeyword = true;
+          }
+        }
+      });
+
+      endpoints = Array.from(uniqueResults.values()).slice(0, maxResults || 10);
 
       // Count endpoints that need live testing
       const needsLiveTesting = endpoints.filter(
@@ -1148,8 +1254,15 @@ server.tool(
         summary: {
           totalFound: endpoints.length,
           searchTerms: uniqueSearchTerms,
+          semanticQuery: semanticQuery || null,
           methodFilter: method || "all",
           endpointsNeedingLiveTest: needsLiveTesting,
+          searchMethods: {
+            semanticEnabled: useSemanticSearch && semanticSearchInitialized,
+            semanticResults: semanticResults.length,
+            keywordResults: keywordEndpoints.length,
+            combinedResults: endpoints.length
+          }
         },
         endpoints,
         usage: {
@@ -1164,6 +1277,12 @@ server.tool(
       if (needsLiveTesting > 0) {
         result.usage.nextSteps.unshift(
           `${needsLiveTesting} endpoint(s) missing response schemas - use fetchLiveApiResponse for these`
+        );
+      }
+
+      if (useSemanticSearch && !semanticSearchInitialized) {
+        result.usage.nextSteps.unshift(
+          "⚠️ Semantic search not available - using keyword search only. Use reindexApiDocumentation to enable semantic search."
         );
       }
 
@@ -1183,6 +1302,170 @@ server.tool(
           {
             type: "text",
             text: `Failed to search API documentation: ${errorMessage}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
+server.tool(
+  "reindexApiDocumentation",
+  "Re-indexes API documentation for semantic search. This tool loads the Swagger/OpenAPI documentation and creates vector embeddings for all endpoints, enabling semantic search capabilities in searchApiDocumentation.",
+  {
+    forceReindex: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Force complete re-indexing even if existing index is found"),
+  },
+  async (params) => {
+    try {
+      const { forceReindex } = params;
+
+      const swaggerSource = getConfigValue("SWAGGER_URL");
+      if (!swaggerSource) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "❌ SWAGGER_URL environment variable or config is not set. Cannot index API documentation.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      // Initialize semantic search if not already done
+      if (!semanticSearchInitialized) {
+        console.log('🔄 Initializing semantic search for indexing...');
+        await initializeSemanticSearch();
+        if (!semanticSearchInitialized) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "❌ Failed to initialize semantic search system. Check server logs for details.",
+              },
+            ],
+            isError: true,
+          };
+        }
+      }
+
+      // Clear existing index if force reindex is requested
+      if (forceReindex) {
+        console.log('🗑️ Force reindex requested, clearing existing data...');
+        await semanticSearch.clearIndex();
+      }
+
+      console.log('📥 Loading Swagger documentation...');
+      const swaggerDoc = await loadSwaggerDoc(swaggerSource);
+
+      if (!swaggerDoc.paths) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "❌ No API paths found in Swagger documentation.",
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      let indexedCount = 0;
+      const errors: string[] = [];
+
+      console.log('🔄 Starting API documentation indexing...');
+
+      // Index all API endpoints
+      for (const [path, pathItem] of Object.entries(swaggerDoc.paths)) {
+        for (const [httpMethod, operation] of Object.entries(pathItem as object)) {
+          // Skip non-HTTP method entries
+          if (httpMethod === "parameters") continue;
+
+          try {
+            const op = operation as any;
+            const apiId = `${httpMethod.toUpperCase()}_${path}`;
+
+            // Extract parameters for indexing
+            const parameters = extractSimpleParameters(op);
+            const parameterStrings = parameters.map(p => 
+              `${p.name} ${p.type} ${p.description || ''}`
+            );
+
+            // Index the API endpoint
+            await semanticSearch.indexAPI(
+              apiId,
+              path,
+              op.description || op.summary || '',
+              parameterStrings,
+              httpMethod.toUpperCase(),
+              op.tags || [],
+              op.summary || ''
+            );
+
+            indexedCount++;
+
+            // Log progress every 10 endpoints
+            if (indexedCount % 10 === 0) {
+              console.log(`📝 Indexed ${indexedCount} endpoints...`);
+            }
+
+          } catch (error) {
+            const errorMsg = `Failed to index ${httpMethod.toUpperCase()} ${path}: ${error}`;
+            console.error(errorMsg);
+            errors.push(errorMsg);
+          }
+        }
+      }
+
+      // Save the index to disk
+      console.log('💾 Saving semantic search index...');
+      await semanticSearch.saveIndex();
+
+      const stats = semanticSearch.getStats();
+      
+      const result = {
+        success: true,
+        indexingComplete: true,
+        statistics: {
+          totalEndpointsIndexed: indexedCount,
+          totalApisInIndex: stats.totalApis,
+          modelUsed: stats.modelName,
+          errorsEncountered: errors.length
+        },
+        swaggerSource,
+        timestamp: new Date().toISOString()
+      };
+
+      if (errors.length > 0) {
+        result.errors = errors.slice(0, 5); // Show first 5 errors
+        if (errors.length > 5) {
+          result.errors.push(`... and ${errors.length - 5} more errors`);
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: `✅ API Documentation Indexing Complete!\n\n📊 **Statistics:**\n• Indexed: ${indexedCount} endpoints\n• Total in index: ${stats.totalApis} APIs\n• Model: ${stats.modelName}\n• Errors: ${errors.length}\n\n🔍 **Semantic search is now enabled** for searchApiDocumentation tool.\n\n${errors.length > 0 ? `⚠️ **Errors encountered:**\n${errors.slice(0, 3).join('\n')}\n${errors.length > 3 ? `... and ${errors.length - 3} more` : ''}` : ''}`,
+          },
+        ],
+      };
+
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('❌ Indexing failed:', errorMessage);
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: `❌ Failed to index API documentation: ${errorMessage}`,
           },
         ],
         isError: true,
@@ -1250,7 +1533,7 @@ server.tool(
             content: [
               {
                 type: "text",
-                text: `✅ Successfully navigated browser tab to: ${url}`,
+                text: `Browser is on ${url} page now`,
               },
             ],
           };
@@ -1259,9 +1542,8 @@ server.tool(
             content: [
               {
                 type: "text",
-                text: `Failed to navigate browser tab: ${
-                  result.error || "Unknown error"
-                }`,
+                text: `Failed to navigate browser tab: ${result.error || "Unknown error"
+                  }`,
               },
             ],
             isError: true,
@@ -1298,6 +1580,9 @@ server.tool(
         "Initial server discovery failed. Will try again when tools are used."
       );
     }
+
+    // Initialize semantic search system
+    await initializeSemanticSearch();
 
     const transport = new StdioServerTransport();
 

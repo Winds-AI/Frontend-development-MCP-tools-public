@@ -75,6 +75,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Required to use sendResponse asynchronously
   }
 
+  if (message.type === "REINDEX_API_DOCS") {
+    // First get the server settings
+    chrome.storage.local.get(["browserConnectorSettings"], (result) => {
+      const settings = result.browserConnectorSettings || {
+        serverHost: "localhost",
+        serverPort: 3025,
+      };
+
+      // Validate server identity first
+      validateServerIdentity(settings.serverHost, settings.serverPort)
+        .then((isValid) => {
+          if (!isValid) {
+            console.error(
+              "Cannot reindex API docs: Not connected to a valid browser tools server"
+            );
+            sendResponse({
+              success: false,
+              error:
+                "Not connected to a valid browser tools server. Please check your connection settings.",
+            });
+            return;
+          }
+
+          // Continue with API docs reindexing
+          reindexApiDocumentation(message, settings, sendResponse);
+        })
+        .catch((error) => {
+          console.error("Error validating server:", error);
+          sendResponse({
+            success: false,
+            error: "Failed to validate server identity: " + error.message,
+          });
+        });
+    });
+    return true; // Required to use sendResponse asynchronously
+  }
+
   if (message.type === "NAVIGATE_TAB" && message.url) {
     console.log("Background: Received navigation request:", message);
 
@@ -636,4 +673,66 @@ function captureAndSendScreenshot(message, settings, sendResponse) {
       );
     });
   });
+}
+
+// Function to trigger API documentation reindexing
+function reindexApiDocumentation(message, settings, sendResponse) {
+  console.log("Starting API documentation reindexing...");
+  
+  // Send reindex request to the MCP server via browser connector
+  const serverUrl = `http://${settings.serverHost}:${settings.serverPort}/mcp-tool-call`;
+  console.log(`Sending reindex request to ${serverUrl}`);
+
+  const requestPayload = {
+    tool: "reindexApiDocumentation",
+    arguments: {
+      forceReindex: message.forceReindex || true
+    }
+  };
+
+  fetch(serverUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestPayload),
+    signal: AbortSignal.timeout(60000), // 60 second timeout for indexing
+  })
+    .then((response) => response.json())
+    .then((result) => {
+      if (result.error) {
+        console.error("Error from server during reindexing:", result.error);
+        sendResponse({ 
+          success: false, 
+          error: result.error 
+        });
+      } else {
+        console.log("API documentation reindexing completed:", result);
+        
+        // Extract statistics from the result
+        let totalEndpoints = 0;
+        if (result.content && result.content[0] && result.content[0].text) {
+          const responseText = result.content[0].text;
+          // Try to extract the number of indexed endpoints from the response
+          const indexedMatch = responseText.match(/Indexed:\s*(\d+)\s*endpoints/);
+          if (indexedMatch) {
+            totalEndpoints = parseInt(indexedMatch[1], 10);
+          }
+        }
+        
+        sendResponse({
+          success: true,
+          message: "API documentation reindexing completed successfully",
+          totalEndpoints: totalEndpoints,
+          result: result
+        });
+      }
+    })
+    .catch((error) => {
+      console.error("Error during API documentation reindexing:", error);
+      sendResponse({
+        success: false,
+        error: error.message || "Failed to reindex API documentation",
+      });
+    });
 }
