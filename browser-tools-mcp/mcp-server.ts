@@ -380,11 +380,9 @@ server.tool(
     // Build query parameters with includeTimestamp=true to always include timestamps but only for filtered results
     const queryString = `?urlFilter=${encodeURIComponent(
       urlFilter
-    )}&details=${details.join(",")}&includeTimestamp=true${
-      timeStart ? `&timeStart=${timeStart}` : ""
-    }${timeEnd ? `&timeEnd=${timeEnd}` : ""}&orderBy=${
-      orderBy || "timestamp"
-    }&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
+    )}&details=${details.join(",")}&includeTimestamp=true${timeStart ? `&timeStart=${timeStart}` : ""
+      }${timeEnd ? `&timeEnd=${timeEnd}` : ""}&orderBy=${orderBy || "timestamp"
+      }&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
     const targetUrl = `http://${discoveredHost}:${discoveredPort}/network-request-details${queryString}`;
 
     console.log(`MCP Tool: Fetching network details from ${targetUrl}`);
@@ -396,8 +394,7 @@ server.tool(
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(
-            `Server returned ${response.status}: ${
-              errorText || response.statusText
+            `Server returned ${response.status}: ${errorText || response.statusText
             }`
           );
         }
@@ -448,6 +445,7 @@ server.tool(
 server.tool(
   "captureBrowserScreenshot",
   "Captures current browser tab. Returns image data directly **and** saves file. **Use for UI inspection, visual verification, or recursive UI improvement loops.**",
+  { randomString: z.string().describe("any random string") },
   async () => {
     return await withServerConnection(async () => {
       try {
@@ -471,11 +469,8 @@ server.tool(
           const responseContent: any[] = [
             {
               type: "text",
-              text: `✅ Screenshot captured successfully!\n📁 Project: ${
-                result.projectDirectory || "default-project"
-              }\n📌 Now Analyze the UI it's structure properly\n💾 Saved to: ${
-                result.filePath || "browser extension panel"
-              }`,
+              text: `📁 Project: ${result.projectDirectory || "default-project"
+                }\n📌 Now Analyze the UI Layout and it's structure properly given the task at hand, then continue`,
             },
           ];
 
@@ -545,13 +540,11 @@ server.tool(
       let formattedContent = "🔍 **Enhanced Element Debugging Context**\n\n";
 
       if (json && json.tagName) {
-        formattedContent += `**Element**: ${json.tagName}${
-          json.id ? "#" + json.id : ""
-        }${
-          json.className
+        formattedContent += `**Element**: ${json.tagName}${json.id ? "#" + json.id : ""
+          }${json.className
             ? "." + json.className.split(" ").slice(0, 2).join(".")
             : ""
-        }\n\n`;
+          }\n\n`;
 
         // Highlight critical issues first
         if (
@@ -721,9 +714,8 @@ server.tool(
             content: [
               {
                 type: "text",
-                text: `Failed to execute authenticated API call: ${
-                  result.error || "Unknown error"
-                }`,
+                text: `Failed to execute authenticated API call: ${result.error || "Unknown error"
+                  }`,
               },
             ],
             isError: true,
@@ -759,9 +751,8 @@ server.tool(
           content: [
             {
               type: "text",
-              text: `Error executing authenticated API call: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
+              text: `Error executing authenticated API call: ${error instanceof Error ? error.message : String(error)
+                }`,
             },
           ],
           isError: true,
@@ -1022,9 +1013,8 @@ function createSimplifiedEndpoint(
       tool: "fetchLiveApiResponse",
       reason:
         "No response schema found in documentation. Use this tool to make a live API call and understand the actual response structure.",
-      suggestion: `fetchLiveApiResponse(endpoint: "${path}", method: "${upperMethod}"${
-        upperMethod !== "GET" ? ", requestBody: <your_payload>" : ""
-      })`,
+      suggestion: `fetchLiveApiResponse(endpoint: "${path}", method: "${upperMethod}"${upperMethod !== "GET" ? ", requestBody: <your_payload>" : ""
+        })`,
     };
   }
 
@@ -1259,9 +1249,8 @@ server.tool(
             content: [
               {
                 type: "text",
-                text: `Failed to navigate browser tab: ${
-                  result.error || "Unknown error"
-                }`,
+                text: `Failed to navigate browser tab: ${result.error || "Unknown error"
+                  }`,
               },
             ],
             isError: true,
