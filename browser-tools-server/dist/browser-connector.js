@@ -493,10 +493,6 @@ export class BrowserConnector {
             console.log("Browser Connector: Active WebSocket connection:", !!this.activeConnection);
             await this.captureScreenshot(req, res);
         });
-        // Add auth token proxy endpoint
-        this.app.post("/auth-token-proxy", async (req, res) => {
-            await this.authTokenProxy(req, res);
-        });
         // Add connection health endpoint for autonomous operation monitoring
         this.app.get("/connection-health", (req, res) => {
             const status = this.getConnectionStatus();
@@ -509,10 +505,6 @@ export class BrowserConnector {
                 uptime: process.uptime(),
                 timestamp: new Date().toISOString(),
             });
-        });
-        // Add unified authenticated API call endpoint
-        this.app.post("/authenticated-api-call", async (req, res) => {
-            await this.authenticatedApiCall(req, res);
         });
         // Add navigation endpoint
         this.app.post("/navigate-tab", async (req, res) => {
@@ -555,13 +547,6 @@ export class BrowserConnector {
                         ...data,
                         data: data.data ? "[base64 data]" : undefined,
                     });
-                    // Handle auth token retrieval request
-                    if (data.type === "RETRIEVE_AUTH_TOKEN") {
-                        console.log("Received auth token retrieval request via WebSocket");
-                        // The request will be handled by the Chrome extension background script
-                        // which should respond with RETRIEVE_AUTH_TOKEN_RESPONSE
-                        // We don't need to do anything here except wait for the response
-                    }
                     // Handle URL response
                     if (data.type === "current-url-response" && data.url) {
                         console.log("Received current URL from browser:", data.url);
@@ -878,215 +863,6 @@ export class BrowserConnector {
             res.status(500).json({
                 error: errorMessage,
             });
-        }
-    }
-    // Add auth token proxy endpoint
-    async authTokenProxy(req, res) {
-        console.log("Browser Connector: Received auth token proxy request");
-        console.log("Browser Connector: Request body:", req.body);
-        const { origin, storageType, tokenKey } = req.body;
-        if (!origin || !storageType || !tokenKey) {
-            res.status(400).json({
-                error: "Missing required parameters. Please provide origin, storageType, and tokenKey.",
-            });
-            return;
-        }
-        if (!["cookie", "localStorage", "sessionStorage"].includes(storageType)) {
-            res.status(400).json({
-                error: "Invalid storageType. Must be 'cookie', 'localStorage', or 'sessionStorage'.",
-            });
-            return;
-        }
-        try {
-            if (!this.activeConnection) {
-                res
-                    .status(503)
-                    .json({ error: "No active browser connection available" });
-                return;
-            }
-            // Send message to the extension using Chrome extension messaging
-            const messagePromise = new Promise((resolve, reject) => {
-                // Set up a one-time message handler for auth token response
-                const messageHandler = (message) => {
-                    try {
-                        const data = JSON.parse(message.toString());
-                        if (data.type === "RETRIEVE_AUTH_TOKEN_RESPONSE") {
-                            // Remove this listener once we get a response
-                            this.activeConnection?.removeListener("message", messageHandler);
-                            if (data.error) {
-                                reject(new Error(data.error));
-                            }
-                            else {
-                                resolve(data);
-                            }
-                        }
-                    }
-                    catch (error) {
-                        // Ignore parsing errors for other messages
-                    }
-                };
-                // Add the message handler
-                this.activeConnection?.on("message", messageHandler);
-                // Send the request to Chrome extension via WebSocket
-                this.activeConnection?.send(JSON.stringify({
-                    type: "RETRIEVE_AUTH_TOKEN",
-                    origin,
-                    storageType,
-                    tokenKey,
-                }));
-                // Set a timeout to reject the promise if no response is received
-                setTimeout(() => {
-                    this.activeConnection?.removeListener("message", messageHandler);
-                    reject(new Error("Timeout waiting for response from browser extension"));
-                }, 10000); // 10 second timeout
-            });
-            const response = await messagePromise;
-            res.json({ token: response.token });
-        }
-        catch (error) {
-            console.error("Error retrieving auth token:", error);
-            if (error instanceof Error) {
-                res.status(500).json({ error: error.message });
-            }
-            else {
-                res.status(500).json({ error: "An unknown error occurred" });
-            }
-        }
-    }
-    // Add unified authenticated API call method
-    async authenticatedApiCall(req, res) {
-        console.log("Browser Connector: Received authenticated API call request");
-        const { authConfig, apiCall, options } = req.body;
-        if (!authConfig || !apiCall) {
-            res.status(400).json({
-                error: "Missing required parameters. Please provide authConfig and apiCall objects.",
-            });
-            return;
-        }
-        const { origin, storageType, tokenKey } = authConfig;
-        const { baseUrl, endpoint, method = "GET", requestBody, queryParams, additionalHeaders = {}, } = apiCall;
-        const { includeResponseDetails = true } = options || {};
-        if (!origin || !storageType || !tokenKey || !baseUrl || !endpoint) {
-            res.status(400).json({
-                error: "Missing required parameters in authConfig or apiCall.",
-            });
-            return;
-        }
-        if (!["cookie", "localStorage", "sessionStorage"].includes(storageType)) {
-            res.status(400).json({
-                error: "Invalid storageType. Must be 'cookie', 'localStorage', or 'sessionStorage'.",
-            });
-            return;
-        }
-        try {
-            if (!this.activeConnection) {
-                res
-                    .status(503)
-                    .json({ error: "No active browser connection available" });
-                return;
-            }
-            // Step 1: Get the auth token from browser
-            console.log("Step 1: Retrieving auth token from browser...");
-            const tokenPromise = new Promise((resolve, reject) => {
-                const messageHandler = (message) => {
-                    try {
-                        const data = JSON.parse(message.toString());
-                        if (data.type === "RETRIEVE_AUTH_TOKEN_RESPONSE") {
-                            this.activeConnection?.removeListener("message", messageHandler);
-                            if (data.error) {
-                                reject(new Error(data.error));
-                            }
-                            else {
-                                resolve(data.token);
-                            }
-                        }
-                    }
-                    catch (error) {
-                        // Ignore parsing errors for other messages
-                    }
-                };
-                this.activeConnection?.on("message", messageHandler);
-                this.activeConnection?.send(JSON.stringify({
-                    type: "RETRIEVE_AUTH_TOKEN",
-                    origin,
-                    storageType,
-                    tokenKey,
-                }));
-                setTimeout(() => {
-                    this.activeConnection?.removeListener("message", messageHandler);
-                    reject(new Error("Timeout waiting for auth token from browser extension"));
-                }, 10000);
-            });
-            const authToken = await tokenPromise;
-            console.log("Step 1 Complete: Auth token retrieved successfully");
-            // Step 2: Make the API call with the token
-            console.log(`Step 2: Making API call to ${method} ${baseUrl}${endpoint}`);
-            // Build the full URL
-            let fullUrl = `${baseUrl}${endpoint}`;
-            // Add query parameters if provided
-            if (queryParams && Object.keys(queryParams).length > 0) {
-                const urlParams = new URLSearchParams(queryParams);
-                fullUrl += `?${urlParams.toString()}`;
-            }
-            // Prepare headers
-            const headers = {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${authToken}`,
-                ...additionalHeaders,
-            };
-            // Prepare fetch options
-            const fetchOptions = {
-                method: method,
-                headers: headers,
-            };
-            // Add request body for POST/PUT/PATCH
-            if (requestBody &&
-                ["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
-                fetchOptions.body = JSON.stringify(requestBody);
-            }
-            // Make the API call
-            const startTime = Date.now();
-            const apiResponse = await fetch(fullUrl, fetchOptions);
-            const endTime = Date.now();
-            // Parse response
-            let responseData;
-            const contentType = apiResponse.headers.get("content-type");
-            if (contentType && contentType.includes("application/json")) {
-                responseData = await apiResponse.json();
-            }
-            else {
-                responseData = await apiResponse.text();
-            }
-            console.log(`Step 2 Complete: API call completed with status ${apiResponse.status}`);
-            // Build response object
-            const result = {
-                data: responseData,
-            };
-            if (includeResponseDetails) {
-                result.details = {
-                    status: apiResponse.status,
-                    statusText: apiResponse.statusText,
-                    headers: Object.fromEntries(apiResponse.headers.entries()),
-                    timing: {
-                        requestDuration: endTime - startTime,
-                        timestamp: new Date().toISOString(),
-                    },
-                    url: fullUrl,
-                    method: method,
-                };
-            }
-            res.json(result);
-        }
-        catch (error) {
-            console.error("Error in authenticated API call:", error);
-            if (error instanceof Error) {
-                res.status(500).json({ error: error.message });
-            }
-            else {
-                res.status(500).json({
-                    error: "An unknown error occurred during authenticated API call",
-                });
-            }
         }
     }
     // Add navigation endpoint

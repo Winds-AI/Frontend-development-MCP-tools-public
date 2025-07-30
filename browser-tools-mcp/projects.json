@@ -1,29 +1,20 @@
 {
   "projects": {
-    "demo-ecommerce-app": {
-      "name": "demo-ecommerce-app",
-      "description": "Sample e-commerce application for demonstration",
+    "bandar-admin-dashboard": {
+      "name": "bandar-admin-dashboard",
+      "description": "Bandar Admin Dashboard",
       "config": {
-        "SWAGGER_URL": "https://api.example.com/docs/swagger.json",
-        "AUTH_ORIGIN": "http://localhost:5173",
-        "AUTH_STORAGE_TYPE": "localStorage",
-        "AUTH_TOKEN_KEY": "authToken",
-        "API_BASE_URL": "https://api.example.com",
-        "SCREENSHOT_STORAGE_PATH": "/path/to/screenshots"
-      }
-    },
-    "sample-admin-dashboard": {
-      "name": "sample-admin-dashboard",
-      "description": "Example admin dashboard project",
-      "config": {
-        "SWAGGER_URL": "https://admin-api.example.com/openapi.json",
-        "AUTH_ORIGIN": "http://localhost:3000",
-        "AUTH_STORAGE_TYPE": "cookie",
-        "AUTH_TOKEN_KEY": "accessToken",
-        "API_BASE_URL": "https://admin-api.example.com",
-        "SCREENSHOT_STORAGE_PATH": "/path/to/admin-screenshots"
-      }
+        "SWAGGER_URL": "https://bandar-app-dev.azurewebsites.net/api/bandar-admin-swagger.json",
+
+          "PROJECT_ROOT": "/home/meet/Desktop/Bandar/Bandar-Admin-Frontend",
+          "PROJECT_NAME": "Bandar-Admin-Frontend",
+
+          "SCREENSHOT_STORAGE_PATH": "/home/meet/Documents/windsurf_screenshots",
+     
+          "API_BASE_URL": "https://bandar-app-dev.azurewebsites.net/api",
+          "API_AUTH_TOKEN": "your-auth-token-here"
+        }
     }
   },
-  "defaultProject": "demo-ecommerce-app"
+  "defaultProject": "bandar-admin-dashboard"
 }

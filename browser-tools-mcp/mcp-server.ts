@@ -102,6 +102,31 @@ function logActiveProject() {
   }
 }
 
+// Validate authentication token format
+function isValidAuthToken(token: string): boolean {
+  // Check if token is empty or too short
+  if (!token || token.trim().length < 10) {
+    return false;
+  }
+
+  // Check for common token patterns
+  const tokenPatterns = [
+    // JWT tokens (3 parts separated by dots)
+    /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/,
+    // API keys (alphanumeric with possible hyphens/underscores, typically 20+ chars)
+    /^[A-Za-z0-9-_]{20,}$/,
+    // Bearer tokens (alphanumeric, typically 32+ chars)
+    /^[A-Za-z0-9]{32,}$/,
+    // OAuth tokens (alphanumeric, typically 40+ chars)
+    /^[A-Za-z0-9]{40,}$/,
+    // Generic token with reasonable length and valid characters
+    /^[A-Za-z0-9-_]{16,}$/
+  ];
+
+  // Check if token matches any of the patterns
+  return tokenPatterns.some(pattern => pattern.test(token));
+}
+
 // Create the MCP server
 const server = new McpServer({
   name: "Frontend-development-tools",
@@ -635,130 +660,165 @@ server.tool(
       .record(z.string())
       .optional()
       .describe("Query parameters as key-value pairs"),
-    additionalHeaders: z
-      .record(z.string())
-      .optional()
-      .describe("Additional headers to include in the request"),
+    includeAuthToken: z.boolean().optional().describe("Whether to include auth token"),
   },
   async (params) => {
-    return await withServerConnection(async () => {
-      try {
-        const {
-          endpoint,
-          method = "GET",
-          requestBody,
-          queryParams,
-          additionalHeaders,
-        } = params;
+    console.log(`[fetchLiveApiResponse] - Making request to: ${params.endpoint}`);
+    try {
+      const {
+        endpoint,
+        method = "GET",
+        requestBody,
+        queryParams,
+        includeAuthToken,
+      } = params;
 
-        // Check required environment variables or config
-        const authOrigin = getConfigValue("AUTH_ORIGIN");
-        const authStorageType = getConfigValue("AUTH_STORAGE_TYPE");
-        const authTokenKey = getConfigValue("AUTH_TOKEN_KEY");
-        const apiBaseUrl = getConfigValue("API_BASE_URL");
-
-        if (!authOrigin || !authStorageType || !authTokenKey || !apiBaseUrl) {
+      // Check required environment variables or config
+      const apiBaseUrl = getConfigValue("API_BASE_URL");
+      const apiAuthToken = getConfigValue("API_AUTH_TOKEN");
+      
+      console.log(`[fetchLiveApiResponse] - API base URL: ${apiBaseUrl} ${endpoint}`);
+      
+      // Validate auth token first if it's required
+      if (includeAuthToken === true) {
+        // check if apiAuthToken is set and it is a valid token string
+        if (!apiAuthToken || typeof apiAuthToken !== "string") {
           return {
             content: [
               {
                 type: "text",
-                text: "Missing required environment variables. Please set: AUTH_ORIGIN, AUTH_STORAGE_TYPE, AUTH_TOKEN_KEY, and API_BASE_URL",
+                text: "Missing required environment variable. Please set API_AUTH_TOKEN in projects.json or as environment variable.",
               },
             ],
             isError: true,
           };
         }
 
-        const targetUrl = `http://${discoveredHost}:${discoveredPort}/authenticated-api-call`;
-        const requestPayload = {
-          // Auth configuration from environment
-          authConfig: {
-            origin: authOrigin,
-            storageType: authStorageType,
-            tokenKey: authTokenKey,
-          },
-          // API call configuration
-          apiCall: {
-            baseUrl: apiBaseUrl,
-            endpoint: endpoint,
-            method: method,
-            requestBody: requestBody,
-            queryParams: queryParams,
-            additionalHeaders: additionalHeaders || {},
-          },
-          options: {
-            includeResponseDetails: true,
-          },
-        };
-
-        console.log(
-          `[DEBUG] executeAuthenticatedApiCall - Making request to: ${endpoint}`
-        );
-        console.log(`[DEBUG] executeAuthenticatedApiCall - Method: ${method}`);
-        console.log(
-          `[DEBUG] executeAuthenticatedApiCall - Auth origin: ${authOrigin}`
-        );
-
-        const response = await fetch(targetUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestPayload),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
+        // Validate token format
+        if (!isValidAuthToken(apiAuthToken)) {
           return {
             content: [
               {
                 type: "text",
-                text: `Failed to execute authenticated API call: ${result.error || "Unknown error"
-                  }`,
+                text: "Invalid API_AUTH_TOKEN format. Token should be a valid JWT, API key, or other recognized authentication token format.",
               },
             ],
             isError: true,
           };
         }
-
-        // Build a structured JSON response
-        const jsonResponse: any = {
-          success: true,
-          method,
-          url: `${apiBaseUrl}${endpoint}`,
-        };
-        if (result.details) {
-          jsonResponse.responseDetails = {
-            status: result.details.status,
-            statusText: result.details.statusText,
-            headers: result.details.headers,
-            timing: result.details.timing,
-          };
-        }
-        jsonResponse.data = result.data;
-
-        return {
-          content: [
-            {
-              type: "json",
-              data: jsonResponse,
-            },
-          ],
-        };
-      } catch (error) {
+      }
+      
+      if (!apiBaseUrl) {
         return {
           content: [
             {
               type: "text",
-              text: `Error executing authenticated API call: ${error instanceof Error ? error.message : String(error)
-                }`,
+              text: "Missing required environment variable. Please set API_BASE_URL in projects.json or as environment variable.",
             },
           ],
           isError: true,
         };
       }
-    });
+
+      // Build the full URL
+      let fullUrl = `${apiBaseUrl}${endpoint}`;
+
+      // Add query parameters if provided
+      if (queryParams && Object.keys(queryParams).length > 0) {
+        const urlParams = new URLSearchParams();
+        for (const [key, value] of Object.entries(queryParams)) {
+          urlParams.append(key, value);
+        }
+        fullUrl += `?${urlParams.toString()}`;
+      }
+
+      // Prepare headers
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      
+
+      // Add Authorization header if auth token is provided
+      if (includeAuthToken === true) {
+        // We've already validated the token above, so we can safely add it to headers
+        headers["Authorization"] = `Bearer ${apiAuthToken}`;
+      }
+
+      // Prepare fetch options
+      const fetchOptions: RequestInit = {
+        method: method,
+        headers: headers,
+      };
+
+      // Add request body for POST/PUT/PATCH
+      if (
+        requestBody &&
+        ["POST", "PUT", "PATCH"].includes(method.toUpperCase())
+      ) {
+        fetchOptions.body = JSON.stringify(requestBody);
+      }
+
+      console.log(`[fetchLiveApiResponse] - Making ${method} request to ${fullUrl}`);
+      
+      // Make the API call
+      const startTime = Date.now();
+      const response = await fetch(fullUrl, fetchOptions);
+      const endTime = Date.now();
+
+      console.log(`[fetchLiveApiResponse] - Response status: ${response.status}`);
+
+      // Parse response
+      let responseData;
+      const contentType = response.headers.get("content-type");
+
+      if (contentType && contentType.includes("application/json")) {
+        responseData = await response.json();
+      } else {
+        responseData = await response.text();
+      }
+
+      // Build response object
+      const result: any = {
+        data: responseData,
+        details: {
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          timing: {
+            requestDuration: endTime - startTime,
+            timestamp: new Date().toISOString(),
+          },
+          url: fullUrl,
+          method: method,
+        }
+      };
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              success: response.ok,
+              method,
+              url: fullUrl,
+              responseDetails: result.details,
+              data: result.data
+            }, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      console.error("[fetchLiveApiResponse] - Error:", error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Error executing API call: ${error instanceof Error ? error.message : String(error)}`,
+          },
+        ],
+        isError: true,
+      };
+    }
   }
 );
 
