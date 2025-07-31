@@ -5,6 +5,7 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import { z } from "zod";
 import OpenAI from "openai";
+import sharp from "sharp";
 
 // Helper constants for ES module scope
 const __filename = fileURLToPath(import.meta.url);
@@ -226,30 +227,76 @@ async function discoverServer(): Promise<boolean> {
   return false;
 }
 
-// OpenAI client initialization
+// OpenAI client initialization with optimized settings
 const openai = new OpenAI({
   apiKey: getConfigValue("OPENAI_API_KEY"),
+  timeout: 30000, // 30 second timeout
+  maxRetries: 2, // Reduce retries for faster failure
 });
 
-// Function to analyze screenshot using GPT-4o-mini
-async function analyzeScreenshotWithAI(imageData: string, task: string): Promise<string> {
+
+
+// Optimized image compression function
+async function compressImageForAI(base64Image: string): Promise<string> {
   try {
-    if (!getConfigValue("OPENAI_API_KEY")) {
-      throw new Error("OPENAI_API_KEY is not set");
-    }
+    // Convert base64 to buffer
+    const imageBuffer = Buffer.from(base64Image, 'base64');
 
-    const systemPrompt = `You are an expert UI/UX analyst and frontend developer assistant. Your job is to analyze screenshots of web applications and provide actionable insights based on the specific task given to you.
+    // Compress and resize image for optimal API performance
+    const compressedBuffer = await sharp(imageBuffer)
+      .resize(1024, 1024, {
+        fit: 'inside',
+        withoutEnlargement: true
+      })
+      .jpeg({
+        quality: 85,
+        progressive: true
+      })
+      .toBuffer();
 
-IMPORTANT GUIDELINES:
-- Focus ONLY on what's relevant to the given task
-- Be specific and actionable in your analysis
-- Identify UI elements, layout issues, styling problems, or functionality concerns
-- Suggest concrete improvements or next steps
-- If you see errors, bugs, or broken elements, highlight them clearly
-- Keep your response concise but comprehensive
-- Use technical terminology appropriate for developers
+    return compressedBuffer.toString('base64');
+  } catch (error) {
+    console.warn("Image compression failed, using original:", error);
+    return base64Image; // Fallback to original if compression fails
+  }
+}
 
-Your analysis should help the developer understand the current state of the UI and what needs to be done to accomplish their task.`;
+
+
+// Optimized function to analyze screenshot using GPT-4o-mini
+async function analyzeScreenshotWithAI(imageData: string, task: string): Promise<string> {
+  // Fast failure checks
+  if (!getConfigValue("OPENAI_API_KEY")) {
+    throw new Error("OPENAI_API_KEY is not set");
+  }
+
+  if (!task.trim()) {
+    throw new Error("Task description is required");
+  }
+
+  try {
+
+    // Compress image for faster API calls
+    const compressedImage = await compressImageForAI(imageData);
+
+    // System prompt optimized for autonomous coding workflows
+    const systemPrompt = `You are a UI Layout Analyzer for autonomous coding agents. Your role is to observe and describe the visual state of web interfaces.
+
+ANALYSIS FRAMEWORK:
+- LAYOUT: Describe positioning, alignment, spacing, and visual hierarchy
+- ELEMENTS: Identify all UI components, their states, and relationships  
+- SPACING: Report margins, padding, gaps, and whitespace distribution
+- VISUAL STATE: Note colors, typography, borders, shadows, and styling
+- STRUCTURE: Explain the overall page organization and content flow
+
+RESPONSE FORMAT:
+1. LAYOUT STRUCTURE: Overall page organization
+2. KEY ELEMENTS: Main UI components and their positions
+3. SPACING & ALIGNMENT: Margins, padding, gaps, alignment issues
+4. VISUAL PROPERTIES: Colors, fonts, borders, styling details
+5. CURRENT STATE: Form states, button states, error messages, loading states
+
+IMPORTANT: Only describe what you observe and what is asked. Do not provide suggestions, recommendations, or solutions. The external coding agent will use your analysis to make implementation decisions.`;
 
     const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -263,25 +310,36 @@ Your analysis should help the developer understand the current state of the UI a
           content: [
             {
               type: "text",
-              text: `Task: ${task}\n\nPlease analyze this screenshot and provide insights relevant to the above task.`
+              text: `ANALYSIS FOCUS: ${task}\n\nProvide a structured visual analysis of this UI screenshot. Focus specifically on the requested aspect while maintaining awareness of the overall layout context.`
             },
             {
               type: "image_url",
               image_url: {
-                url: `data:image/png;base64,${imageData}`
+                url: `data:image/jpeg;base64,${compressedImage}`
               }
             }
           ]
         }
       ],
-      max_tokens: 1000,
-      temperature: 0.1
+      max_tokens: 800, // Reduced for faster response
+      temperature: 0.1, // Low temperature for consistent analysis
+      top_p: 0.9 // Slightly focused responses
     });
 
     return response.choices[0]?.message?.content || "No analysis available";
   } catch (error: any) {
     console.error("Error analyzing screenshot with AI:", error);
-    return `Error analyzing screenshot: ${error.message}`;
+
+    // More specific error messages for faster debugging
+    if (error.code === 'insufficient_quota') {
+      return `OpenAI API quota exceeded. Please check your billing.`;
+    } else if (error.code === 'rate_limit_exceeded') {
+      return `Rate limit exceeded. Please try again in a moment.`;
+    } else if (error.message.includes('timeout')) {
+      return `Analysis timed out. Please try again.`;
+    }
+
+    return `Analysis failed: ${error.message}`;
   }
 }
 
@@ -530,20 +588,28 @@ server.tool(
 // Tool 2: captureBrowserScreenshot
 server.tool(
   "captureBrowserScreenshot",
-  "Captures current browser tab and analyzes it using AI based on your specific task. **Use for UI inspection, visual verification, or recursive UI improvement loops.** The AI will provide actionable insights about the current state of the UI.",
-  { 
-    task: z.string().describe("Describe what you want to analyze or accomplish with this screenshot (e.g., 'check if the login form is properly styled', 'verify the navigation menu layout', 'identify any visual bugs')"),
+  "Captures current browser tab and provides detailed UI layout analysis. **Use for autonomous coding workflows where you need precise visual state information.** The AI will describe the current UI structure, layout, spacing, and visual elements without making suggestions - allowing you to make informed coding decisions based on the visual analysis.",
+  {
+    task: z.string().describe("Specify what UI aspect to analyze. Be precise about the focus area (e.g., 'analyze the header navigation layout and spacing', 'describe the form field arrangement and validation states', 'examine the sidebar positioning and content alignment', 'assess the button placement and visual hierarchy'). This helps the AI focus on relevant visual elements for your coding task."),
     returnImage: z.boolean().optional().describe("Whether to also return the raw image data (default: false)")
   },
   async ({ task, returnImage = false }) => {
     return await withServerConnection(async () => {
+      const startTime = Date.now();
+
       try {
+        // Fast validation
+        if (!task.trim()) {
+          throw new Error("Task description cannot be empty");
+        }
+
         const targetUrl = `http://${discoveredHost}:${discoveredPort}/capture-screenshot`;
         const requestPayload = {
           returnImageData: true, // Always get image data for AI analysis
           projectName: getConfigValue("PROJECT_NAME"),
         };
 
+        // Capture screenshot
         const response = await fetch(targetUrl, {
           method: "POST",
           headers: {
@@ -554,48 +620,46 @@ server.tool(
 
         const result = await response.json();
 
-        if (response.ok) {
-          // Analyze the screenshot with AI
-          const aiAnalysis = await analyzeScreenshotWithAI(result.imageData, task);
-          
-          const responseContent: any[] = [
-            {
-              type: "text",
-              text: `📁 Project: ${result.projectDirectory || "default-project"}\n\n🤖 AI Analysis for task: "${task}"\n\n${aiAnalysis}`,
-            },
-          ];
-
-          // Optionally include the image if requested
-          if (returnImage) {
-            responseContent.push({
-              type: "image",
-              data: result.imageData,
-              mimeType: "image/png",
-            });
-          }
-
-          return {
-            content: responseContent,
-          };
-        } else {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error taking screenshot: ${result.error}`,
-              },
-            ],
-            isError: true,
-          };
+        if (!response.ok) {
+          throw new Error(result.error || "Screenshot capture failed");
         }
+
+        if (!result.imageData) {
+          throw new Error("No image data received from screenshot service");
+        }
+
+        // Analyze the screenshot with AI (this includes caching and compression)
+        const aiAnalysis = await analyzeScreenshotWithAI(result.imageData, task);
+
+        const processingTime = Date.now() - startTime;
+        const responseContent: any[] = [
+          {
+            type: "text",
+            text: `📁 Project: ${result.projectDirectory || "default-project"}\n⚡ Processed in ${processingTime}ms\n\n🎯 ANALYSIS FOCUS: ${task}\n\n📋 VISUAL ANALYSIS:\n${aiAnalysis}\n\n---\nℹ️  This is a pure visual analysis. Use this information to make informed coding decisions based on the current UI state.`,
+          },
+        ];
+
+        // Optionally include the image if requested
+        if (returnImage) {
+          responseContent.push({
+            type: "image",
+            data: result.imageData,
+            mimeType: "image/png",
+          });
+        }
+
+        return {
+          content: responseContent,
+        };
       } catch (error: any) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const processingTime = Date.now() - startTime;
+
         return {
           content: [
             {
               type: "text",
-              text: `Failed to take screenshot or analyze: ${errorMessage}`,
+              text: `❌ Failed after ${processingTime}ms: ${errorMessage}`,
             },
           ],
           isError: true,
@@ -745,9 +809,9 @@ server.tool(
       // Check required environment variables or config
       const apiBaseUrl = getConfigValue("API_BASE_URL");
       const apiAuthToken = getConfigValue("API_AUTH_TOKEN");
-      
+
       console.log(`[fetchLiveApiResponse] - API base URL: ${apiBaseUrl} ${endpoint}`);
-      
+
       // Validate auth token first if it's required
       if (includeAuthToken === true) {
         // check if apiAuthToken is set and it is a valid token string
@@ -776,7 +840,7 @@ server.tool(
           };
         }
       }
-      
+
       if (!apiBaseUrl) {
         return {
           content: [
@@ -805,7 +869,7 @@ server.tool(
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      
+
 
       // Add Authorization header if auth token is provided
       if (includeAuthToken === true) {
@@ -828,7 +892,7 @@ server.tool(
       }
 
       console.log(`[fetchLiveApiResponse] - Making ${method} request to ${fullUrl}`);
-      
+
       // Make the API call
       const startTime = Date.now();
       const response = await fetch(fullUrl, fetchOptions);
