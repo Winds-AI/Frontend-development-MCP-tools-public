@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import { z } from "zod";
+import OpenAI from "openai";
 
 // Helper constants for ES module scope
 const __filename = fileURLToPath(import.meta.url);
@@ -19,6 +20,7 @@ interface ProjectConfig {
   SCREENSHOT_STORAGE_PATH?: string;
   BROWSER_TOOLS_HOST?: string;
   BROWSER_TOOLS_PORT?: string;
+  OPENAI_API_KEY?: string;
 }
 
 interface Project {
@@ -222,6 +224,65 @@ async function discoverServer(): Promise<boolean> {
 
   console.error("No server found during discovery");
   return false;
+}
+
+// OpenAI client initialization
+const openai = new OpenAI({
+  apiKey: getConfigValue("OPENAI_API_KEY"),
+});
+
+// Function to analyze screenshot using GPT-4o-mini
+async function analyzeScreenshotWithAI(imageData: string, task: string): Promise<string> {
+  try {
+    if (!getConfigValue("OPENAI_API_KEY")) {
+      throw new Error("OPENAI_API_KEY is not set");
+    }
+
+    const systemPrompt = `You are an expert UI/UX analyst and frontend developer assistant. Your job is to analyze screenshots of web applications and provide actionable insights based on the specific task given to you.
+
+IMPORTANT GUIDELINES:
+- Focus ONLY on what's relevant to the given task
+- Be specific and actionable in your analysis
+- Identify UI elements, layout issues, styling problems, or functionality concerns
+- Suggest concrete improvements or next steps
+- If you see errors, bugs, or broken elements, highlight them clearly
+- Keep your response concise but comprehensive
+- Use technical terminology appropriate for developers
+
+Your analysis should help the developer understand the current state of the UI and what needs to be done to accomplish their task.`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: systemPrompt
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Task: ${task}\n\nPlease analyze this screenshot and provide insights relevant to the above task.`
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/png;base64,${imageData}`
+              }
+            }
+          ]
+        }
+      ],
+      max_tokens: 1000,
+      temperature: 0.1
+    });
+
+    return response.choices[0]?.message?.content || "No analysis available";
+  } catch (error: any) {
+    console.error("Error analyzing screenshot with AI:", error);
+    return `Error analyzing screenshot: ${error.message}`;
+  }
 }
 
 // Wrapper function to ensure server connection before making requests
@@ -469,15 +530,18 @@ server.tool(
 // Tool 2: captureBrowserScreenshot
 server.tool(
   "captureBrowserScreenshot",
-  "Captures current browser tab. Returns image data directly **and** saves file. **Use for UI inspection, visual verification, or recursive UI improvement loops.**",
-  { randomString: z.string().describe("any random string") },
-  async () => {
+  "Captures current browser tab and analyzes it using AI based on your specific task. **Use for UI inspection, visual verification, or recursive UI improvement loops.** The AI will provide actionable insights about the current state of the UI.",
+  { 
+    task: z.string().describe("Describe what you want to analyze or accomplish with this screenshot (e.g., 'check if the login form is properly styled', 'verify the navigation menu layout', 'identify any visual bugs')"),
+    returnImage: z.boolean().optional().describe("Whether to also return the raw image data (default: false)")
+  },
+  async ({ task, returnImage = false }) => {
     return await withServerConnection(async () => {
       try {
         const targetUrl = `http://${discoveredHost}:${discoveredPort}/capture-screenshot`;
         const requestPayload = {
-          returnImageData: true, // Always return image data
-          projectName: getConfigValue("PROJECT_NAME"), // Pass project name from environment
+          returnImageData: true, // Always get image data for AI analysis
+          projectName: getConfigValue("PROJECT_NAME"),
         };
 
         const response = await fetch(targetUrl, {
@@ -491,19 +555,24 @@ server.tool(
         const result = await response.json();
 
         if (response.ok) {
+          // Analyze the screenshot with AI
+          const aiAnalysis = await analyzeScreenshotWithAI(result.imageData, task);
+          
           const responseContent: any[] = [
             {
               type: "text",
-              text: `📁 Project: ${result.projectDirectory || "default-project"
-                }\n📌 Now Analyze the UI Layout and it's structure properly given the task at hand, then continue`,
+              text: `📁 Project: ${result.projectDirectory || "default-project"}\n\n🤖 AI Analysis for task: "${task}"\n\n${aiAnalysis}`,
             },
           ];
 
-          responseContent.push({
-            type: "image",
-            data: result.imageData,
-            mimeType: "image/png",
-          });
+          // Optionally include the image if requested
+          if (returnImage) {
+            responseContent.push({
+              type: "image",
+              data: result.imageData,
+              mimeType: "image/png",
+            });
+          }
 
           return {
             content: responseContent,
@@ -526,7 +595,7 @@ server.tool(
           content: [
             {
               type: "text",
-              text: `Failed to take screenshot: ${errorMessage}`,
+              text: `Failed to take screenshot or analyze: ${errorMessage}`,
             },
           ],
           isError: true,

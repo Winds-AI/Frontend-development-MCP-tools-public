@@ -43,13 +43,27 @@ Use `searchApiDocumentation` tool to get the expected payload and request types 
 ### **Workflow 2: UI Development & Debugging**
 
 - Use context7 for component library integration
-- Use `captureBrowserScreenshot` for UI analysis with Google's 2.5 pro model because it has world knowledge capabilities
+- Use `captureBrowserScreenshot` with AI analysis for intelligent UI inspection:
+  ```
+  Tool: captureBrowserScreenshot
+  - task: "Check if the login form is properly styled and accessible"
+  - returnImage: false (optional, default is false)
+  ```
+  The tool now uses GPT-4o-mini to analyze screenshots and provide actionable insights based on your specific task.
 - Use `inspectSelectedElementCss` for CSS debugging. ( This tool has the capability of getting the CSS of any element that you have selected in your browser when your developer tools are open)
 - Use `inspectBrowserNetworkActivity` for debugging network issues and changes in API responses
 
 ### **Workflow 3: Recursive UI Improvements**
 
-- Use `captureBrowserScreenshot` instruct it to use this tool in loop to take screenshot, understand the UI structure and then progressivly improve the UI
+- Use `captureBrowserScreenshot` with specific tasks to progressively improve the UI:
+  ```
+  Example workflow:
+  1. captureBrowserScreenshot({ task: "Identify layout issues and visual inconsistencies" })
+  2. Make code changes based on AI analysis
+  3. captureBrowserScreenshot({ task: "Verify the layout fixes and check for remaining issues" })
+  4. Repeat until satisfied
+  ```
+  The AI analysis helps identify specific issues and provides actionable recommendations for each iteration.
 
 ### **Workflow 4: Automated Testing & Navigation**
 

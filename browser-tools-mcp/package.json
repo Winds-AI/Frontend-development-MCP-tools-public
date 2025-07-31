@@ -1,7 +1,7 @@
 {
   "name": "@Winds-AI/Frontend-development-mcp-tools",
   "version": "1.2.0",
-  "description": "MCP (Model Context Protocol) server for browser tools integration",
+  "description": "MCP (Model Context Protocol) server for browser tools integration with AI-powered screenshot analysis",
   "main": "dist/mcp-server.js",
   "git": "https://github.com/Winds-AI/Frontend-development-mcp-tools.git",
   "type": "module",
@@ -22,7 +22,11 @@
     "debugging",
     "ai",
     "chrome",
-    "extension"
+    "extension",
+    "screenshot-analysis",
+    "openai",
+    "gpt-4o-mini",
+    "ui-analysis"
   ],
   "author": "Winds AI",
   "license": "MIT",
@@ -32,6 +36,7 @@
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "node-fetch": "^2.7.0",
+    "openai": "^5.11.0",
     "ws": "^8.18.1",
     "zod": "^3.25.67"
   },
