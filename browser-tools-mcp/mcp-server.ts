@@ -35,7 +35,7 @@ interface ProjectsConfig {
 // Load project configuration
 function loadProjectConfig(): ProjectsConfig | null {
   try {
-    const configPath = path.join(__dirname, "..", "projects.json");
+    const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
     console.log(`[DEBUG] Looking for projects.json at: ${configPath}`);
     if (fs.existsSync(configPath)) {
       const configData = fs.readFileSync(configPath, "utf8");
