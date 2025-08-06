@@ -2,6 +2,11 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { exec } from "child_process";
+import { fileURLToPath } from "url";
+
+// Helper constants for ES module scope
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 /**
  * Unified Screenshot Service
@@ -38,6 +43,34 @@ export class ScreenshotService {
   private readonly DEFAULT_BASE_FOLDER = "MCP_Screenshots";
 
   private constructor() {}
+
+  /**
+   * Load project configuration from chrome-extension/projects.json
+   */
+  private loadProjectConfig(): any {
+    try {
+      const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
+      if (fs.existsSync(configPath)) {
+        const configData = fs.readFileSync(configPath, "utf8");
+        return JSON.parse(configData);
+      }
+    } catch (error) {
+      console.error("Screenshot Service: Error loading projects config:", error);
+    }
+    return null;
+  }
+
+  /**
+   * Get screenshot storage path from project configuration
+   */
+  private getProjectScreenshotPath(): string | undefined {
+    const projectsConfig = this.loadProjectConfig();
+    if (projectsConfig && projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH) {
+      console.log("Screenshot Service: Using project config screenshot path:", projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH);
+      return projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH;
+    }
+    return undefined;
+  }
 
   public static getInstance(): ScreenshotService {
     if (!ScreenshotService.instance) {
@@ -131,6 +164,12 @@ export class ScreenshotService {
     const envPath = process.env.SCREENSHOT_STORAGE_PATH;
     if (envPath && path.isAbsolute(envPath)) {
       return envPath;
+    }
+
+    // Check project configuration
+    const projectPath = this.getProjectScreenshotPath();
+    if (projectPath && path.isAbsolute(projectPath)) {
+      return projectPath;
     }
 
     // Default to Downloads/MCP_Screenshots

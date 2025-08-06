@@ -11,6 +11,99 @@ import { Socket } from "net";
 import os from "os";
 import * as net from "net";
 import ScreenshotService from "./screenshot-service.js";
+import { fileURLToPath } from "url";
+
+// Helper constants for ES module scope
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Project configuration management
+interface ProjectConfig {
+  SWAGGER_URL?: string;
+  AUTH_ORIGIN?: string;
+  AUTH_STORAGE_TYPE?: string;
+  AUTH_TOKEN_KEY?: string;
+  API_BASE_URL?: string;
+  SCREENSHOT_STORAGE_PATH?: string;
+  BROWSER_TOOLS_HOST?: string;
+  BROWSER_TOOLS_PORT?: string;
+  PROJECT_ROOT?: string;
+  API_AUTH_TOKEN?: string;
+}
+
+interface Project {
+  config: ProjectConfig;
+}
+
+interface ProjectsConfig {
+  projects: Record<string, Project>;
+  defaultProject: string;
+  DEFAULT_SCREENSHOT_STORAGE_PATH?: string;
+}
+
+// Load project configuration
+function loadProjectConfig(): ProjectsConfig | null {
+  try {
+    const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
+    console.log(`[DEBUG] Browser Connector: Looking for projects.json at: ${configPath}`);
+    if (fs.existsSync(configPath)) {
+      const configData = fs.readFileSync(configPath, "utf8");
+      console.log(`[DEBUG] Browser Connector: Successfully loaded projects.json`);
+      return JSON.parse(configData);
+    } else {
+      console.log(`[DEBUG] Browser Connector: projects.json not found at: ${configPath}`);
+    }
+  } catch (error) {
+    console.error("Browser Connector: Error loading projects config:", error);
+  }
+  return null;
+}
+
+// Get configuration value with fallback priority:
+// 1. Environment variable (highest priority)
+// 2. Project config file
+// 3. Default value (lowest priority)
+function getConfigValue(
+  key: string,
+  defaultValue?: string
+): string | undefined {
+  // First check environment variables
+  if (process.env[key]) {
+    return process.env[key];
+  }
+
+  // Then check project config
+  const projectsConfig = loadProjectConfig();
+  if (projectsConfig) {
+    const activeProject =
+      process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+    const project = projectsConfig.projects[activeProject];
+    if (project && project.config[key as keyof ProjectConfig]) {
+      return project.config[key as keyof ProjectConfig];
+    }
+  }
+
+  // Finally return default value
+  return defaultValue;
+}
+
+// Get screenshot storage path from project config
+function getScreenshotStoragePath(): string | undefined {
+  const projectsConfig = loadProjectConfig();
+  if (projectsConfig && projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH) {
+    return projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH;
+  }
+  return undefined;
+}
+
+// Get active project name
+function getActiveProjectName(): string | undefined {
+  const projectsConfig = loadProjectConfig();
+  if (projectsConfig) {
+    return process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+  }
+  return undefined;
+}
 
 /**
  * Converts a file path to the appropriate format for the current platform
@@ -1117,9 +1210,11 @@ export class BrowserConnector {
       const screenshotService = ScreenshotService.getInstance();
 
       // Prepare configuration for screenshot service
+      // Use project configuration for screenshot path, fallback to customPath if needed
+      const projectScreenshotPath = getScreenshotStoragePath();
       const screenshotConfig = {
         returnImageData: true,
-        baseDirectory: customPath,
+        baseDirectory: projectScreenshotPath || customPath,
       };
 
       // Save screenshot using unified service

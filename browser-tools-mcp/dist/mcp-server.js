@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 // Load project configuration
 function loadProjectConfig() {
     try {
-        const configPath = path.join(__dirname, "..", "projects.json");
+        const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
         console.log(`[DEBUG] Looking for projects.json at: ${configPath}`);
         if (fs.existsSync(configPath)) {
             const configData = fs.readFileSync(configPath, "utf8");
@@ -47,6 +47,14 @@ function getConfigValue(key, defaultValue) {
     // Finally return default value
     return defaultValue;
 }
+// Get active project name
+function getActiveProjectName() {
+    const projectsConfig = loadProjectConfig();
+    if (projectsConfig) {
+        return process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+    }
+    return undefined;
+}
 // Log active project information
 function logActiveProject() {
     const projectsConfig = loadProjectConfig();
@@ -54,10 +62,10 @@ function logActiveProject() {
         const activeProject = process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
         const project = projectsConfig.projects[activeProject];
         if (project) {
-            console.log(`🚀 Active Project: ${project.name} (${activeProject})`);
-            console.log(`📝 Description: ${project.description}`);
+            console.log(`🚀 Active Project: ${activeProject}`);
             console.log(`🌐 API Base URL: ${project.config.API_BASE_URL || "Not set"}`);
             console.log(`📋 Swagger URL: ${project.config.SWAGGER_URL || "Not set"}`);
+            console.log(`📁 Screenshot Path: ${projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH || "Not set"}`);
         }
         else {
             console.log(`❌ Project '${activeProject}' not found in config`);
@@ -362,7 +370,7 @@ server.tool("captureBrowserScreenshot", "Captures current browser tab. Returns i
             const targetUrl = `http://${discoveredHost}:${discoveredPort}/capture-screenshot`;
             const requestPayload = {
                 returnImageData: true, // Always return image data
-                projectName: getConfigValue("PROJECT_NAME"), // Pass project name from environment
+                projectName: getActiveProjectName(), // Pass active project name
             };
             const response = await fetch(targetUrl, {
                 method: "POST",

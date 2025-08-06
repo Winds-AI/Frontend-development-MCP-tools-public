@@ -1,20 +1,14 @@
 {
   "projects": {
-    "bandar-admin-dashboard": {
-      "name": "bandar-admin-dashboard",
-      "description": "Bandar Admin Dashboard",
+    "bandar-admin-frontend": {
       "config": {
         "SWAGGER_URL": "https://bandar-app-dev.azurewebsites.net/api/bandar-admin-swagger.json",
-
-          "PROJECT_ROOT": "/home/meet/Desktop/Bandar/Bandar-Admin-Frontend",
-          "PROJECT_NAME": "Bandar-Admin-Frontend",
-
-          "SCREENSHOT_STORAGE_PATH": "/home/meet/Documents/windsurf_screenshots",
-     
-          "API_BASE_URL": "https://bandar-app-dev.azurewebsites.net/api",
-          "API_AUTH_TOKEN": "your-auth-token-here"
-        }
+        "PROJECT_ROOT": "/home/meet/Desktop/Bandar/Bandar-Admin-Frontend",
+        "API_BASE_URL": "https://bandar-app-dev.azurewebsites.net/api",
+        "API_AUTH_TOKEN": "your-auth-token-here"
+      }
     }
   },
-  "defaultProject": "bandar-admin-dashboard"
+  "defaultProject": "bandar-admin-frontend",
+  "DEFAULT_SCREENSHOT_STORAGE_PATH": "/home/meet/Documents/windsurf_screenshots"
 }

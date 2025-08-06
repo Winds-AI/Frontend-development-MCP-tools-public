@@ -22,14 +22,13 @@ interface ProjectConfig {
 }
 
 interface Project {
-  name: string;
-  description: string;
   config: ProjectConfig;
 }
 
 interface ProjectsConfig {
   projects: Record<string, Project>;
   defaultProject: string;
+  DEFAULT_SCREENSHOT_STORAGE_PATH?: string;
 }
 
 // Load project configuration
@@ -78,6 +77,15 @@ function getConfigValue(
   return defaultValue;
 }
 
+// Get active project name
+function getActiveProjectName(): string | undefined {
+  const projectsConfig = loadProjectConfig();
+  if (projectsConfig) {
+    return process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+  }
+  return undefined;
+}
+
 // Log active project information
 function logActiveProject() {
   const projectsConfig = loadProjectConfig();
@@ -86,12 +94,12 @@ function logActiveProject() {
       process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
     const project = projectsConfig.projects[activeProject];
     if (project) {
-      console.log(`🚀 Active Project: ${project.name} (${activeProject})`);
-      console.log(`📝 Description: ${project.description}`);
+      console.log(`🚀 Active Project: ${activeProject}`);
       console.log(
         `🌐 API Base URL: ${project.config.API_BASE_URL || "Not set"}`
       );
       console.log(`📋 Swagger URL: ${project.config.SWAGGER_URL || "Not set"}`);
+      console.log(`📁 Screenshot Path: ${projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH || "Not set"}`);
     } else {
       console.log(`❌ Project '${activeProject}' not found in config`);
     }
@@ -477,7 +485,7 @@ server.tool(
         const targetUrl = `http://${discoveredHost}:${discoveredPort}/capture-screenshot`;
         const requestPayload = {
           returnImageData: true, // Always return image data
-          projectName: getConfigValue("PROJECT_NAME"), // Pass project name from environment
+          projectName: getActiveProjectName(), // Pass active project name
         };
 
         const response = await fetch(targetUrl, {
@@ -676,9 +684,9 @@ server.tool(
       // Check required environment variables or config
       const apiBaseUrl = getConfigValue("API_BASE_URL");
       const apiAuthToken = getConfigValue("API_AUTH_TOKEN");
-      
+
       console.log(`[fetchLiveApiResponse] - API base URL: ${apiBaseUrl} ${endpoint}`);
-      
+
       // Validate auth token first if it's required
       if (includeAuthToken === true) {
         // check if apiAuthToken is set and it is a valid token string
@@ -707,7 +715,7 @@ server.tool(
           };
         }
       }
-      
+
       if (!apiBaseUrl) {
         return {
           content: [
@@ -736,7 +744,7 @@ server.tool(
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };
-      
+
 
       // Add Authorization header if auth token is provided
       if (includeAuthToken === true) {
@@ -759,7 +767,7 @@ server.tool(
       }
 
       console.log(`[fetchLiveApiResponse] - Making ${method} request to ${fullUrl}`);
-      
+
       // Make the API call
       const startTime = Date.now();
       const response = await fetch(fullUrl, fetchOptions);

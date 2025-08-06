@@ -3,10 +3,71 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import { WebSocketServer, WebSocket } from "ws";
+import fs from "fs";
 import path from "path";
 import os from "os";
 import * as net from "net";
 import ScreenshotService from "./screenshot-service.js";
+import { fileURLToPath } from "url";
+// Helper constants for ES module scope
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+// Load project configuration
+function loadProjectConfig() {
+    try {
+        const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
+        console.log(`[DEBUG] Browser Connector: Looking for projects.json at: ${configPath}`);
+        if (fs.existsSync(configPath)) {
+            const configData = fs.readFileSync(configPath, "utf8");
+            console.log(`[DEBUG] Browser Connector: Successfully loaded projects.json`);
+            return JSON.parse(configData);
+        }
+        else {
+            console.log(`[DEBUG] Browser Connector: projects.json not found at: ${configPath}`);
+        }
+    }
+    catch (error) {
+        console.error("Browser Connector: Error loading projects config:", error);
+    }
+    return null;
+}
+// Get configuration value with fallback priority:
+// 1. Environment variable (highest priority)
+// 2. Project config file
+// 3. Default value (lowest priority)
+function getConfigValue(key, defaultValue) {
+    // First check environment variables
+    if (process.env[key]) {
+        return process.env[key];
+    }
+    // Then check project config
+    const projectsConfig = loadProjectConfig();
+    if (projectsConfig) {
+        const activeProject = process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+        const project = projectsConfig.projects[activeProject];
+        if (project && project.config[key]) {
+            return project.config[key];
+        }
+    }
+    // Finally return default value
+    return defaultValue;
+}
+// Get screenshot storage path from project config
+function getScreenshotStoragePath() {
+    const projectsConfig = loadProjectConfig();
+    if (projectsConfig && projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH) {
+        return projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH;
+    }
+    return undefined;
+}
+// Get active project name
+function getActiveProjectName() {
+    const projectsConfig = loadProjectConfig();
+    if (projectsConfig) {
+        return process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+    }
+    return undefined;
+}
 /**
  * Converts a file path to the appropriate format for the current platform
  * Handles Windows, WSL, macOS and Linux path formats
@@ -813,9 +874,11 @@ export class BrowserConnector {
             // Use the unified screenshot service
             const screenshotService = ScreenshotService.getInstance();
             // Prepare configuration for screenshot service
+            // Use project configuration for screenshot path, fallback to customPath if needed
+            const projectScreenshotPath = getScreenshotStoragePath();
             const screenshotConfig = {
                 returnImageData: true,
-                baseDirectory: customPath,
+                baseDirectory: projectScreenshotPath || customPath,
             };
             // Save screenshot using unified service
             const result = await screenshotService.saveScreenshot(base64Data, currentUrl, screenshotConfig);
