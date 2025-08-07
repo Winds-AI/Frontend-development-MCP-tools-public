@@ -401,17 +401,11 @@ server.tool(
       .describe(
         "Specific details to retrieve for matching requests. Note: 'timestamp' is always included by default for chronological ordering."
       ),
-    timeStart: z
+    timeOffset: z
       .number()
       .optional()
       .describe(
-        "Optional Unix timestamp (in milliseconds) to filter requests that occurred after this time"
-      ),
-    timeEnd: z
-      .number()
-      .optional()
-      .describe(
-        "Optional Unix timestamp (in milliseconds) to filter requests that occurred before this time"
+        "Time offset in seconds from current time. Use this for relative time filtering (e.g., 10 = last 10 seconds, 300 = last 5 minutes, 3600 = last hour). Maximum allowed: 24 hours (86400 seconds)."
       ),
     orderBy: z
       .enum(["timestamp", "url"])
@@ -433,18 +427,39 @@ server.tool(
     const {
       urlFilter,
       details,
-      timeStart,
-      timeEnd,
+      timeOffset,
       orderBy,
       orderDirection,
       limit,
     } = params;
 
+    // Capture current time when tool is called
+    const currentTime = Date.now();
+    let finalTimeStart: number | undefined;
+    let finalTimeEnd: number | undefined;
+
+    // Handle timeOffset parameter - calculate relative time range
+    if (timeOffset !== undefined) {
+      // Validate timeOffset
+      if (timeOffset <= 0) {
+        throw new Error("timeOffset must be a positive number");
+      }
+      if (timeOffset > 86400) {
+        throw new Error("timeOffset cannot exceed 24 hours (86400 seconds)");
+      }
+
+      // Calculate time range based on offset
+      finalTimeStart = currentTime - (timeOffset * 1000);
+      finalTimeEnd = currentTime;
+
+      console.log(`Time offset calculation: ${timeOffset}s ago = ${new Date(finalTimeStart).toISOString()} to ${new Date(finalTimeEnd).toISOString()}`);
+    }
+
     // Build query parameters with includeTimestamp=true to always include timestamps but only for filtered results
     const queryString = `?urlFilter=${encodeURIComponent(
       urlFilter
-    )}&details=${details.join(",")}&includeTimestamp=true${timeStart ? `&timeStart=${timeStart}` : ""
-      }${timeEnd ? `&timeEnd=${timeEnd}` : ""}&orderBy=${orderBy || "timestamp"
+    )}&details=${details.join(",")}&includeTimestamp=true${finalTimeStart ? `&timeStart=${finalTimeStart}` : ""
+      }${finalTimeEnd ? `&timeEnd=${finalTimeEnd}` : ""}&orderBy=${orderBy || "timestamp"
       }&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
     const targetUrl = `http://${discoveredHost}:${discoveredPort}/network-request-details${queryString}`;
 
@@ -1384,7 +1399,7 @@ server.tool(
   {
     level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional().describe("Filter by console message level. Default: 'all'"),
     limit: z.number().optional().describe("Maximum number of entries to return. Default: no limit"),
-    since: z.number().optional().describe("Only return entries after this timestamp (Unix timestamp in milliseconds)"),
+    timeOffset: z.number().optional().describe("Time offset in seconds from current time. Use this for relative time filtering (e.g., 10 = last 10 seconds, 300 = last 5 minutes). Maximum allowed: 24 hours (86400 seconds)."),
     search: z.string().optional().describe("Search for specific text in console messages"),
   },
   async (args) => {
@@ -1407,11 +1422,31 @@ server.tool(
     try {
       console.error(`Inspecting browser console with filters:`, args);
 
+      // Capture current time when tool is called
+      const currentTime = Date.now();
+      let finalSince: number | undefined;
+
+      // Handle timeOffset parameter - calculate relative time
+      if (args.timeOffset !== undefined) {
+        // Validate timeOffset
+        if (args.timeOffset <= 0) {
+          throw new Error("timeOffset must be a positive number");
+        }
+        if (args.timeOffset > 86400) {
+          throw new Error("timeOffset cannot exceed 24 hours (86400 seconds)");
+        }
+
+        // Calculate since timestamp based on offset
+        finalSince = currentTime - (args.timeOffset * 1000);
+
+        console.log(`Time offset calculation: ${args.timeOffset}s ago = ${new Date(finalSince).toISOString()}`);
+      }
+
       // Build query parameters
       const queryParams = new URLSearchParams();
       if (args.level) queryParams.append('level', args.level);
       if (args.limit) queryParams.append('limit', args.limit.toString());
-      if (args.since) queryParams.append('since', args.since.toString());
+      if (finalSince) queryParams.append('since', finalSince.toString());
       if (args.search) queryParams.append('search', args.search);
 
       const url = `http://${discoveredHost}:${discoveredPort}/console-inspection?${queryParams.toString()}`;
@@ -1455,11 +1490,11 @@ server.tool(
         responseText += '\n';
       }
 
-      if (args.level || args.search || args.since || args.limit) {
+      if (args.level || args.search || args.timeOffset || args.limit) {
         responseText += `🔧 **Applied Filters**:\n`;
         if (args.level) responseText += `- Level: ${args.level}\n`;
         if (args.search) responseText += `- Search: "${args.search}"\n`;
-        if (args.since) responseText += `- Since: ${new Date(args.since).toISOString()}\n`;
+        if (args.timeOffset) responseText += `- Time Offset: ${args.timeOffset} seconds ago\n`;
         if (args.limit) responseText += `- Limit: ${args.limit} entries\n`;
         responseText += '\n';
       }
