@@ -5,10 +5,11 @@
         "SWAGGER_URL": "https://bandar-app-dev.azurewebsites.net/api/bandar-admin-swagger.json",
         "PROJECT_ROOT": "/home/meet/Desktop/Bandar/Bandar-Admin-Frontend",
         "API_BASE_URL": "https://bandar-app-dev.azurewebsites.net/api",
-        "API_AUTH_TOKEN": "your-auth-token-here"
+        "API_AUTH_TOKEN": "your-auth-token-here",
+        "ROUTES_FILE_PATH": "src/routes/paths.ts"
       }
     }
   },
   "defaultProject": "bandar-admin-frontend",
-  "DEFAULT_SCREENSHOT_STORAGE_PATH": "/home/meet/Documents/windsurf_screenshots"
+  "DEFAULT_SCREENSHOT_STORAGE_PATH": "/home/meet/Documents/browser_mcp_screenshots"
 }

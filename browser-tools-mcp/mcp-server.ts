@@ -19,6 +19,7 @@ interface ProjectConfig {
   SCREENSHOT_STORAGE_PATH?: string;
   BROWSER_TOOLS_HOST?: string;
   BROWSER_TOOLS_PORT?: string;
+  ROUTES_FILE_PATH?: string;
 }
 
 interface Project {
@@ -34,15 +35,23 @@ interface ProjectsConfig {
 // Load project configuration
 function loadProjectConfig(): ProjectsConfig | null {
   try {
-    const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
-    console.log(`[DEBUG] Looking for projects.json at: ${configPath}`);
-    if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, "utf8");
-      console.log(`[DEBUG] Successfully loaded projects.json`);
-      return JSON.parse(configData);
-    } else {
-      console.log(`[DEBUG] projects.json not found at: ${configPath}`);
+    const possiblePaths = [
+      path.join(__dirname, "..", "chrome-extension", "projects.json"),
+      path.join(__dirname, "..", "..", "chrome-extension", "projects.json"),
+      path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json"),
+      path.resolve(process.cwd(), "chrome-extension", "projects.json")
+    ];
+    
+    for (const configPath of possiblePaths) {
+      console.log(`[DEBUG] Trying to load projects.json from: ${configPath}`);
+      if (fs.existsSync(configPath)) {
+        const configData = fs.readFileSync(configPath, "utf8");
+        console.log(`[DEBUG] Successfully loaded projects.json from: ${configPath}`);
+        return JSON.parse(configData);
+      }
     }
+    
+    console.log(`[DEBUG] projects.json not found in any of the tried paths`);
   } catch (error) {
     console.error("Error loading projects config:", error);
   }
@@ -79,11 +88,32 @@ function getConfigValue(
 
 // Get active project name
 function getActiveProjectName(): string | undefined {
+  // First, try environment variable (this is set by the MCP configuration)
+  if (process.env.ACTIVE_PROJECT) {
+    return process.env.ACTIVE_PROJECT;
+  }
+
+  // Fallback to projects config
   const projectsConfig = loadProjectConfig();
   if (projectsConfig) {
-    return process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+    return projectsConfig.defaultProject;
   }
+
   return undefined;
+}
+
+// Generate dynamic description for navigate tool
+function generateNavigateToolDescription(): string {
+  const baseDescription = "Navigates the current active browser tab to a new URL. **Use for automated testing, navigation flows, or redirecting to specific pages.** Requires Chrome extension to be connected.";
+
+  // Get routes file path dynamically each time
+  const routesFilePath = getConfigValue("ROUTES_FILE_PATH");
+
+  if (routesFilePath) {
+    return `${baseDescription}\n\n**Route Reference**: If unsure about available paths, check the routes file at \`${routesFilePath}\` for the correct routes to use.`;
+  } else {
+    return `${baseDescription}\n\n**Route Reference**: ROUTES_FILE_PATH variable is not set so make sure you know the routes to use`;
+  }
 }
 
 // Log active project information
@@ -347,7 +377,7 @@ function generateSearchSuggestions(searchTerm: string): string[] {
 }
 server.tool(
   "inspectBrowserNetworkActivity",
-  "Logs recent browser network requests (like DevTools Network tab). **User should trigger relevant API calls in browser first.** Use for debugging data fetching or API call sequences.",
+  "Logs recent browser network requests (like DevTools Network tab). **Use for debugging HTTP request failures (404, 500, etc.), API call sequences, or data fetching issues.** **Note: This tool captures network request failures that console inspection tools miss.** User should trigger relevant API calls in browser first.",
   {
     urlFilter: z
       .string()
@@ -483,9 +513,10 @@ server.tool(
     return await withServerConnection(async () => {
       try {
         const targetUrl = `http://${discoveredHost}:${discoveredPort}/capture-screenshot`;
+        const activeProjectName = getActiveProjectName();
         const requestPayload = {
           returnImageData: true, // Always return image data
-          projectName: getActiveProjectName(), // Pass active project name
+          projectName: activeProjectName, // Pass active project name
         };
 
         const response = await fetch(targetUrl, {
@@ -1249,14 +1280,15 @@ server.tool(
   }
 );
 
+// Register navigate tool with static description (set once at startup)
 server.tool(
   "navigateBrowserTab",
-  "Navigates the current active browser tab to a new URL. **Use for automated testing, navigation flows, or redirecting to specific pages.** Requires Chrome extension to be connected.",
+  generateNavigateToolDescription(),
   {
     url: z
       .string()
       .describe(
-        "The URL to navigate to (must be a valid URL including protocol, e.g., 'https://example.com')"
+        `The URL to navigate to (must be a valid URL including protocol, e.g., 'https://example.com')`
       ),
     tabId: z
       .number()
@@ -1341,10 +1373,14 @@ server.tool(
   }
 );
 
+// Note: Dynamic tool updates don't work with most MCP clients (like Cursor/Kiro)
+// They only support basic tool listing, not listChanged notifications
+// So we set the description once at startup instead of trying to update it dynamically
+
 // Tool 7: inspectBrowserConsole
 server.tool(
   "inspectBrowserConsole",
-  "Inspects browser console logs, errors, and warnings with filtering capabilities. **Use for debugging JavaScript errors, monitoring console output, or analyzing application behavior.** Supports filtering by level (log/error/warn/info/debug), time range, and search terms.",
+  "Inspects browser console logs, errors, and warnings with filtering capabilities. **Use for debugging JavaScript errors, monitoring console output, or analyzing application behavior.** **Note: This tool captures JavaScript console messages (console.log, console.error, etc.) but NOT network request failures (404, 500, etc.). For network errors, use `inspectBrowserNetworkActivity` instead.** Supports filtering by level (log/error/warn/info/debug), time range, and search terms.",
   {
     level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional().describe("Filter by console message level. Default: 'all'"),
     limit: z.number().optional().describe("Maximum number of entries to return. Default: no limit"),
@@ -1402,7 +1438,7 @@ server.tool(
       if (result.stats && result.stats.total > 0) {
         responseText += `📈 **Statistics**:\n`;
         responseText += `- Total entries: ${result.stats.total}\n`;
-        
+
         if (result.stats.byLevel) {
           responseText += `- By level: `;
           const levelStats = Object.entries(result.stats.byLevel)
@@ -1446,7 +1482,7 @@ server.tool(
     } catch (error: any) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error("Console inspection failed:", errorMessage);
-      
+
       return {
         content: [
           {

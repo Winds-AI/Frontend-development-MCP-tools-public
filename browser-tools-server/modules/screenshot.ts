@@ -7,6 +7,7 @@
 export interface ScreenshotServiceConfig {
   returnImageData: boolean;
   baseDirectory?: string;
+  projectName?: string;
 }
 
 export interface ScreenshotSaveResult {
@@ -41,10 +42,12 @@ export function buildScreenshotResponse(result: ScreenshotSaveResult) {
  */
 export function buildScreenshotConfig(
   projectScreenshotPath?: string,
-  customPath?: string
+  customPath?: string,
+  projectName?: string
 ): ScreenshotServiceConfig {
   return {
     returnImageData: true,
     baseDirectory: projectScreenshotPath || customPath,
+    projectName: projectName,
   };
 }

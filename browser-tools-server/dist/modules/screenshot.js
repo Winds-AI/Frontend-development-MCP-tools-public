@@ -22,9 +22,10 @@ export function buildScreenshotResponse(result) {
  * Build screenshot configuration for the service call (pure function).
  * Prefers projectScreenshotPath, falls back to customPath from extension.
  */
-export function buildScreenshotConfig(projectScreenshotPath, customPath) {
+export function buildScreenshotConfig(projectScreenshotPath, customPath, projectName) {
     return {
         returnImageData: true,
         baseDirectory: projectScreenshotPath || customPath,
+        projectName: projectName,
     };
 }

@@ -15,7 +15,7 @@ export class ScreenshotService {
      */
     loadProjectConfig() {
         try {
-            const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
+            const configPath = path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json");
             if (fs.existsSync(configPath)) {
                 const configData = fs.readFileSync(configPath, "utf8");
                 return JSON.parse(configData);

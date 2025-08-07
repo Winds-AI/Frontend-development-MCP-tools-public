@@ -321,6 +321,7 @@ export function loadProjectConfig(): ProjectsConfig | null {
       __dirname,
       "..",
       "..",
+      "..",
       "chrome-extension",
       "projects.json"
     );

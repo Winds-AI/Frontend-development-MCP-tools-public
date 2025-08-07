@@ -698,6 +698,7 @@ export class BrowserConnector {
         try {
             // Extract parameters from request body
             console.log("Browser Connector: Starting screenshot capture...");
+            const { projectName, returnImageData, baseDirectory } = req.body || {};
             const requestId = Date.now().toString();
             console.log("Browser Connector: Generated requestId:", requestId);
             // Create promise that will resolve when we get the screenshot data
@@ -735,7 +736,7 @@ export class BrowserConnector {
             // Use project configuration for screenshot path, fallback to customPath if needed
             const projectScreenshotPath = getScreenshotStoragePath();
             // Build config using tool helper (statically imported)
-            const screenshotConfig = buildScreenshotConfig(projectScreenshotPath, customPath);
+            const screenshotConfig = buildScreenshotConfig(projectScreenshotPath, customPath, projectName);
             // Save screenshot using unified service
             const result = await screenshotService.saveScreenshot(base64Data, currentUrl, screenshotConfig);
             console.log(`Browser Connector: Screenshot saved successfully to: ${result.filePath}`);

@@ -982,6 +982,8 @@ export class BrowserConnector {
     try {
       // Extract parameters from request body
       console.log("Browser Connector: Starting screenshot capture...");
+      const { projectName, returnImageData, baseDirectory } = req.body || {};
+      
       const requestId = Date.now().toString();
       console.log("Browser Connector: Generated requestId:", requestId);
 
@@ -1053,7 +1055,8 @@ export class BrowserConnector {
       // Build config using tool helper (statically imported)
       const screenshotConfig = buildScreenshotConfig(
         projectScreenshotPath,
-        customPath
+        customPath,
+        projectName
       );
 
       // Save screenshot using unified service

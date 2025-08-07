@@ -209,7 +209,7 @@ export function convertPathForCurrentPlatform(inputPath) {
 // Load project configuration
 export function loadProjectConfig() {
     try {
-        const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
+        const configPath = path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json");
         console.log(`[DEBUG] Browser Connector: Looking for projects.json at: ${configPath}`);
         if (fs.existsSync(configPath)) {
             const configData = fs.readFileSync(configPath, "utf8");

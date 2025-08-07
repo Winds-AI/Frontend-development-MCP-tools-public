@@ -52,7 +52,7 @@ The tool uses a sophisticated directory structure for organizing screenshots:
 
 1. **Custom absolute path** (if provided)
 2. **Environment variable** `SCREENSHOT_STORAGE_PATH`
-3. **Default**: `~/Downloads/Windsurf_Screenshots`
+3. **Default**: `~/Downloads/browser_mcp_screenshots`
 
 ### Project Directory
 
@@ -138,7 +138,7 @@ await captureBrowserScreenshot({
   projectName: "my-frontend-app",
   filename: "user-profile",
 });
-// Result: ~/Downloads/Windsurf_Screenshots/my-frontend-app/users/2024-01-15T10-30-45-123Z_user-profile.png
+// Result: ~/Downloads/browser_mcp_screenshots/my-frontend-app/users/2024-01-15T10-30-45-123Z_user-profile.png
 ```
 
 ### Fast Capture (No Image Data)
@@ -157,19 +157,19 @@ await captureBrowserScreenshot({
 
 **URL**: `http://localhost:3000/dashboard`
 **Git Repo**: `my-project`
-**Result**: `~/Downloads/Windsurf_Screenshots/my-project/dashboard/2024-01-15T10-30-45-123Z_dashboard.png`
+**Result**: `~/Downloads/browser_mcp_screenshots/my-project/dashboard/2024-01-15T10-30-45-123Z_dashboard.png`
 
 ### Staging Environment
 
 **URL**: `https://staging.example.com/admin/users`
-**Result**: `~/Downloads/Windsurf_Screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
+**Result**: `~/Downloads/browser_mcp_screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
 
 ### Custom Project
 
 **URL**: `http://localhost:8080/api/auth/login`
 **Custom Project**: `auth-service`
 **Custom Filename**: `login-page`
-**Result**: `~/Downloads/Windsurf_Screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
+**Result**: `~/Downloads/browser_mcp_screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
 
 ## Technical Architecture
 
