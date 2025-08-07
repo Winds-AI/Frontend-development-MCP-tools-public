@@ -1341,6 +1341,125 @@ server.tool(
   }
 );
 
+// Tool 7: inspectBrowserConsole
+server.tool(
+  "inspectBrowserConsole",
+  "Inspects browser console logs, errors, and warnings with filtering capabilities. **Use for debugging JavaScript errors, monitoring console output, or analyzing application behavior.** Supports filtering by level (log/error/warn/info/debug), time range, and search terms.",
+  {
+    level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional().describe("Filter by console message level. Default: 'all'"),
+    limit: z.number().optional().describe("Maximum number of entries to return. Default: no limit"),
+    since: z.number().optional().describe("Only return entries after this timestamp (Unix timestamp in milliseconds)"),
+    search: z.string().optional().describe("Search for specific text in console messages"),
+  },
+  async (args) => {
+    if (!serverDiscovered) {
+      console.error("Server not discovered, attempting discovery...");
+      await discoverServer();
+      if (!serverDiscovered) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: "❌ Browser Tools Server not found. Please ensure the server is running and the Chrome extension is connected.",
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    try {
+      console.error(`Inspecting browser console with filters:`, args);
+
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      if (args.level) queryParams.append('level', args.level);
+      if (args.limit) queryParams.append('limit', args.limit.toString());
+      if (args.since) queryParams.append('since', args.since.toString());
+      if (args.search) queryParams.append('search', args.search);
+
+      const url = `http://${discoveredHost}:${discoveredPort}/console-inspection?${queryParams.toString()}`;
+      console.error(`Making request to: ${url}`);
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.error(`Console inspection completed. Found ${result.logs?.length || 0} entries`);
+
+      // Format the response for the AI agent
+      let responseText = `🔍 **Browser Console Inspection Results**\n\n`;
+      responseText += `📊 **Summary**: ${result.summary}\n\n`;
+
+      if (result.stats && result.stats.total > 0) {
+        responseText += `📈 **Statistics**:\n`;
+        responseText += `- Total entries: ${result.stats.total}\n`;
+        
+        if (result.stats.byLevel) {
+          responseText += `- By level: `;
+          const levelStats = Object.entries(result.stats.byLevel)
+            .map(([level, count]) => `${count} ${level}${count !== 1 ? 's' : ''}`)
+            .join(', ');
+          responseText += levelStats + '\n';
+        }
+
+        if (result.stats.timeRange?.oldest && result.stats.timeRange?.newest) {
+          const oldestDate = new Date(result.stats.timeRange.oldest).toISOString();
+          const newestDate = new Date(result.stats.timeRange.newest).toISOString();
+          responseText += `- Time range: ${oldestDate} to ${newestDate}\n`;
+        }
+        responseText += '\n';
+      }
+
+      if (args.level || args.search || args.since || args.limit) {
+        responseText += `🔧 **Applied Filters**:\n`;
+        if (args.level) responseText += `- Level: ${args.level}\n`;
+        if (args.search) responseText += `- Search: "${args.search}"\n`;
+        if (args.since) responseText += `- Since: ${new Date(args.since).toISOString()}\n`;
+        if (args.limit) responseText += `- Limit: ${args.limit} entries\n`;
+        responseText += '\n';
+      }
+
+      if (result.formatted && result.logs?.length > 0) {
+        responseText += `📝 **Console Messages**:\n\n`;
+        responseText += result.formatted;
+      } else {
+        responseText += `ℹ️ No console messages found matching the specified criteria.`;
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: responseText,
+          },
+        ],
+      };
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error("Console inspection failed:", errorMessage);
+      
+      return {
+        content: [
+          {
+            type: "text",
+            text: `❌ Failed to inspect browser console: ${errorMessage}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+  }
+);
+
 (async () => {
   try {
     // Attempt initial server discovery

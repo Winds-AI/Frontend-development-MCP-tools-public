@@ -633,8 +633,16 @@ const consoleMessageListener = (source, method, params) => {
       }
     }
 
+    // Map console types to our message types
+    let messageType = "console-log"; // default
+    if (params.type === "error") {
+      messageType = "console-error";
+    } else if (params.type === "warning" || params.type === "warn") {
+      messageType = "console-warn";
+    }
+
     const entry = {
-      type: params.type === "error" ? "console-error" : "console-log",
+      type: messageType,
       level: params.type,
       message: formattedMessage,
       timestamp: Date.now(),

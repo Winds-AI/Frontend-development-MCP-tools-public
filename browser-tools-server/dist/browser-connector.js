@@ -3,166 +3,30 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import { WebSocketServer, WebSocket } from "ws";
-import fs from "fs";
-import path from "path";
 import os from "os";
-import * as net from "net";
 import ScreenshotService from "./screenshot-service.js";
-import { fileURLToPath } from "url";
-// Helper constants for ES module scope
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-// Load project configuration
-function loadProjectConfig() {
-    try {
-        const configPath = path.join(__dirname, "..", "..", "chrome-extension", "projects.json");
-        console.log(`[DEBUG] Browser Connector: Looking for projects.json at: ${configPath}`);
-        if (fs.existsSync(configPath)) {
-            const configData = fs.readFileSync(configPath, "utf8");
-            console.log(`[DEBUG] Browser Connector: Successfully loaded projects.json`);
-            return JSON.parse(configData);
-        }
-        else {
-            console.log(`[DEBUG] Browser Connector: projects.json not found at: ${configPath}`);
-        }
-    }
-    catch (error) {
-        console.error("Browser Connector: Error loading projects config:", error);
-    }
-    return null;
-}
-// Get configuration value with fallback priority:
-// 1. Environment variable (highest priority)
-// 2. Project config file
-// 3. Default value (lowest priority)
-function getConfigValue(key, defaultValue) {
-    // First check environment variables
-    if (process.env[key]) {
-        return process.env[key];
-    }
-    // Then check project config
-    const projectsConfig = loadProjectConfig();
-    if (projectsConfig) {
-        const activeProject = process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
-        const project = projectsConfig.projects[activeProject];
-        if (project && project.config[key]) {
-            return project.config[key];
-        }
-    }
-    // Finally return default value
-    return defaultValue;
-}
-// Get screenshot storage path from project config
-function getScreenshotStoragePath() {
-    const projectsConfig = loadProjectConfig();
-    if (projectsConfig && projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH) {
-        return projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH;
-    }
-    return undefined;
-}
-// Get active project name
-function getActiveProjectName() {
-    const projectsConfig = loadProjectConfig();
-    if (projectsConfig) {
-        return process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
-    }
-    return undefined;
-}
+// Moved scaffolding imports and helpers
+import { __filename as __top_filename, __dirname as __top_dirname, getScreenshotStoragePath, MAX_DETAILED_NETWORK_LOG_CACHE, clearAllLogs as clearImportedLogs, detailedNetworkLogCache, truncateLogsToQueryLimit, } from "./modules/shared.js";
+import { buildScreenshotConfig, buildScreenshotResponse, } from "./modules/screenshot.js";
+import { buildNavigationMessage, parseNavigationResponse, } from "./modules/navigation.js";
+import { filterNetworkLogs, sortNetworkLogs, projectNetworkLogDetails, limitResults, } from "./modules/network-activity.js";
+import { buildConsoleInspectionResponse, } from "./modules/console-inspector.js";
+// Preserve original helper constant names by aliasing
+const __filename = __top_filename;
+const __dirname = __top_dirname;
 /**
- * Converts a file path to the appropriate format for the current platform
- * Handles Windows, WSL, macOS and Linux path formats
- *
- * @param inputPath - The path to convert
- * @returns The converted path appropriate for the current platform
+ * convertPathForCurrentPlatform moved to modules/top-scaffold.ts
+ * Using imported version to keep behavior identical.
  */
-function convertPathForCurrentPlatform(inputPath) {
-    const platform = os.platform();
-    // If no path provided, return as is
-    if (!inputPath)
-        return inputPath;
-    console.log(`Converting path "${inputPath}" for platform: ${platform}`);
-    // Windows-specific conversion
-    if (platform === "win32") {
-        // Convert forward slashes to backslashes
-        return inputPath.replace(/\//g, "\\");
-    }
-    // Linux/Mac-specific conversion
-    if (platform === "linux" || platform === "darwin") {
-        // Check if this is a Windows UNC path (starts with \\)
-        if (inputPath.startsWith("\\\\") || inputPath.includes("\\")) {
-            // Check if this is a WSL path (contains wsl.localhost or wsl$)
-            if (inputPath.includes("wsl.localhost") || inputPath.includes("wsl$")) {
-                // Extract the path after the distribution name
-                // Handle both \\wsl.localhost\Ubuntu\path and \\wsl$\Ubuntu\path formats
-                const parts = inputPath.split("\\").filter((part) => part.length > 0);
-                console.log("Path parts:", parts);
-                // Find the index after the distribution name
-                const distNames = [
-                    "Ubuntu",
-                    "Debian",
-                    "kali",
-                    "openSUSE",
-                    "SLES",
-                    "Fedora",
-                ];
-                // Find the distribution name in the path
-                let distIndex = -1;
-                for (const dist of distNames) {
-                    const index = parts.findIndex((part) => part === dist || part.toLowerCase() === dist.toLowerCase());
-                    if (index !== -1) {
-                        distIndex = index;
-                        break;
-                    }
-                }
-                if (distIndex !== -1 && distIndex + 1 < parts.length) {
-                    // Reconstruct the path as a native Linux path
-                    const linuxPath = "/" + parts.slice(distIndex + 1).join("/");
-                    console.log(`Converted Windows WSL path "${inputPath}" to Linux path "${linuxPath}"`);
-                    return linuxPath;
-                }
-                // If we couldn't find a distribution name but it's clearly a WSL path,
-                // try to extract everything after wsl.localhost or wsl$
-                const wslIndex = parts.findIndex((part) => part === "wsl.localhost" ||
-                    part === "wsl$" ||
-                    part.toLowerCase() === "wsl.localhost" ||
-                    part.toLowerCase() === "wsl$");
-                if (wslIndex !== -1 && wslIndex + 2 < parts.length) {
-                    // Skip the WSL prefix and distribution name
-                    const linuxPath = "/" + parts.slice(wslIndex + 2).join("/");
-                    console.log(`Converted Windows WSL path "${inputPath}" to Linux path "${linuxPath}"`);
-                    return linuxPath;
-                }
-            }
-            // For non-WSL Windows paths, just normalize the slashes
-            const normalizedPath = inputPath
-                .replace(/\\\\/g, "/")
-                .replace(/\\/g, "/");
-            console.log(`Converted Windows UNC path "${inputPath}" to "${normalizedPath}"`);
-            return normalizedPath;
-        }
-        // Handle Windows drive letters (e.g., C:\path\to\file)
-        if (/^[A-Z]:\\/i.test(inputPath)) {
-            // Convert Windows drive path to Linux/Mac compatible path
-            const normalizedPath = inputPath
-                .replace(/^[A-Z]:\\/i, "/")
-                .replace(/\\/g, "/");
-            console.log(`Converted Windows drive path "${inputPath}" to "${normalizedPath}"`);
-            return normalizedPath;
-        }
-    }
-    // Return the original path if no conversion was needed or possible
-    return inputPath;
-}
 // Function to get default downloads folder
-function getDefaultDownloadsFolder() {
-    const homeDir = os.homedir();
-    // Downloads folder is typically the same path on Windows, macOS, and Linux
-    const downloadsPath = path.join(homeDir, "Downloads", "mcp-screenshots");
-    return downloadsPath;
-}
+/**
+ * getDefaultDownloadsFolder moved to modules/top-scaffold.ts
+ * Using imported version to keep behavior identical.
+ */
 // We store logs in memory
 const consoleLogs = [];
 const consoleErrors = [];
+const consoleWarnings = [];
 const networkErrors = [];
 const networkSuccess = [];
 const allXhr = [];
@@ -185,52 +49,7 @@ let currentSettings = {
 // Add new storage for selected element
 let selectedElement = null;
 const screenshotCallbacks = new Map();
-// Function to get available port starting with the given port
-async function getAvailablePort(startPort, maxAttempts = 10) {
-    let currentPort = startPort;
-    let attempts = 0;
-    while (attempts < maxAttempts) {
-        try {
-            // Try to create a server on the current port
-            // We'll use a raw Node.js net server for just testing port availability
-            await new Promise((resolve, reject) => {
-                const testServer = net.createServer();
-                // Handle errors (e.g., port in use)
-                testServer.once("error", (err) => {
-                    if (err.code === "EADDRINUSE") {
-                        console.log(`Port ${currentPort} is in use, trying next port...`);
-                        currentPort++;
-                        attempts++;
-                        resolve(); // Continue to next iteration
-                    }
-                    else {
-                        reject(err); // Different error, propagate it
-                    }
-                });
-                // If we can listen, the port is available
-                testServer.once("listening", () => {
-                    // Make sure to close the server to release the port
-                    testServer.close(() => {
-                        console.log(`Found available port: ${currentPort}`);
-                        resolve();
-                    });
-                });
-                // Try to listen on the current port
-                testServer.listen(currentPort, currentSettings.serverHost);
-            });
-            // If we reach here without incrementing the port, it means the port is available
-            return currentPort;
-        }
-        catch (error) {
-            console.error(`Error checking port ${currentPort}:`, error);
-            // For non-EADDRINUSE errors, try the next port
-            currentPort++;
-            attempts++;
-        }
-    }
-    // If we've exhausted all attempts, throw an error
-    throw new Error(`Could not find an available port after ${maxAttempts} attempts starting from ${startPort}`);
-}
+// Using imported getAvailablePort from shared.js
 // Start with requested port and find an available one
 const REQUESTED_PORT = parseInt(process.env.PORT || "3025", 10);
 let PORT = REQUESTED_PORT;
@@ -240,81 +59,21 @@ app.use(cors());
 // Increase JSON body parser limit to 50MB to handle large screenshots
 app.use(bodyParser.json({ limit: "50mb" }));
 app.use(bodyParser.urlencoded({ limit: "50mb", extended: true }));
-// Helper to recursively truncate strings in any data structure
-function truncateStringsInData(data, maxLength) {
-    if (typeof data === "string") {
-        return data.length > maxLength
-            ? data.substring(0, maxLength) + "... (truncated)"
-            : data;
-    }
-    if (Array.isArray(data)) {
-        return data.map((item) => truncateStringsInData(item, maxLength));
-    }
-    if (typeof data === "object" && data !== null) {
-        const result = {};
-        for (const [key, value] of Object.entries(data)) {
-            result[key] = truncateStringsInData(value, maxLength);
-        }
-        return result;
-    }
-    return data;
-}
-// Helper to safely parse and process JSON strings
-function processJsonString(jsonString, maxLength) {
-    try {
-        // Try to parse the string as JSON
-        const parsed = JSON.parse(jsonString);
-        // Process any strings within the parsed JSON
-        const processed = truncateStringsInData(parsed, maxLength);
-        // Stringify the processed data
-        return JSON.stringify(processed);
-    }
-    catch (e) {
-        // If it's not valid JSON, treat it as a regular string
-        return truncateStringsInData(jsonString, maxLength);
-    }
-}
-// Helper to process logs based on settings
-function processLogsWithSettings(logs) {
-    return logs.map((log) => {
-        const processedLog = { ...log };
-        if (log.type === "network-request") {
-            // Handle headers visibility
-            if (!currentSettings.showRequestHeaders) {
-                delete processedLog.requestHeaders;
-            }
-            if (!currentSettings.showResponseHeaders) {
-                delete processedLog.responseHeaders;
-            }
-        }
-        return processedLog;
+/**
+ * truncateStringsInData moved to modules/top-scaffold.ts
+ * Using imported version to keep behavior identical.
+ */
+/**
+ * processJsonString moved to modules/top-scaffold.ts
+ * Using imported version to keep behavior identical.
+ */
+// Helper function to use imported truncateLogsToQueryLimit with current settings
+function truncateLogsWithCurrentSettings(logs) {
+    return truncateLogsToQueryLimit(logs, {
+        queryLimit: currentSettings.queryLimit,
+        showRequestHeaders: currentSettings.showRequestHeaders,
+        showResponseHeaders: currentSettings.showResponseHeaders,
     });
-}
-// Helper to calculate size of a log entry
-function calculateLogSize(log) {
-    return JSON.stringify(log).length;
-}
-// Helper to truncate logs based on character limit
-function truncateLogsToQueryLimit(logs) {
-    if (logs.length === 0)
-        return logs;
-    // First process logs according to current settings
-    const processedLogs = processLogsWithSettings(logs);
-    let currentSize = 0;
-    const result = [];
-    for (const log of processedLogs) {
-        const logSize = calculateLogSize(log);
-        // Check if adding this log would exceed the limit
-        if (currentSize + logSize > currentSettings.queryLimit) {
-            console.log(`Reached query limit (${currentSize}/${currentSettings.queryLimit}), truncating logs`);
-            break;
-        }
-        // Add log and update size
-        result.push(log);
-        currentSize += logSize;
-        console.log(`Added log of size ${logSize}, total size now: ${currentSize}`);
-    }
-    return result;
 }
 // Endpoint for the extension to POST data
 app.post("/extension-log", (req, res) => {
@@ -379,17 +138,39 @@ app.post("/extension-log", (req, res) => {
                 consoleErrors.shift();
             }
             break;
+        case "console-warn":
+            console.log("Adding console warning:", {
+                level: data.level,
+                message: data.message?.substring(0, 100) +
+                    (data.message?.length > 100 ? "..." : ""),
+                timestamp: data.timestamp,
+            });
+            consoleWarnings.push(data);
+            if (consoleWarnings.length > currentSettings.logLimit) {
+                console.log(`Console warnings exceeded limit (${currentSettings.logLimit}), removing oldest entry`);
+                consoleWarnings.shift();
+            }
+            break;
         case "network-request":
             const logEntry = {
                 url: data.url,
                 method: data.method,
                 status: data.status,
                 timestamp: data.timestamp,
+                requestHeaders: data.requestHeaders,
+                responseHeaders: data.responseHeaders,
+                requestBody: data.requestBody,
+                responseBody: data.responseBody,
             };
-            console.log("Adding network request:", logEntry);
+            console.log("Adding network request:", {
+                url: logEntry.url,
+                method: logEntry.method,
+                status: logEntry.status,
+                timestamp: logEntry.timestamp,
+            });
             // Store the full request data in the detailedNetworkLogCache for the getNetworkRequestDetails tool
             console.log("[DEBUG] Adding detailed network log to cache");
-            detailedNetworkLogCache.push(data);
+            detailedNetworkLogCache.push(logEntry);
             if (detailedNetworkLogCache.length > MAX_CACHE_SIZE) {
                 console.log(`[DEBUG] Detailed network logs exceeded limit (${MAX_CACHE_SIZE}), removing oldest entry`);
                 detailedNetworkLogCache.shift();
@@ -425,6 +206,7 @@ app.post("/extension-log", (req, res) => {
     console.log("Current log counts:", {
         consoleLogs: consoleLogs.length,
         consoleErrors: consoleErrors.length,
+        consoleWarnings: consoleWarnings.length,
         networkErrors: networkErrors.length,
         networkSuccess: networkSuccess.length,
     });
@@ -433,25 +215,55 @@ app.post("/extension-log", (req, res) => {
 });
 // Update GET endpoints to use the new function
 app.get("/console-logs", (req, res) => {
-    const truncatedLogs = truncateLogsToQueryLimit(consoleLogs);
+    // Processing is handled by truncateLogsWithCurrentSettings
+    const truncatedLogs = truncateLogsWithCurrentSettings(consoleLogs);
     res.json(truncatedLogs);
 });
 app.get("/console-errors", (req, res) => {
-    const truncatedLogs = truncateLogsToQueryLimit(consoleErrors);
+    const truncatedLogs = truncateLogsWithCurrentSettings(consoleErrors);
     res.json(truncatedLogs);
 });
+app.get("/console-warnings", (req, res) => {
+    const truncatedLogs = truncateLogsWithCurrentSettings(consoleWarnings);
+    res.json(truncatedLogs);
+});
+// New MCP tool endpoint: Console Inspector
+app.get("/console-inspection", (req, res) => {
+    console.log("Browser Connector: Received console inspection request");
+    // Parse query parameters for filtering
+    const filters = {
+        level: req.query.level || 'all',
+        limit: req.query.limit ? parseInt(req.query.limit) : undefined,
+        since: req.query.since ? parseInt(req.query.since) : undefined,
+        search: req.query.search || undefined,
+    };
+    console.log("Browser Connector: Console inspection filters:", filters);
+    try {
+        // Build comprehensive console inspection response
+        const response = buildConsoleInspectionResponse(consoleLogs, consoleErrors, consoleWarnings, filters);
+        console.log(`Browser Connector: Returning ${response.logs.length} console entries`);
+        console.log(`Browser Connector: Stats:`, response.stats);
+        res.json(response);
+    }
+    catch (error) {
+        console.error("Browser Connector: Error in console inspection:", error);
+        res.status(500).json({
+            error: error instanceof Error ? error.message : "Unknown error occurred",
+        });
+    }
+});
 app.get("/network-errors", (req, res) => {
-    const truncatedLogs = truncateLogsToQueryLimit(networkErrors);
+    const truncatedLogs = truncateLogsWithCurrentSettings(networkErrors);
     res.json(truncatedLogs);
 });
 app.get("/network-success", (req, res) => {
-    const truncatedLogs = truncateLogsToQueryLimit(networkSuccess);
+    const truncatedLogs = truncateLogsWithCurrentSettings(networkSuccess);
     res.json(truncatedLogs);
 });
 app.get("/all-xhr", (req, res) => {
     // Merge and sort network success and error logs by timestamp
     const mergedLogs = [...networkSuccess, ...networkErrors].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-    const truncatedLogs = truncateLogsToQueryLimit(mergedLogs);
+    const truncatedLogs = truncateLogsWithCurrentSettings(mergedLogs);
     res.json(truncatedLogs);
 });
 // Add new endpoint for selected element
@@ -460,11 +272,12 @@ app.post("/selected-element", (req, res) => {
     selectedElement = data;
     res.json({ status: "ok" });
 });
-app.get("/selected-element", (req, res) => {
+app.get("/selected-element", async (req, res) => {
+    // Keep endpoint structure; formatting will be applied by tool when requested elsewhere
     res.json(selectedElement || { message: "No element selected" });
 });
-const detailedNetworkLogCache = [];
-const MAX_CACHE_SIZE = 50; // Limit cache size
+// Use imported detailedNetworkLogCache from top-scaffold
+const MAX_CACHE_SIZE = MAX_DETAILED_NETWORK_LOG_CACHE; // Limit cache size
 app.get("/.port", (req, res) => {
     res.send(PORT.toString());
 });
@@ -477,15 +290,60 @@ app.get("/.identity", (req, res) => {
         signature: "mcp-browser-connector-24x7",
     });
 });
-// Add function to clear all logs
+/**
+ * Server-side network request inspector (consolidated)
+ * Query params:
+ * - urlFilter: substring to filter URL (string)
+ * - details: comma-separated keys (url,method,status,timestamp,requestHeaders,responseHeaders,requestBody,responseBody)
+ * - includeTimestamp: "true" | "false" (default: true)
+ * - timeStart/timeEnd: unix ms bounds (numbers)
+ * - orderBy: "timestamp" | "url" (default: "timestamp")
+ * - orderDirection: "asc" | "desc" (default: "desc")
+ * - limit: number (default: 20)
+ */
+app.get("/network-request-details", (req, res) => {
+    try {
+        const urlFilter = String(req.query.urlFilter ?? "");
+        const detailsCsv = String(req.query.details ?? "url,method,status");
+        const details = detailsCsv
+            .split(",")
+            .filter(Boolean);
+        const includeTimestamp = String(req.query.includeTimestamp ?? "true") === "true";
+        const timeStart = req.query.timeStart
+            ? Number(req.query.timeStart)
+            : undefined;
+        const timeEnd = req.query.timeEnd ? Number(req.query.timeEnd) : undefined;
+        const orderBy = String(req.query.orderBy ?? "timestamp");
+        const orderDirection = String(req.query.orderDirection ?? "desc");
+        const limit = req.query.limit ? Number(req.query.limit) : 20;
+        let results = filterNetworkLogs(detailedNetworkLogCache, {
+            urlFilter,
+            timeStart,
+            timeEnd,
+        });
+        results = sortNetworkLogs(results, orderBy, orderDirection);
+        const projected = projectNetworkLogDetails(results, details, includeTimestamp);
+        const limited = limitResults(projected, limit);
+        res.json(limited);
+    }
+    catch (e) {
+        res
+            .status(500)
+            .json({ error: e?.message || "Failed to read network details" });
+    }
+});
+// Add function to clear all logs (local version that also clears imported logs)
 function clearAllLogs() {
     console.log("Wiping all logs...");
     consoleLogs.length = 0;
     consoleErrors.length = 0;
+    consoleWarnings.length = 0;
     networkErrors.length = 0;
     networkSuccess.length = 0;
     allXhr.length = 0;
     selectedElement = null;
+    // Also clear imported logs from top-scaffold
+    clearImportedLogs();
     console.log("All logs have been wiped");
 }
 // Add endpoint to wipe logs
@@ -876,10 +734,8 @@ export class BrowserConnector {
             // Prepare configuration for screenshot service
             // Use project configuration for screenshot path, fallback to customPath if needed
             const projectScreenshotPath = getScreenshotStoragePath();
-            const screenshotConfig = {
-                returnImageData: true,
-                baseDirectory: projectScreenshotPath || customPath,
-            };
+            // Build config using tool helper (statically imported)
+            const screenshotConfig = buildScreenshotConfig(projectScreenshotPath, customPath);
             // Save screenshot using unified service
             const result = await screenshotService.saveScreenshot(base64Data, currentUrl, screenshotConfig);
             console.log(`Browser Connector: Screenshot saved successfully to: ${result.filePath}`);
@@ -905,18 +761,8 @@ export class BrowserConnector {
                     console.log("Browser Connector: Not on macOS, skipping auto-paste");
                 }
             }
-            // Build response object
-            const response = {
-                filePath: result.filePath,
-                filename: result.filename,
-                projectDirectory: result.projectDirectory,
-                urlCategory: result.urlCategory,
-            };
-            // Include image data if requested
-            if (result.imageData) {
-                response.imageData = result.imageData;
-                console.log("Browser Connector: Including image data in response");
-            }
+            // Build response object via tool helper
+            const response = buildScreenshotResponse(result);
             console.log("Browser Connector: Screenshot capture completed successfully");
             res.json(response);
         }
@@ -950,15 +796,16 @@ export class BrowserConnector {
                 const messageHandler = (message) => {
                     try {
                         const data = JSON.parse(message.toString());
-                        if (data.type === "navigation-response" &&
-                            data.requestId === requestId) {
+                        // Parse navigation response using tool helper (statically imported)
+                        const parsed = parseNavigationResponse(data, requestId);
+                        if (parsed) {
                             // Remove this listener once we get a response
                             this.activeConnection?.removeListener("message", messageHandler);
-                            if (data.success) {
+                            if (parsed.success) {
                                 resolve({ success: true });
                             }
                             else {
-                                resolve({ success: false, error: data.error });
+                                resolve({ success: false, error: parsed.error });
                             }
                         }
                     }
@@ -968,13 +815,8 @@ export class BrowserConnector {
                 };
                 // Add temporary message handler
                 this.activeConnection?.on("message", messageHandler);
-                // Send navigation request to extension
-                this.activeConnection?.send(JSON.stringify({
-                    type: "navigate-tab",
-                    url: url,
-                    tabId: tabId,
-                    requestId: requestId,
-                }));
+                // Send navigation request to extension (using tool builder - statically imported)
+                this.activeConnection?.send(buildNavigationMessage({ url, tabId }, requestId));
                 // Set timeout
                 setTimeout(() => {
                     this.activeConnection?.removeListener("message", messageHandler);
@@ -1039,100 +881,11 @@ export class BrowserConnector {
         });
     }
 }
+// Import server lifecycle management
+import { initializeServer } from "./modules/server-lifecycle.js";
 // Use an async IIFE to allow for async/await in the initial setup
 (async () => {
-    try {
-        console.log(`Starting Browser Tools Server...`);
-        console.log(`Requested port: ${REQUESTED_PORT}`);
-        // Find an available port
-        try {
-            PORT = await getAvailablePort(REQUESTED_PORT);
-            if (PORT !== REQUESTED_PORT) {
-                console.log(`\n====================================`);
-                console.log(`NOTICE: Requested port ${REQUESTED_PORT} was in use.`);
-                console.log(`Using port ${PORT} instead.`);
-                console.log(`====================================\n`);
-            }
-        }
-        catch (portError) {
-            console.error(`Failed to find an available port:`, portError);
-            process.exit(1);
-        }
-        // Create the server with the available port
-        const server = app.listen(PORT, currentSettings.serverHost, () => {
-            console.log(`\n=== Browser Tools Server Started ===`);
-            console.log(`Aggregator listening on http://${currentSettings.serverHost}:${PORT}`);
-            if (PORT !== REQUESTED_PORT) {
-                console.log(`NOTE: Using fallback port ${PORT} instead of requested port ${REQUESTED_PORT}`);
-            }
-            // Log all available network interfaces for easier discovery
-            const networkInterfaces = os.networkInterfaces();
-            console.log("\nAvailable on the following network addresses:");
-            Object.keys(networkInterfaces).forEach((interfaceName) => {
-                const interfaces = networkInterfaces[interfaceName];
-                if (interfaces) {
-                    interfaces.forEach((iface) => {
-                        if (!iface.internal && iface.family === "IPv4") {
-                            console.log(`  - http://${iface.address}:${PORT}`);
-                        }
-                    });
-                }
-            });
-            console.log(`\nFor local access use: http://localhost:${PORT}`);
-        });
-        // Handle server startup errors
-        server.on("error", (err) => {
-            if (err.code === "EADDRINUSE") {
-                console.error(`ERROR: Port ${PORT} is still in use, despite our checks!`);
-                console.error(`This might indicate another process started using this port after our check.`);
-            }
-            else {
-                console.error(`Server error:`, err);
-            }
-            process.exit(1);
-        });
-        // Initialize the browser connector with the existing app AND server
-        const browserConnector = new BrowserConnector(app, server);
-        // Handle shutdown gracefully with improved error handling
-        process.on("SIGINT", async () => {
-            console.log("\nReceived SIGINT signal. Starting graceful shutdown...");
-            try {
-                // First shutdown WebSocket connections
-                await browserConnector.shutdown();
-                // Then close the HTTP server
-                await new Promise((resolve, reject) => {
-                    server.close((err) => {
-                        if (err) {
-                            console.error("Error closing HTTP server:", err);
-                            reject(err);
-                        }
-                        else {
-                            console.log("HTTP server closed successfully");
-                            resolve();
-                        }
-                    });
-                });
-                // Clear all logs
-                clearAllLogs();
-                console.log("Shutdown completed successfully");
-                process.exit(0);
-            }
-            catch (error) {
-                console.error("Error during shutdown:", error);
-                // Force exit in case of error
-                process.exit(1);
-            }
-        });
-        // Also handle SIGTERM
-        process.on("SIGTERM", () => {
-            console.log("\nReceived SIGTERM signal");
-            process.emit("SIGINT");
-        });
-    }
-    catch (error) {
-        console.error("Failed to start server:", error);
-        process.exit(1);
-    }
+    await initializeServer(app, REQUESTED_PORT, currentSettings);
 })().catch((err) => {
     console.error("Unhandled error during server startup:", err);
     process.exit(1);

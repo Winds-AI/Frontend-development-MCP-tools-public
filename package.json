@@ -12,5 +12,8 @@
     "build:server": "cd browser-tools-server && pnpm build",
     "build:all": "pnpm build:mcp && pnpm build:server",
     "start:server": "cd browser-tools-server && pnpm start"
+  },
+  "devDependencies": {
+    "@types/yauzl": "^2.10.3"
   }
 }
