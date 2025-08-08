@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `captureBrowserScreenshot` tool captures the current browser tab and saves it as a PNG file with intelligent organization. It returns both the saved file path and optionally the base64 image data for immediate analysis.
+The `captureBrowserScreenshot` tool captures the current browser tab and saves it as a PNG file with intelligent organization. It always returns the base64 image data and the saved file path.
 
 **Primary Use Cases:**
 
@@ -14,35 +14,10 @@ The `captureBrowserScreenshot` tool captures the current browser tab and saves i
 ## Tool Signature
 
 ```typescript
-captureBrowserScreenshot({
-  filename: string, // Optional custom filename (without extension)
-  returnImageData: boolean, // Whether to return base64 data (default: true)
-  projectName: string, // Optional project name override
-});
+captureBrowserScreenshot();
 ```
 
-## Parameters
-
-### `filename` (optional)
-
-- **Type**: `string`
-- **Description**: Custom filename for the screenshot without extension
-- **Example**: `"login-page"` → `2024-01-15T10-30-45-123Z_login-page.png`
-- **Default**: Auto-generated from URL content
-
-### `returnImageData` (optional)
-
-- **Type**: `boolean`
-- **Description**: Whether to include base64 image data in the response
-- **Default**: `true`
-- **Use Case**: Set to `false` for faster responses when you only need the file path
-
-### `projectName` (optional)
-
-- **Type**: `string`
-- **Description**: Override automatic project detection
-- **Example**: `"my-frontend-app"`
-- **Default**: Auto-detected environment variables or mcp config
+This tool currently takes no parameters.
 
 ## File Organization System
 
@@ -50,17 +25,15 @@ The tool uses a sophisticated directory structure for organizing screenshots:
 
 ### Base Directory
 
-1. **Custom absolute path** (if provided)
+1. **Project config** `DEFAULT_SCREENSHOT_STORAGE_PATH` in `chrome-extension/projects.json`
 2. **Environment variable** `SCREENSHOT_STORAGE_PATH`
-3. **Default**: `~/Downloads/browser_mcp_screenshots`
+3. **Default**: `~/Downloads/MCP_Screenshots`
 
 ### Project Directory
 
-1. **Custom project name** (from parameter)
-2. **Environment variable** `PROJECT_NAME`
-3. **Git repository name** (from `git config --get remote.origin.url`)
-4. **Current working directory name**
-5. **Fallback**: `"default-project"`
+1. **Environment variable** `ACTIVE_PROJECT`
+2. **`projects.json`** `defaultProject`
+3. **Fallback**: `"default-project"`
 
 ### URL Category (Subfolder)
 
@@ -73,7 +46,6 @@ The tool uses a sophisticated directory structure for organizing screenshots:
 
 ### Filename Generation
 
-- **Custom filename**: `{timestamp}_{sanitized-filename}.png`
 - **URL-based**: `{timestamp}_{url-segment}.png`
 - **Fallback**: `{timestamp}_screenshot.png`
 
@@ -81,21 +53,7 @@ The tool uses a sophisticated directory structure for organizing screenshots:
 
 ### Success Response
 
-```json
-{
-  "content": [
-    {
-      "type": "text",
-      "text": "✅ Screenshot captured successfully!\n📁 Project: my-app\n📂 Category: dashboard\n💾 Saved to: /path/to/screenshot.png"
-    },
-    {
-      "type": "image",
-      "data": "iVBORw0KGgoAAAANSUhEUgAA...",
-      "mimeType": "image/png"
-    }
-  ]
-}
-```
+The tool returns a text block with project/category info and an image payload with `mimeType: "image/png"`.
 
 ### Error Response
 
@@ -116,40 +74,14 @@ The tool uses a sophisticated directory structure for organizing screenshots:
 ### Basic Screenshot
 
 ```typescript
-// Capture current tab with auto-generated filename
-await captureBrowserScreenshot({});
+await captureBrowserScreenshot();
 ```
 
-### Custom Filename
+Custom filenames are not currently supported via the MCP tool. Filenames are generated from the URL.
 
-```typescript
-// Save with specific name
-await captureBrowserScreenshot({
-  filename: "login-form",
-});
-// Result: 2024-01-15T10-30-45-123Z_login-form.png
-```
+Project name is determined by `ACTIVE_PROJECT` or `projects.json` → `defaultProject`.
 
-### Project-Specific Organization
-
-```typescript
-// Override project detection
-await captureBrowserScreenshot({
-  projectName: "my-frontend-app",
-  filename: "user-profile",
-});
-// Result: ~/Downloads/browser_mcp_screenshots/my-frontend-app/users/2024-01-15T10-30-45-123Z_user-profile.png
-```
-
-### Fast Capture (No Image Data)
-
-```typescript
-// Only get file path, no base64 data
-await captureBrowserScreenshot({
-  returnImageData: false,
-  filename: "quick-test",
-});
-```
+The tool always returns image data for analysis.
 
 ## File Path Examples
 
@@ -157,19 +89,19 @@ await captureBrowserScreenshot({
 
 **URL**: `http://localhost:3000/dashboard`
 **Git Repo**: `my-project`
-**Result**: `~/Downloads/browser_mcp_screenshots/my-project/dashboard/2024-01-15T10-30-45-123Z_dashboard.png`
+**Result**: `~/Downloads/MCP_Screenshots/my-project/dashboard/2024-01-15T10-30-45-123Z_dashboard.png`
 
 ### Staging Environment
 
 **URL**: `https://staging.example.com/admin/users`
-**Result**: `~/Downloads/browser_mcp_screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
+**Result**: `~/Downloads/MCP_Screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
 
 ### Custom Project
 
 **URL**: `http://localhost:8080/api/auth/login`
 **Custom Project**: `auth-service`
 **Custom Filename**: `login-page`
-**Result**: `~/Downloads/browser_mcp_screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
+**Result**: `~/Downloads/MCP_Screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
 
 ## Technical Architecture
 

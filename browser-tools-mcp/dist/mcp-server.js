@@ -295,7 +295,7 @@ function generateSearchSuggestions(searchTerm) {
     suggestions.push(`   • "auth" - Find authentication calls`);
     return suggestions;
 }
-server.tool("inspectBrowserNetworkActivity", "Logs recent browser network requests (like DevTools Network tab). **User should trigger relevant API calls in browser first.** Use for debugging data fetching or API call sequences.", {
+server.tool("inspectBrowserNetworkActivity", "Logs recent browser network requests (like DevTools Network tab). **Use for debugging HTTP request failures (404, 500, etc.), API call sequences, or data fetching issues.** **Note: This tool captures network request failures that console inspection tools miss.** User should trigger relevant API calls in browser first.", {
     urlFilter: z
         .string()
         .describe("Substring or pattern to filter request URLs. **Tips**: Use partial matches (e.g., 'activity' finds both 'get-activity-list' and 'activity-categories'). Try both singular/plural forms if first search returns empty results."),
@@ -312,14 +312,10 @@ server.tool("inspectBrowserNetworkActivity", "Logs recent browser network reques
     ]))
         .min(1)
         .describe("Specific details to retrieve for matching requests. Note: 'timestamp' is always included by default for chronological ordering."),
-    timeStart: z
+    timeOffset: z
         .number()
         .optional()
-        .describe("Optional Unix timestamp (in milliseconds) to filter requests that occurred after this time"),
-    timeEnd: z
-        .number()
-        .optional()
-        .describe("Optional Unix timestamp (in milliseconds) to filter requests that occurred before this time"),
+        .describe("Time offset in seconds from current time. Use this for relative time filtering (e.g., 10 = last 10 seconds, 300 = last 5 minutes, 3600 = last hour). Maximum allowed: 24 hours (86400 seconds)."),
     orderBy: z
         .enum(["timestamp", "url"])
         .optional()
@@ -336,9 +332,27 @@ server.tool("inspectBrowserNetworkActivity", "Logs recent browser network reques
         .default(20)
         .describe("Maximum number of results to return"),
 }, async (params) => {
-    const { urlFilter, details, timeStart, timeEnd, orderBy, orderDirection, limit, } = params;
+    const { urlFilter, details, timeOffset, orderBy, orderDirection, limit, } = params;
+    // Capture current time when tool is called
+    const currentTime = Date.now();
+    let finalTimeStart;
+    let finalTimeEnd;
+    // Handle timeOffset parameter - calculate relative time range
+    if (timeOffset !== undefined) {
+        // Validate timeOffset
+        if (timeOffset <= 0) {
+            throw new Error("timeOffset must be a positive number");
+        }
+        if (timeOffset > 86400) {
+            throw new Error("timeOffset cannot exceed 24 hours (86400 seconds)");
+        }
+        // Calculate time range based on offset
+        finalTimeStart = currentTime - (timeOffset * 1000);
+        finalTimeEnd = currentTime;
+        console.log(`Time offset calculation: ${timeOffset}s ago = ${new Date(finalTimeStart).toISOString()} to ${new Date(finalTimeEnd).toISOString()}`);
+    }
     // Build query parameters with includeTimestamp=true to always include timestamps but only for filtered results
-    const queryString = `?urlFilter=${encodeURIComponent(urlFilter)}&details=${details.join(",")}&includeTimestamp=true${timeStart ? `&timeStart=${timeStart}` : ""}${timeEnd ? `&timeEnd=${timeEnd}` : ""}&orderBy=${orderBy || "timestamp"}&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
+    const queryString = `?urlFilter=${encodeURIComponent(urlFilter)}&details=${details.join(",")}&includeTimestamp=true${finalTimeStart ? `&timeStart=${finalTimeStart}` : ""}${finalTimeEnd ? `&timeEnd=${finalTimeEnd}` : ""}&orderBy=${orderBy || "timestamp"}&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
     const targetUrl = `http://${discoveredHost}:${discoveredPort}/network-request-details${queryString}`;
     console.log(`MCP Tool: Fetching network details from ${targetUrl}`);
     return await withServerConnection(async () => {
@@ -1010,14 +1024,10 @@ server.tool("navigateBrowserTab", generateNavigateToolDescription(), {
     url: z
         .string()
         .describe(`The URL to navigate to (must be a valid URL including protocol, e.g., 'https://example.com')`),
-    tabId: z
-        .number()
-        .optional()
-        .describe("Optional: Specific tab ID to navigate. If not provided, navigates the currently active tab."),
 }, async (params) => {
     return await withServerConnection(async () => {
         try {
-            const { url, tabId } = params;
+            const { url } = params;
             // Validate URL format
             try {
                 new URL(url);
@@ -1036,7 +1046,6 @@ server.tool("navigateBrowserTab", generateNavigateToolDescription(), {
             const targetUrl = `http://${discoveredHost}:${discoveredPort}/navigate-tab`;
             const requestPayload = {
                 url: url,
-                tabId: tabId,
             };
             console.log(`MCP Tool: Navigating browser tab to ${url}`);
             const response = await fetch(targetUrl, {
@@ -1087,10 +1096,10 @@ server.tool("navigateBrowserTab", generateNavigateToolDescription(), {
 // They only support basic tool listing, not listChanged notifications
 // So we set the description once at startup instead of trying to update it dynamically
 // Tool 7: inspectBrowserConsole
-server.tool("inspectBrowserConsole", "Inspects browser console logs, errors, and warnings with filtering capabilities. **Use for debugging JavaScript errors, monitoring console output, or analyzing application behavior.** Supports filtering by level (log/error/warn/info/debug), time range, and search terms.", {
+server.tool("inspectBrowserConsole", "Inspects browser console logs, errors, and warnings with filtering capabilities. **Use for debugging JavaScript errors, monitoring console output, or analyzing application behavior.** **Note: This tool captures JavaScript console messages (console.log, console.error, etc.) but NOT network request failures (404, 500, etc.). For network errors, use `inspectBrowserNetworkActivity` instead.** Supports filtering by level (log/error/warn/info/debug), time range, and search terms.", {
     level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional().describe("Filter by console message level. Default: 'all'"),
     limit: z.number().optional().describe("Maximum number of entries to return. Default: no limit"),
-    since: z.number().optional().describe("Only return entries after this timestamp (Unix timestamp in milliseconds)"),
+    timeOffset: z.number().optional().describe("Time offset in seconds from current time. Use this for relative time filtering (e.g., 10 = last 10 seconds, 300 = last 5 minutes). Maximum allowed: 24 hours (86400 seconds)."),
     search: z.string().optional().describe("Search for specific text in console messages"),
 }, async (args) => {
     if (!serverDiscovered) {
@@ -1110,14 +1119,30 @@ server.tool("inspectBrowserConsole", "Inspects browser console logs, errors, and
     }
     try {
         console.error(`Inspecting browser console with filters:`, args);
+        // Capture current time when tool is called
+        const currentTime = Date.now();
+        let finalSince;
+        // Handle timeOffset parameter - calculate relative time
+        if (args.timeOffset !== undefined) {
+            // Validate timeOffset
+            if (args.timeOffset <= 0) {
+                throw new Error("timeOffset must be a positive number");
+            }
+            if (args.timeOffset > 86400) {
+                throw new Error("timeOffset cannot exceed 24 hours (86400 seconds)");
+            }
+            // Calculate since timestamp based on offset
+            finalSince = currentTime - (args.timeOffset * 1000);
+            console.log(`Time offset calculation: ${args.timeOffset}s ago = ${new Date(finalSince).toISOString()}`);
+        }
         // Build query parameters
         const queryParams = new URLSearchParams();
         if (args.level)
             queryParams.append('level', args.level);
         if (args.limit)
             queryParams.append('limit', args.limit.toString());
-        if (args.since)
-            queryParams.append('since', args.since.toString());
+        if (finalSince)
+            queryParams.append('since', finalSince.toString());
         if (args.search)
             queryParams.append('search', args.search);
         const url = `http://${discoveredHost}:${discoveredPort}/console-inspection?${queryParams.toString()}`;
@@ -1153,14 +1178,14 @@ server.tool("inspectBrowserConsole", "Inspects browser console logs, errors, and
             }
             responseText += '\n';
         }
-        if (args.level || args.search || args.since || args.limit) {
+        if (args.level || args.search || args.timeOffset || args.limit) {
             responseText += `🔧 **Applied Filters**:\n`;
             if (args.level)
                 responseText += `- Level: ${args.level}\n`;
             if (args.search)
                 responseText += `- Search: "${args.search}"\n`;
-            if (args.since)
-                responseText += `- Since: ${new Date(args.since).toISOString()}\n`;
+            if (args.timeOffset)
+                responseText += `- Time Offset: ${args.timeOffset} seconds ago\n`;
             if (args.limit)
                 responseText += `- Limit: ${args.limit} entries\n`;
             responseText += '\n';

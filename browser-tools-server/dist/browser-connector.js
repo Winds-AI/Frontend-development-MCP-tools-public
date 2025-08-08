@@ -779,7 +779,7 @@ export class BrowserConnector {
     async navigateTab(req, res) {
         console.log("Browser Connector: Received navigateTab request");
         console.log("Browser Connector: Request body:", req.body);
-        const { url, tabId } = req.body;
+        const { url } = req.body;
         if (!url) {
             res.status(400).json({ error: "Missing URL parameter" });
             return;
@@ -817,7 +817,7 @@ export class BrowserConnector {
                 // Add temporary message handler
                 this.activeConnection?.on("message", messageHandler);
                 // Send navigation request to extension (using tool builder - statically imported)
-                this.activeConnection?.send(buildNavigationMessage({ url, tabId }, requestId));
+                this.activeConnection?.send(buildNavigationMessage({ url }, requestId));
                 // Set timeout
                 setTimeout(() => {
                     this.activeConnection?.removeListener("message", messageHandler);

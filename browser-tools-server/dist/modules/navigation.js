@@ -10,7 +10,6 @@ export function buildNavigationMessage(req, requestId) {
     return JSON.stringify({
         type: "navigate-tab",
         url: req.url,
-        tabId: req.tabId,
         requestId,
     });
 }

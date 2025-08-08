@@ -17,9 +17,9 @@ The `navigateBrowserTab` tool navigates the current active browser tab to a new 
 ```typescript
 navigateBrowserTab({
   url: string, // The URL to navigate to (required)
-  tabId: number, // Optional specific tab ID to navigate
 });
 ```
+Note: The tool description is augmented at startup to reference your routes file if `ROUTES_FILE_PATH` is set in the environment or project config.
 
 ## Parameters
 
@@ -29,16 +29,9 @@ navigateBrowserTab({
 - **Description**: The complete URL to navigate to, including protocol
 - **Format**: Must be a valid URL with protocol (e.g., `https://example.com`)
 - **Examples**:
-  - `"https://google.com"`
-  - `"http://localhost:3000/dashboard"`
-  - `"https://api.example.com/v1/users"`
-
-### `tabId` (optional)
-
-- **Type**: `number`
-- **Description**: Specific tab ID to navigate. If not provided, navigates the currently active tab
-- **Use Case**: Useful when you need to navigate a specific tab in a multi-tab scenario
-- **Default**: Current active tab
+  - "https://google.com"
+  - "http://localhost:3000/dashboard"
+  - "https://api.example.com/v1/users"
 
 ## Response Format
 
@@ -95,16 +88,6 @@ await navigateBrowserTab({
 // Navigate to an API documentation page
 await navigateBrowserTab({
   url: "https://api.example.com/docs",
-});
-```
-
-### Specific Tab Navigation
-
-```typescript
-// Navigate a specific tab (if you know the tab ID)
-await navigateBrowserTab({
-  url: "https://example.com",
-  tabId: 12345,
 });
 ```
 
@@ -169,7 +152,7 @@ await navigateBrowserTab({ url: "https://production.example.com" });
    Failed to navigate browser tab: Navigation timeout
    ```
 
-4. **Tab Not Found**
+4. **DevTools Tab Context Unavailable**
    ```
    Failed to navigate browser tab: No target tab ID available
    ```
@@ -207,7 +190,6 @@ try {
 {
   "type": "navigate-tab",
   "url": "https://example.com",
-  "tabId": 12345,
   "requestId": "1705311045123"
 }
 
@@ -252,17 +234,16 @@ chrome.tabs.update(targetTabId, { url: message.url }, (tab) => {
    - URL must include protocol (http:// or https://)
    - URL must be accessible from the browser
 
-4. **Tab Accessibility**
-   - Target tab must be accessible by the Chrome extension
-   - Tab must not be in a restricted state (e.g., chrome:// URLs)
+4. **Tab Context**
+   - The active DevTools-inspected tab is used implicitly. If unavailable, navigation may fail.
 
 ### Permissions Required
 
 The Chrome extension requires these permissions (already included):
 
-- `"tabs"` - For tab manipulation
-- `"activeTab"` - For accessing the current tab
-- `"<all_urls>"` - For navigating to any URL
+- "tabs" - For tab manipulation
+- "activeTab" - For accessing the current tab
+- "<all_urls>" - For navigating to any URL
 
 ## Best Practices
 
@@ -359,7 +340,7 @@ await inspectBrowserNetworkActivity({
 
 4. **"No target tab ID available"**
    - Ensure there's an active tab in the browser
-   - Check that the Chrome extension has access to the tab
+   - Open DevTools so the inspected tab context exists
    - Verify the tab is not in a restricted state
 
 ### Debug Steps

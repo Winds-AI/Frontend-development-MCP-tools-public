@@ -1,11 +1,12 @@
 # List of All Tools
 
-1. `searchApiDocumentation`
-2. `fetchLiveApiResponse`
-3. `captureBrowserScreenshot`
-4. `inspectSelectedElementCss`
-5. `inspectBrowserNetworkActivity`
-6. `navigateBrowserTab`
+1. [`searchApiDocumentation`](./each-tool-explained/searchApiDocumentation.md)
+2. [`fetchLiveApiResponse`](./each-tool-explained/fetchLiveApiResponse.md)
+3. [`captureBrowserScreenshot`](./each-tool-explained/captureBrowserScreenshot.md)
+4. [`inspectSelectedElementCss`](./each-tool-explained/inspectSelectedElementCss.md)
+5. [`inspectBrowserNetworkActivity`](./each-tool-explained/inspectBrowserNetworkActivity.md)
+6. [`navigateBrowserTab`](./each-tool-explained/navigateBrowserTab.md)
+7. [`inspectBrowserConsole`](./each-tool-explained/inspectBrowserConsole.md)
 
 # How to Use Browser Tools MCP
 
@@ -15,52 +16,60 @@ To use these tools at their 100% potential you need to understand how all of the
 
 ### **Workflow 1: API Integration**
 
-Use `searchApiDocumentation` tool to get the expected payload and request types then use `fetchLiveApiResponse` tool to get the real response and then start writing code based on the memory you have setup. It can make new pages/modules/sub-modules etc if that is how you have structured your project.
+Use `searchApiDocumentation` to identify endpoints and request/response shapes. Then use `fetchLiveApiResponse` to validate the real response.
 
-1. **Automatic API Testing**: Use `fetchLiveApiResponse` tool with just the endpoint and method:
+1. **Live API Test**: Call `fetchLiveApiResponse` with an endpoint and method.
 
    ```
-   Tool: executeAuthenticatedApiCall
+   Tool: fetchLiveApiResponse
    - endpoint: "/api/users"
    - method: "GET"
+   - includeAuthToken: true // requires API_AUTH_TOKEN to be set
    ```
 
-   The tool automatically:
+   The tool:
 
-   - Retrieves auth token from browser session
-   - Makes authenticated API call
-   - Returns structured response data
-   - Provides detailed response analysis
+   - Builds the full URL using `API_BASE_URL`
+   - Optionally adds `Authorization: Bearer ${API_AUTH_TOKEN}` if `includeAuthToken` is true
+   - Returns structured response details (status, headers, timing) and parsed data
 
 2. **Development & Integration**
-   Based on real API responses from Step 2, the agent can:
+   Based on real API responses, the agent can:
 
-- Define accurate TypeScript interfaces
-- Use helper functions and custom hooks based on your setup
-- Create components with proper data handling
-- I have seen 80-90% accuracy in JS projects and 60-70% in TypeScript projects
+   - Define accurate TypeScript interfaces
+   - Use your project’s helpers/hooks
+   - Create components with proper data handling
 
 ### **Workflow 2: UI Development & Debugging**
 
-- Use context7 for component library integration
-- Use `captureBrowserScreenshot` for UI analysis with Google's 2.5 pro model because it has world knowledge capabilities
-- Use `inspectSelectedElementCss` for CSS debugging. ( This tool has the capability of getting the CSS of any element that you have selected in your browser when your developer tools are open)
-- Use `inspectBrowserNetworkActivity` for debugging network issues and changes in API responses
+- Use `captureBrowserScreenshot` for UI analysis (no params; always returns image)
+- Use `inspectSelectedElementCss` for CSS/layout context of the DevTools-selected element
+- Use `inspectBrowserNetworkActivity` to inspect recent API calls
+- Use `inspectBrowserConsole` to capture JS errors/warnings/logs with filters
 
 ### **Workflow 3: Recursive UI Improvements**
 
-- Use `captureBrowserScreenshot` instruct it to use this tool in loop to take screenshot, understand the UI structure and then progressivly improve the UI
+- Loop `captureBrowserScreenshot()` → analyze → apply edits → repeat
 
 ### **Workflow 4: Automated Testing & Navigation**
 
-- Use `navigateBrowserTab` for automated testing flows and multi-step workflows
-- Combine with `captureBrowserScreenshot` for visual regression testing
-- Use for integration testing across different pages and environments
-- Navigate between development, staging, and production environments
-- Example workflow:
+- Use `navigateBrowserTab` for multi-step workflows
+- Combine with `captureBrowserScreenshot` for visual checks
+- Example:
   ```
   1. navigateBrowserTab({ url: "https://app.example.com/login" })
-  2. captureBrowserScreenshot({ filename: "login-page" })
+  2. captureBrowserScreenshot()
   3. navigateBrowserTab({ url: "https://app.example.com/dashboard" })
-  4. captureBrowserScreenshot({ filename: "dashboard-page" })
+  4. captureBrowserScreenshot()
   ```
+
+- For environment/config setup, see `docs/SETUP_GUIDE.md`. For architecture and features, see `docs/PROJECT_OVERVIEW.md`.
+
+### End-to-end Example (API + UI)
+
+1. Search docs: [`searchApiDocumentation`](./each-tool-explained/searchApiDocumentation.md) for "users" endpoints
+2. Validate live response: [`fetchLiveApiResponse`](./each-tool-explained/fetchLiveApiResponse.md) with includeAuthToken if needed
+3. Open page: [`navigateBrowserTab`](./each-tool-explained/navigateBrowserTab.md) to your feature URL
+4. Visual check: [`captureBrowserScreenshot`](./each-tool-explained/captureBrowserScreenshot.md)
+5. Inspect failures: [`inspectBrowserNetworkActivity`](./each-tool-explained/inspectBrowserNetworkActivity.md) and [`inspectBrowserConsole`](./each-tool-explained/inspectBrowserConsole.md)
+6. Debug CSS: [`inspectSelectedElementCss`](./each-tool-explained/inspectSelectedElementCss.md)

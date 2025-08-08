@@ -2,6 +2,12 @@
 
 **🚀 Version 1.2.0 - Autonomous AI-Powered Frontend Development Platform**
 
+- Contents:
+  - Executive Summary
+  - System Architecture
+  - Server Features
+  - Health Monitoring API
+
 ## 📋 Executive Summary
 
 The Browser Tools MCP Extension is a comprehensive solution designed for **autonomous AI-powered frontend development workflows**. This system provides AI agents with reliable access to browser state, real-time debugging information, and seamless screenshot capabilities through enhanced WebSocket connections optimized for extended development sessions.
@@ -61,7 +67,7 @@ flowchart TB
     SS -. Storage Path + Data .-> MCP
     LG -. Truncated Logs .-> MCP
     NS -- Authenticated Calls --> API(("Target APIs"))
-    SS -- Project Structure --> IMG["Image Storage<br>Downloads/mcp-screenshots"]
+     SS -- Project Structure --> IMG["Image Storage<br>Downloads/MCP_Screenshots"]
     BTS -- Status Report --> HC["Health Monitor<br>connection-health"]
     MCP -.-> PS
     CE -.-> WB
@@ -108,6 +114,14 @@ flowchart TB
 - **UI**: DevTools panel with connection monitoring and manual controls
 
 ---
+
+## 🔧 Server Features
+
+- Auto-port detection (starts at 3025, selects 3026–3035 as needed)
+- Connection health endpoint at `/connection-health`
+- Heartbeat 25s, timeout 60s; fast reconnection (3–15s)
+- Identity endpoint at `/.identity`
+- Individual request tracking and improved callback cleanup
 
 ### 📊 Health Monitoring API
 

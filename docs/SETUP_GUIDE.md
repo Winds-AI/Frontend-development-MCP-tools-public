@@ -1,4 +1,4 @@
-**Note:-** make sure that you have devtools panel(F12) open for your localhost after setting up the server. browser related tools will work only if devtools panel is open
+**Note:** Keep Chrome DevTools (F12) open on your target tab. Browser related tools work only if DevTools is open.
 
 ### For Windsurf IDE
 
@@ -44,7 +44,7 @@ npm run setup
 
 This will:
 
-- Check for pnpm and install it if needed
+- Check/install pnpm
 - Install and build browser-tools-mcp
 - Install and build browser-tools-server
 - Show Chrome extension setup instructions
@@ -64,22 +64,14 @@ This will:
 - Show a reminder about the Chrome extension
 - Start the server directly
 
-**🎯 Enhanced Server Features:**
-
-- ✅ **Auto-port detection** (starts on 3025, auto-selects 3026+ if needed)
-- ✅ **Connection health monitoring** at `/connection-health`
-- ✅ **Enhanced heartbeat system** (25s intervals, 60s timeout)
-- ✅ **Fast recovery** (3-15 second reconnection)
-- ✅ **Server identity validation** at `/.identity`
+**🎯 Enhanced Server Features:** See `docs/PROJECT_OVERVIEW.md` (Server Features). 
 
 ### 4. Configure Your AI Code Platform
 
 1. Add this server to your MCP configuration file in your preferred AI code platform (Windsurf, Cursor, GitHub Copilot, etc.).
 2. **Important**: After updating the MCP configuration, close and restart your AI coding platform for the changes to take effect.
 
-#### 🎯 Enhanced Configuration Example:
-
-add this to .cursor/mcp.json folder of your project
+#### 🎯 Configuration Example (add to `.cursor/mcp.json` in your project)
 
 ```json
 {
@@ -87,27 +79,23 @@ add this to .cursor/mcp.json folder of your project
     "browser-tools-frontend-dev": {
       "command": "node",
       "args": [
-        "/absolute/path/to/browser-tools-mcp/dist/mcp-server.js" // copy the path from where mcp-server.js is located in the repo
+        "/absolute/path/to/browser-tools-mcp/dist/mcp-server.js"
       ],
       "env": {
-        // === For using searchApiDocs and discoverApiStructure tools ===
-        "SWAGGER_URL": "https://api.example.com/docs/swagger.json", // OpenAPI/Swagger JSON URL
+        // === API discovery/search ===
+        "SWAGGER_URL": "https://api.example.com/docs/swagger.json",
 
-        // === For using executeAuthenticatedApiCall( token should be in the storage for this to work) tool ===
-        "AUTH_ORIGIN": "http://localhost:5173", // Your app's localhost URL
-        "AUTH_STORAGE_TYPE": "localStorage", // to get access token from cookie/localStorage/sessionStorage
-        "AUTH_TOKEN_KEY": "authToken", // Token key name in storage
-        "API_BASE_URL": "https://api.example.com", // base URL for calling API
+        // === Live API calls ===
+        "API_BASE_URL": "https://api.example.com",
+        // Used only when fetchLiveApiResponse.includeAuthToken = true
+        "API_AUTH_TOKEN": "<your_token_here>",
 
-        // === For using takeScreenshot tool ===
-        "SCREENSHOT_STORAGE_PATH": "/path/to/screenshots", // Custom screenshot directory where screenshots will be saved in an organized directories
+        // === Optional: connection overrides ===
+        "BROWSER_TOOLS_HOST": "127.0.0.1",
+        "BROWSER_TOOLS_PORT": "3025",
 
-        // === Optional debugging ===
-        "DEBUG_MODE": "true", // Set to "true" to include detailed debugging info in searchApiDocumentation responses (matchedSearchTerms, deduplicationInfo)
-
-        // === Connection Stability (Optional Overrides) ===
-        "BROWSER_TOOLS_HOST": "127.0.0.1", // Server host override
-        "BROWSER_TOOLS_PORT": "3025" // Server port override
+        // Optional: set active project name (used by screenshot organization)
+        "ACTIVE_PROJECT": "my-project"
       }
     }
   }
@@ -141,8 +129,8 @@ add this to .cursor/mcp.json folder of your project
 
 ### Connection Issues
 
-1. **Server Auto-Discovery**: The system automatically discovers servers on ports 3025-3035
-2. **Connection Health Check**: Visit `http://localhost:3026/connection-health` to verify server status
+1. **Server Auto-Discovery**: The system automatically discovers servers on ports 3025–3035
+2. **Connection Health Check**: Visit `http://localhost:3025/connection-health` (or your actual port) to verify server status
 3. **Chrome Extension Status**: Check DevTools → BrowserTools tab for connection status
 
 ### Common Fixes
@@ -168,10 +156,10 @@ add this to .cursor/mcp.json folder of your project
 
 ```bash
 # Check server status
-curl http://localhost:3026/.identity
+curl http://localhost:3025/.identity
 
 # Monitor connection health
-curl http://localhost:3026/connection-health
+curl http://localhost:3025/connection-health
 
 # View server logs
 tail -f browser-tools-server/server.log
@@ -186,5 +174,11 @@ Once setup is complete, your Browser MCP Extension is optimized for:
 - ✅ Concurrent screenshot and API operations
 - ✅ Real-time connection health monitoring
 - ✅ Minimal workflow disruption during connection drops
+
+Screenshot storage configuration
+
+- Preferred: set `DEFAULT_SCREENSHOT_STORAGE_PATH` in `chrome-extension/projects.json`
+- Fallback: `SCREENSHOT_STORAGE_PATH` env variable
+- Default: `~/Downloads/MCP_Screenshots`
 
 **Happy autonomous AI development! 🚀**

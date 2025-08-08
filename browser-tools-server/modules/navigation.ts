@@ -6,7 +6,6 @@
 
 export interface NavigationRequest {
   url: string;
-  tabId?: number;
   requestId: string;
 }
 
@@ -19,13 +18,12 @@ export interface NavigationResult {
  * Build the navigation message payload to send over WebSocket to the extension.
  */
 export function buildNavigationMessage(
-  req: { url: string; tabId?: number },
+  req: { url: string },
   requestId: string
 ) {
   return JSON.stringify({
     type: "navigate-tab",
     url: req.url,
-    tabId: req.tabId,
     requestId,
   });
 }

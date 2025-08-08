@@ -1305,17 +1305,11 @@ server.tool(
       .describe(
         `The URL to navigate to (must be a valid URL including protocol, e.g., 'https://example.com')`
       ),
-    tabId: z
-      .number()
-      .optional()
-      .describe(
-        "Optional: Specific tab ID to navigate. If not provided, navigates the currently active tab."
-      ),
   },
   async (params) => {
     return await withServerConnection(async () => {
       try {
-        const { url, tabId } = params;
+        const { url } = params;
 
         // Validate URL format
         try {
@@ -1335,7 +1329,6 @@ server.tool(
         const targetUrl = `http://${discoveredHost}:${discoveredPort}/navigate-tab`;
         const requestPayload = {
           url: url,
-          tabId: tabId,
         };
 
         console.log(`MCP Tool: Navigating browser tab to ${url}`);
@@ -1364,8 +1357,7 @@ server.tool(
             content: [
               {
                 type: "text",
-                text: `Failed to navigate browser tab: ${result.error || "Unknown error"
-                  }`,
+                text: `Failed to navigate browser tab: ${result.error || "Unknown error"}`,
               },
             ],
             isError: true,
