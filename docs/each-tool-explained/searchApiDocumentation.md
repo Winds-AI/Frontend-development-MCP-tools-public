@@ -19,11 +19,16 @@
 
 ## Parameters
 
-| Name        | Type     | Required | Description                                                           |
-| ----------- | -------- | -------- | --------------------------------------------------------------------- |
-| searchTerms | string[] | ✓        | Keywords to search for in API paths, summaries, descriptions, or tags |
-| method      | string   |          | Filter results by HTTP method (GET, POST, PUT, PATCH, DELETE)         |
-| maxResults  | number   |          | Maximum number of endpoints to return (default: 10)                   |
+| Name   | Type   | Required | Description |
+| ------ | ------ | -------- | ----------- |
+| query  | string |          | Text to match against path, summary, description, operationId, and tags |
+| tag    | string |          | Case-insensitive exact tag match (provide either query or tag, not both) |
+| method | string |          | HTTP method filter (GET, POST, PUT, PATCH, DELETE) |
+| limit  | number |          | Maximum number of endpoints to return (default: 10) |
+
+Deprecated parameters (still supported for backward compatibility):
+- searchTerms: string[] — treated as an OR text search across terms (use query instead)
+- maxResults: number — use limit instead
 
 ---
 
@@ -35,7 +40,7 @@
 {
   "summary": {
     "totalFound": 5,
-    "searchTerms": ["entity"],
+    "filter": { "type": "query", "value": "entity" },
     "methodFilter": "all",
     "endpointsNeedingLiveTest": 2
   }
@@ -235,7 +240,7 @@ The tool automatically flattens complex nested objects for better readability:
 
 ```javascript
 // 1. Search for entity-related APIs
-searchApiDocumentation(searchTerms: ["entity"], method: "POST")
+searchApiDocumentation(query: "entity", method: "POST")
 
 // 2. Found endpoint with missing response schema
 // Path: /demo-admin/create-entity-addon
@@ -260,30 +265,39 @@ fetchLiveApiResponse(
 
 ## Usage Examples
 
-### Basic Search
+### Text Query Search
 
 ```json
 {
-  "searchTerms": ["entity"]
+  "query": "entity"
 }
 ```
 
-### Method-Specific Search
+### Tag Search
 
 ```json
 {
-  "searchTerms": ["user", "profile"],
+  "tag": "Users"
+}
+```
+
+### Method + Limit
+
+```json
+{
+  "query": "profile",
   "method": "GET",
-  "maxResults": 5
+  "limit": 5
 }
 ```
 
-### Complex Search
+### Backward Compatibility (deprecated params)
 
 ```json
 {
   "searchTerms": ["admin", "management"],
-  "method": "POST"
+  "method": "POST",
+  "maxResults": 10
 }
 ```
 
