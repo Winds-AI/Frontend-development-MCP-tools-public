@@ -5,12 +5,16 @@ import bodyParser from "body-parser";
 import { WebSocketServer, WebSocket } from "ws";
 import os from "os";
 import ScreenshotService from "./screenshot-service.js";
+import dotenv from "dotenv";
+dotenv.config();
 // Moved scaffolding imports and helpers
 import { __filename as __top_filename, __dirname as __top_dirname, getScreenshotStoragePath, MAX_DETAILED_NETWORK_LOG_CACHE, clearAllLogs as clearImportedLogs, detailedNetworkLogCache, truncateLogsToQueryLimit, } from "./modules/shared.js";
 import { buildScreenshotConfig, buildScreenshotResponse, } from "./modules/screenshot.js";
 import { buildNavigationMessage, parseNavigationResponse, } from "./modules/navigation.js";
 import { filterNetworkLogs, sortNetworkLogs, projectNetworkLogDetails, limitResults, } from "./modules/network-activity.js";
 import { buildConsoleInspectionResponse, } from "./modules/console-inspector.js";
+// Semantic embedding index utilities
+import { rebuildIndex as rebuildSemanticIndex, getStatus as getEmbedStatus, searchSemantic, } from "./modules/semantic-index.js";
 // Preserve original helper constant names by aliasing
 const __filename = __top_filename;
 const __dirname = __top_dirname;
@@ -388,6 +392,40 @@ app.post("/current-url", (req, res) => {
 app.get("/current-url", (req, res) => {
     console.log("Current URL requested, returning:", currentUrl);
     res.json({ url: currentUrl });
+});
+// Embeddings: index status
+app.get("/api/embed/status", async (req, res) => {
+    try {
+        const project = typeof req.query.project === "string" ? req.query.project : undefined;
+        const status = await getEmbedStatus(project);
+        res.json(status);
+    }
+    catch (e) {
+        res.status(500).json({ error: e?.message || "Failed to get embedding index status" });
+    }
+});
+// Embeddings: rebuild index (manual only)
+app.post("/api/embed/reindex", async (req, res) => {
+    try {
+        const project = typeof req.query.project === "string" ? req.query.project : req.body?.project;
+        const meta = await rebuildSemanticIndex(project);
+        res.json({ status: "ok", meta });
+    }
+    catch (e) {
+        res.status(500).json({ error: e?.message || "Failed to rebuild embedding index" });
+    }
+});
+// Embeddings: semantic search
+app.post("/api/embed/search", async (req, res) => {
+    try {
+        const { query, tag, method, limit } = req.body || {};
+        const lim = typeof limit === "number" ? limit : Number(limit) || undefined;
+        const result = await searchSemantic({ query, tag, method, limit: lim });
+        res.json(result);
+    }
+    catch (e) {
+        res.status(500).json({ error: e?.message || "Failed to perform semantic search" });
+    }
 });
 export class BrowserConnector {
     constructor(app, server) {

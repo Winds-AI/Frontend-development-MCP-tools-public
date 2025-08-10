@@ -96,11 +96,27 @@ This will:
 
         // Optional: set active project name (used by screenshot organization)
         "ACTIVE_PROJECT": "my-project"
+        
+        // === Semantic search embeddings ===
+        // Provider auto-resolves to OpenAI if OPENAI_API_KEY is present; otherwise Gemini.
+        // Set explicitly if you want: "openai" or "gemini"
+        ,"EMBEDDING_PROVIDER": "openai"
+        // OpenAI (recommended)
+        ,"OPENAI_API_KEY": "sk-..."
+        ,"OPENAI_EMBED_MODEL": "text-embedding-3-small" // or text-embedding-3-large
+        // Gemini (optional fallback)
+        ,"GEMINI_API_KEY": "..."
+        ,"GEMINI_EMBED_MODEL": "gemini-embedding-001"
       }
     }
   }
 }
 ```
+
+#### Notes
+
+- When you change `EMBEDDING_PROVIDER` or the embedding model, you must rebuild the semantic index from the Dev Panel (Reindex per project).
+- Server logs show embedding batches, rate-limit backoffs, and completion status during reindex.
 
 ## 🔧 System Compatibility & Features
 

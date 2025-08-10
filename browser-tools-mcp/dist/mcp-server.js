@@ -14,7 +14,7 @@ function loadProjectConfig() {
             path.join(__dirname, "..", "chrome-extension", "projects.json"),
             path.join(__dirname, "..", "..", "chrome-extension", "projects.json"),
             path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json"),
-            path.resolve(process.cwd(), "chrome-extension", "projects.json")
+            path.resolve(process.cwd(), "chrome-extension", "projects.json"),
         ];
         for (const configPath of possiblePaths) {
             console.log(`[DEBUG] Trying to load projects.json from: ${configPath}`);
@@ -114,10 +114,10 @@ function isValidAuthToken(token) {
         // OAuth tokens (alphanumeric, typically 40+ chars)
         /^[A-Za-z0-9]{40,}$/,
         // Generic token with reasonable length and valid characters
-        /^[A-Za-z0-9-_]{16,}$/
+        /^[A-Za-z0-9-_]{16,}$/,
     ];
     // Check if token matches any of the patterns
-    return tokenPatterns.some(pattern => pattern.test(token));
+    return tokenPatterns.some((pattern) => pattern.test(token));
 }
 // Create the MCP server
 const server = new McpServer({
@@ -332,7 +332,7 @@ server.tool("inspectBrowserNetworkActivity", "Logs recent browser network reques
         .default(20)
         .describe("Maximum number of results to return"),
 }, async (params) => {
-    const { urlFilter, details, timeOffset, orderBy, orderDirection, limit, } = params;
+    const { urlFilter, details, timeOffset, orderBy, orderDirection, limit } = params;
     // Capture current time when tool is called
     const currentTime = Date.now();
     let finalTimeStart;
@@ -347,7 +347,7 @@ server.tool("inspectBrowserNetworkActivity", "Logs recent browser network reques
             throw new Error("timeOffset cannot exceed 24 hours (86400 seconds)");
         }
         // Calculate time range based on offset
-        finalTimeStart = currentTime - (timeOffset * 1000);
+        finalTimeStart = currentTime - timeOffset * 1000;
         finalTimeEnd = currentTime;
         console.log(`Time offset calculation: ${timeOffset}s ago = ${new Date(finalTimeStart).toISOString()} to ${new Date(finalTimeEnd).toISOString()}`);
     }
@@ -398,6 +398,67 @@ server.tool("inspectBrowserNetworkActivity", "Logs recent browser network reques
             };
         }
     });
+});
+// =============================================
+// LIST API TAGS TOOL
+// =============================================
+server.tool("listApiTags", "Lists all tags in the API documentation and how many operations each has (count only).", {}, async () => {
+    try {
+        const swaggerSource = getConfigValue("SWAGGER_URL");
+        if (!swaggerSource) {
+            throw new Error("SWAGGER_URL environment variable or config is not set");
+        }
+        const swaggerDoc = await loadSwaggerDoc(swaggerSource);
+        if (!swaggerDoc.paths) {
+            return {
+                content: [
+                    {
+                        type: "text",
+                        text: JSON.stringify({ totalTags: 0, tags: [] }, null, 2),
+                    },
+                ],
+            };
+        }
+        const counts = {};
+        for (const [, pathItem] of Object.entries(swaggerDoc.paths)) {
+            for (const [httpMethod, operation] of Object.entries(pathItem)) {
+                if (httpMethod === "parameters")
+                    continue;
+                const op = operation;
+                if (op.tags && Array.isArray(op.tags)) {
+                    for (const t of op.tags) {
+                        if (!t || typeof t !== "string")
+                            continue;
+                        counts[t] = (counts[t] || 0) + 1;
+                    }
+                }
+            }
+        }
+        const tags = Object.entries(counts)
+            .map(([tag, count]) => ({ tag, count }))
+            .sort((a, b) => b.count - a.count);
+        const result = { totalTags: tags.length, tags };
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: JSON.stringify(result, null, 2),
+                },
+            ],
+        };
+    }
+    catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return {
+            content: [
+                {
+                    type: "text",
+                    text: `Failed to list API tags: ${errorMessage}`,
+                },
+            ],
+            isError: true,
+        };
+    }
 });
 // Tool 2: captureBrowserScreenshot
 server.tool("captureBrowserScreenshot", "Captures current browser tab. Returns image data directly **and** saves file. **Use for UI inspection, visual verification, or recursive UI improvement loops.**", { randomString: z.string().describe("any random string") }, async () => {
@@ -556,7 +617,10 @@ server.tool("fetchLiveApiResponse", "Executes a live, authenticated API call to 
         .record(z.string())
         .optional()
         .describe("Query parameters as key-value pairs"),
-    includeAuthToken: z.boolean().optional().describe("Whether to include auth token"),
+    includeAuthToken: z
+        .boolean()
+        .optional()
+        .describe("Whether to include auth token"),
 }, async (params) => {
     console.log(`[fetchLiveApiResponse] - Making request to: ${params.endpoint}`);
     try {
@@ -660,7 +724,7 @@ server.tool("fetchLiveApiResponse", "Executes a live, authenticated API call to 
                 },
                 url: fullUrl,
                 method: method,
-            }
+            },
         };
         return {
             content: [
@@ -671,7 +735,7 @@ server.tool("fetchLiveApiResponse", "Executes a live, authenticated API call to 
                         method,
                         url: fullUrl,
                         responseDetails: result.details,
-                        data: result.data
+                        data: result.data,
                     }, null, 2),
                 },
             ],
@@ -718,10 +782,10 @@ async function loadSwaggerDoc(swaggerSource) {
     }
 }
 // =============================================
-// HELPER FUNCTIONS FOR SIMPLIFIED SEARCH API DOCUMENTATION
+// HELPER FUNCTIONS FOR SEARCH API DOCUMENTATION
 // =============================================
 /**
- * Extracts simplified parameter information for GET requests
+ * Extracts parameter information for GET requests
  */
 function extractSimpleParameters(operation) {
     const parameters = [];
@@ -903,100 +967,93 @@ function createSimplifiedEndpoint(path, method, operation) {
     return endpoint;
 }
 // =============================================
-// SIMPLIFIED SEARCH API DOCUMENTATION TOOL
+// SEARCH API DOCUMENTATION TOOL
 // =============================================
 server.tool("searchApiDocumentation", "Simplified API documentation search that returns only essential information: API paths, parameters (GET), request payloads (POST/PUT/PATCH/DELETE), and success responses. If response schemas are missing, provides guidance to use fetchLiveApiResponse for live testing.", {
+    query: z
+        .string()
+        .optional()
+        .describe("Text query to match against path, summary, description, operationId, and tags"),
+    tag: z
+        .string()
+        .optional()
+        .describe("Filter by a specific tag (case-insensitive exact match)"),
+    // Backward-compatibility: deprecated. Prefer 'query' or 'tag'.
     searchTerms: z
         .array(z.string())
-        .describe("Keywords to search for in API paths, summaries, descriptions, or tags. Use specific terms like 'activity', 'user', 'admin', etc."),
+        .optional()
+        .describe("[DEPRECATED] Previous array of keywords. If provided, behaves like an OR search across terms."),
     method: z
         .enum(["GET", "POST", "PUT", "PATCH", "DELETE"])
         .optional()
         .describe("Filter results by HTTP method (optional)"),
-    maxResults: z
+    limit: z
         .number()
         .optional()
         .default(10)
         .describe("Maximum number of endpoints to return (default: 10)"),
+    // Backward-compatibility alias for 'limit'
+    maxResults: z.number().optional().describe("[DEPRECATED] Use 'limit' instead."),
 }, async (params) => {
     try {
-        const { searchTerms, method, maxResults } = params;
-        const swaggerSource = getConfigValue("SWAGGER_URL");
-        if (!swaggerSource) {
-            throw new Error("SWAGGER_URL environment variable or config is not set");
-        }
-        const swaggerDoc = await loadSwaggerDoc(swaggerSource);
-        const endpoints = [];
-        // Remove duplicates from search terms
-        const uniqueSearchTerms = [...new Set(searchTerms)];
-        if (!swaggerDoc.paths) {
+        const { query, tag, method } = params;
+        const limit = params.limit ?? params.maxResults ?? 10;
+        // Derive effective query/tag from deprecated searchTerms if needed
+        const terms = Array.isArray(params.searchTerms)
+            ? params.searchTerms.filter((t) => typeof t === "string" && t.trim().length > 0)
+            : undefined;
+        // If coming from deprecated searchTerms, build an OR-regex of escaped terms
+        const effectiveQueryIsRegex = !query && !!terms && terms.length > 0;
+        const effectiveQuery = query ?? (terms && terms.length > 0
+            ? terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")
+            : undefined);
+        const effectiveTag = tag;
+        // Validate filters: require at least one of query or tag
+        if (!effectiveQuery && !effectiveTag) {
             return {
                 content: [
                     {
                         type: "text",
-                        text: JSON.stringify({
-                            endpoints: [],
-                            message: "No API paths found in documentation",
-                        }, null, 2),
+                        text: "Provide 'query' and/or 'tag' to search.",
                     },
                 ],
+                isError: true,
             };
         }
-        // Search through all paths and methods
-        for (const [path, pathItem] of Object.entries(swaggerDoc.paths)) {
-            for (const [httpMethod, operation] of Object.entries(pathItem)) {
-                // Skip non-HTTP method entries
-                if (httpMethod === "parameters")
-                    continue;
-                const op = operation;
-                const upperMethod = httpMethod.toUpperCase();
-                // Apply method filter if specified
-                if (method && upperMethod !== method.toUpperCase())
-                    continue;
-                // Check if any search term matches
-                const matchesTerm = uniqueSearchTerms.some((term) => {
-                    const searchRegex = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-                    return (searchRegex.test(path) ||
-                        (op.summary && searchRegex.test(op.summary)) ||
-                        (op.description && searchRegex.test(op.description)) ||
-                        (op.tags &&
-                            op.tags.some((tag) => searchRegex.test(tag))) ||
-                        (op.operationId && searchRegex.test(op.operationId)));
-                });
-                if (matchesTerm) {
-                    const simplifiedEndpoint = createSimplifiedEndpoint(path, httpMethod, op);
-                    endpoints.push(simplifiedEndpoint);
-                    // Stop if we've reached max results
-                    if (endpoints.length >= (maxResults || 10)) {
-                        break;
-                    }
-                }
-            }
-            if (endpoints.length >= (maxResults || 10)) {
-                break;
-            }
+        // Call backend semantic search endpoint; backend uses ACTIVE_PROJECT internally
+        const payload = {
+            query: effectiveQuery,
+            tag: effectiveTag,
+            method,
+            limit,
+        };
+        const apiResult = await withServerConnection(async () => {
+            const resp = await fetch(`http://${discoveredHost}:${discoveredPort}/api/embed/search`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+            if (!resp.ok)
+                throw new Error(`HTTP ${resp.status}`);
+            return await resp.json();
+        });
+        // If withServerConnection returned an MCP-style error object, pass it through
+        if (!Array.isArray(apiResult) && apiResult?.content) {
+            return apiResult;
         }
-        // Count endpoints that need live testing
-        const needsLiveTesting = endpoints.filter((e) => e.recommendedAction).length;
+        const endpoints = Array.isArray(apiResult) ? apiResult : [];
         const result = {
             summary: {
                 totalFound: endpoints.length,
-                searchTerms: uniqueSearchTerms,
+                filter: effectiveQuery && effectiveTag
+                    ? { type: "mixed", value: `${effectiveQuery} (tag: ${effectiveTag})` }
+                    : effectiveQuery
+                        ? { type: "query", value: effectiveQuery }
+                        : { type: "tag", value: effectiveTag },
                 methodFilter: method || "all",
-                endpointsNeedingLiveTest: needsLiveTesting,
             },
             endpoints,
-            usage: {
-                nextSteps: [
-                    "For endpoints with 'recommendedAction', use fetchLiveApiResponse to get actual response structure",
-                    "Use the path, method, and requestBody/parameters to make API calls",
-                    "For complex nested objects, refer to the flattened schema provided",
-                ],
-            },
         };
-        if (needsLiveTesting > 0) {
-            result.usage.nextSteps.unshift(`${needsLiveTesting} endpoint(s) missing response schemas - use fetchLiveApiResponse for these`);
-        }
         return {
             content: [
                 {
@@ -1097,10 +1154,22 @@ server.tool("navigateBrowserTab", generateNavigateToolDescription(), {
 // So we set the description once at startup instead of trying to update it dynamically
 // Tool 7: inspectBrowserConsole
 server.tool("inspectBrowserConsole", "Inspects browser console logs, errors, and warnings with filtering capabilities. **Use for debugging JavaScript errors, monitoring console output, or analyzing application behavior.** **Note: This tool captures JavaScript console messages (console.log, console.error, etc.) but NOT network request failures (404, 500, etc.). For network errors, use `inspectBrowserNetworkActivity` instead.** Supports filtering by level (log/error/warn/info/debug), time range, and search terms.", {
-    level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional().describe("Filter by console message level. Default: 'all'"),
-    limit: z.number().optional().describe("Maximum number of entries to return. Default: no limit"),
-    timeOffset: z.number().optional().describe("Time offset in seconds from current time. Use this for relative time filtering (e.g., 10 = last 10 seconds, 300 = last 5 minutes). Maximum allowed: 24 hours (86400 seconds)."),
-    search: z.string().optional().describe("Search for specific text in console messages"),
+    level: z
+        .enum(["log", "error", "warn", "info", "debug", "all"])
+        .optional()
+        .describe("Filter by console message level. Default: 'all'"),
+    limit: z
+        .number()
+        .optional()
+        .describe("Maximum number of entries to return. Default: no limit"),
+    timeOffset: z
+        .number()
+        .optional()
+        .describe("Time offset in seconds from current time. Use this for relative time filtering (e.g., 10 = last 10 seconds, 300 = last 5 minutes). Maximum allowed: 24 hours (86400 seconds)."),
+    search: z
+        .string()
+        .optional()
+        .describe("Search for specific text in console messages"),
 }, async (args) => {
     if (!serverDiscovered) {
         console.error("Server not discovered, attempting discovery...");
@@ -1132,19 +1201,19 @@ server.tool("inspectBrowserConsole", "Inspects browser console logs, errors, and
                 throw new Error("timeOffset cannot exceed 24 hours (86400 seconds)");
             }
             // Calculate since timestamp based on offset
-            finalSince = currentTime - (args.timeOffset * 1000);
+            finalSince = currentTime - args.timeOffset * 1000;
             console.log(`Time offset calculation: ${args.timeOffset}s ago = ${new Date(finalSince).toISOString()}`);
         }
         // Build query parameters
         const queryParams = new URLSearchParams();
         if (args.level)
-            queryParams.append('level', args.level);
+            queryParams.append("level", args.level);
         if (args.limit)
-            queryParams.append('limit', args.limit.toString());
+            queryParams.append("limit", args.limit.toString());
         if (finalSince)
-            queryParams.append('since', finalSince.toString());
+            queryParams.append("since", finalSince.toString());
         if (args.search)
-            queryParams.append('search', args.search);
+            queryParams.append("search", args.search);
         const url = `http://${discoveredHost}:${discoveredPort}/console-inspection?${queryParams.toString()}`;
         console.error(`Making request to: ${url}`);
         const response = await fetch(url, {
@@ -1167,16 +1236,16 @@ server.tool("inspectBrowserConsole", "Inspects browser console logs, errors, and
             if (result.stats.byLevel) {
                 responseText += `- By level: `;
                 const levelStats = Object.entries(result.stats.byLevel)
-                    .map(([level, count]) => `${count} ${level}${count !== 1 ? 's' : ''}`)
-                    .join(', ');
-                responseText += levelStats + '\n';
+                    .map(([level, count]) => `${count} ${level}${count !== 1 ? "s" : ""}`)
+                    .join(", ");
+                responseText += levelStats + "\n";
             }
             if (result.stats.timeRange?.oldest && result.stats.timeRange?.newest) {
                 const oldestDate = new Date(result.stats.timeRange.oldest).toISOString();
                 const newestDate = new Date(result.stats.timeRange.newest).toISOString();
                 responseText += `- Time range: ${oldestDate} to ${newestDate}\n`;
             }
-            responseText += '\n';
+            responseText += "\n";
         }
         if (args.level || args.search || args.timeOffset || args.limit) {
             responseText += `🔧 **Applied Filters**:\n`;
@@ -1188,7 +1257,7 @@ server.tool("inspectBrowserConsole", "Inspects browser console logs, errors, and
                 responseText += `- Time Offset: ${args.timeOffset} seconds ago\n`;
             if (args.limit)
                 responseText += `- Limit: ${args.limit} entries\n`;
-            responseText += '\n';
+            responseText += "\n";
         }
         if (result.formatted && result.logs?.length > 0) {
             responseText += `📝 **Console Messages**:\n\n`;

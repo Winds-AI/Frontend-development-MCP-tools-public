@@ -1,0 +1,8 @@
+{
+  "project": "bandar-admin-frontend",
+  "builtAt": "2025-08-10T12:25:45.211Z",
+  "model": "text-embedding-3-small",
+  "dims": 1536,
+  "vectorCount": 147,
+  "swaggerHash": "e7be8e642d0f270756c9b25c8d9e616e33ea6580b46e36ea6d7928ca53c93cd1"
+}

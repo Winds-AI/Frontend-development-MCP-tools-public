@@ -1296,132 +1296,59 @@ server.tool(
         ? terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")
         : undefined);
       const effectiveTag = tag;
-
-      // Validate filters: exactly one of query or tag must be provided
-      if (((effectiveQuery ? 1 : 0) + (effectiveTag ? 1 : 0)) !== 1) {
+      // Validate filters: require at least one of query or tag
+      if (!effectiveQuery && !effectiveTag) {
         return {
           content: [
             {
               type: "text",
-              text: "Provide exactly one of 'query' or 'tag'.",
+              text: "Provide 'query' and/or 'tag' to search.",
             },
           ],
           isError: true,
         };
       }
 
-      const swaggerSource = getConfigValue("SWAGGER_URL");
-      if (!swaggerSource) {
-        throw new Error(
-          "SWAGGER_URL environment variable or config is not set"
+      // Call backend semantic search endpoint; backend uses ACTIVE_PROJECT internally
+      const payload = {
+        query: effectiveQuery,
+        tag: effectiveTag,
+        method,
+        limit,
+      } as any;
+
+      const apiResult = await withServerConnection(async () => {
+        const resp = await fetch(
+          `http://${discoveredHost}:${discoveredPort}/api/embed/search`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          }
         );
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return await resp.json();
+      });
+
+      // If withServerConnection returned an MCP-style error object, pass it through
+      if (!Array.isArray(apiResult) && (apiResult as any)?.content) {
+        return apiResult as any;
       }
 
-      const swaggerDoc = await loadSwaggerDoc(swaggerSource);
-      const endpoints: any[] = [];
-
-      if (!swaggerDoc.paths) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  endpoints: [],
-                  message: "No API paths found in documentation",
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      }
-
-      // Search through all paths and methods
-      for (const [path, pathItem] of Object.entries(swaggerDoc.paths)) {
-        for (const [httpMethod, operation] of Object.entries(
-          pathItem as object
-        )) {
-          // Skip non-HTTP method entries
-          if (httpMethod === "parameters") continue;
-
-          const op = operation as any;
-          const upperMethod = httpMethod.toUpperCase();
-
-          // Apply method filter if specified
-          if (method && upperMethod !== method.toUpperCase()) continue;
-
-          // Check if the operation matches the provided filter (query or tag)
-          let matchesTerm = false;
-          if (effectiveQuery) {
-            const pattern = effectiveQueryIsRegex
-              ? effectiveQuery
-              : effectiveQuery.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const searchRegex = new RegExp(pattern, "i");
-            matchesTerm =
-              searchRegex.test(path) ||
-              (op.summary && searchRegex.test(op.summary)) ||
-              (op.description && searchRegex.test(op.description)) ||
-              (op.tags && op.tags.some((t: string) => searchRegex.test(t))) ||
-              (op.operationId && searchRegex.test(op.operationId));
-          } else if (effectiveTag) {
-            matchesTerm = !!(
-              op.tags &&
-              Array.isArray(op.tags) &&
-              op.tags.some((t: string) => t.toLowerCase() === effectiveTag.toLowerCase())
-            );
-          }
-
-          if (matchesTerm) {
-            const simplifiedEndpoint = createSimplifiedEndpoint(
-              path,
-              httpMethod,
-              op
-            );
-            endpoints.push(simplifiedEndpoint);
-
-            // Stop if we've reached max results
-            if (endpoints.length >= (limit || 10)) {
-              break;
-            }
-          }
-        }
-
-        if (endpoints.length >= (limit || 10)) {
-          break;
-        }
-      }
-
-      // Count endpoints that need live testing
-      const needsLiveTesting = endpoints.filter(
-        (e) => e.recommendedAction
-      ).length;
+      const endpoints = Array.isArray(apiResult) ? apiResult : [];
 
       const result = {
         summary: {
           totalFound: endpoints.length,
-          filter: effectiveQuery
+          filter: effectiveQuery && effectiveTag
+            ? { type: "mixed", value: `${effectiveQuery} (tag: ${effectiveTag})` }
+            : effectiveQuery
             ? { type: "query", value: effectiveQuery }
             : { type: "tag", value: effectiveTag },
           methodFilter: method || "all",
-          endpointsNeedingLiveTest: needsLiveTesting,
         },
         endpoints,
-        usage: {
-          nextSteps: [
-            "For endpoints with 'recommendedAction', use fetchLiveApiResponse to get actual response structure",
-            "Use the path, method, and requestBody/parameters to make API calls",
-            "For complex nested objects, refer to the flattened schema provided",
-          ],
-        },
       };
-
-      if (needsLiveTesting > 0) {
-        result.usage.nextSteps.unshift(
-          `${needsLiveTesting} endpoint(s) missing response schemas - use fetchLiveApiResponse for these`
-        );
-      }
 
       return {
         content: [

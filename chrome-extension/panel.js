@@ -111,6 +111,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (connectionStatusDiv && connectionStatusDiv.style.display === "block") {
       connectionStatusDiv.style.display = "none";
     }
+
+    // Update embedding statuses on successful validation
+    refreshAllProjectStatuses();
   }
 
   // Handle failed server validation
@@ -152,6 +155,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         port: message.serverPort,
       });
     }
+
+    // Refresh embedding statuses when WS connects
+    refreshAllProjectStatuses();
   }
 });
 
@@ -327,6 +333,182 @@ const connectionStatusDiv = document.getElementById("connection-status");
 const statusIcon = document.getElementById("status-icon");
 const statusText = document.getElementById("status-text");
 
+// Embedding controls (per-project accordion)
+const embedProjectsList = document.getElementById("embed-projects-list");
+const embedRefreshAllBtn = document.getElementById("embed-refresh-all");
+const embedSettingsHeader = document.getElementById("embed-settings-header");
+const embedSettingsContent = document.getElementById("embed-settings-content");
+const embedChevron = embedSettingsHeader ? embedSettingsHeader.querySelector(".chevron") : null;
+
+let projectsConfig = null;
+let projectNames = [];
+
+function serverBaseUrl() {
+  return `http://${settings.serverHost}:${settings.serverPort}`;
+}
+
+function setProjectStatus(project, text) {
+  const el = document.getElementById(`embed-status-${project}`);
+  if (el) el.textContent = text;
+}
+
+async function loadProjectsConfig() {
+  try {
+    const url = chrome.runtime.getURL("projects.json");
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Failed to load projects.json: HTTP ${resp.status}`);
+    projectsConfig = await resp.json();
+    projectNames = Object.keys(projectsConfig?.projects || {});
+    renderEmbedProjects();
+    if (serverConnected) {
+      refreshAllProjectStatuses();
+    }
+  } catch (e) {
+    console.error("Failed to load projects.json", e);
+    if (embedProjectsList) {
+      embedProjectsList.innerHTML = `<div style="color:#f66">Failed to load projects.json: ${e.message || e}</div>`;
+    }
+  }
+}
+
+function renderEmbedProjects() {
+  if (!embedProjectsList) return;
+  embedProjectsList.innerHTML = "";
+  const defaultProject = projectsConfig?.defaultProject;
+  projectNames.forEach((name) => {
+    const row = document.createElement("div");
+    row.className = "project-row";
+    row.style.cssText = "display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid #2a2a2a;";
+
+    const left = document.createElement("div");
+    left.style.cssText = "display:flex; flex-direction:column; gap:4px;";
+    const title = document.createElement("div");
+    title.textContent = name + (name === defaultProject ? " (default)" : "");
+    title.style.fontWeight = "600";
+    const status = document.createElement("div");
+    status.id = `embed-status-${name}`;
+    status.textContent = "Status: Unknown";
+    status.style.fontSize = "12px";
+    status.style.color = "#ccc";
+    left.appendChild(title);
+    left.appendChild(status);
+
+    const actions = document.createElement("div");
+    actions.className = "quick-actions";
+    const refreshBtn = document.createElement("button");
+    refreshBtn.className = "action-button embed-refresh";
+    refreshBtn.textContent = "Refresh";
+    refreshBtn.addEventListener("click", () => refreshProjectStatus(name));
+
+    const reindexBtn = document.createElement("button");
+    reindexBtn.className = "action-button embed-reindex";
+    reindexBtn.textContent = "Reindex";
+    reindexBtn.addEventListener("click", () => reindexProject(name, reindexBtn));
+
+    actions.appendChild(refreshBtn);
+    actions.appendChild(reindexBtn);
+
+    row.appendChild(left);
+    row.appendChild(actions);
+    embedProjectsList.appendChild(row);
+  });
+}
+
+async function refreshProjectStatus(project) {
+  if (!serverConnected) {
+    setProjectStatus(project, "Status: Not connected");
+    return;
+  }
+  try {
+    setProjectStatus(project, "Status: Checking...");
+    const resp = await fetch(`${serverBaseUrl()}/api/embed/status?project=${encodeURIComponent(project)}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    if (data && data.exists && data.meta) {
+      const m = data.meta;
+      const built = m.builtAt ? new Date(m.builtAt).toLocaleString() : "unknown";
+      setProjectStatus(project, `Built: ${built} • Vectors: ${m.vectorCount} • Model: ${m.model} • Project: ${m.project}`);
+    } else {
+      setProjectStatus(project, "Index not built. Click Reindex.");
+    }
+  } catch (e) {
+    setProjectStatus(project, `Status check failed: ${e.message || e}`);
+  }
+}
+
+async function refreshAllProjectStatuses() {
+  if (!projectNames || projectNames.length === 0) return;
+  await Promise.all(projectNames.map((p) => refreshProjectStatus(p)));
+}
+
+async function reindexProject(project, buttonEl) {
+  if (!serverConnected) {
+    setProjectStatus(project, "Not connected. Start server and try again.");
+    return;
+  }
+  const original = buttonEl ? buttonEl.textContent : null;
+  if (buttonEl) {
+    buttonEl.disabled = true;
+    buttonEl.textContent = "Rebuilding...";
+  }
+  setProjectStatus(project, "Rebuilding...");
+  try {
+    const resp = await fetch(`${serverBaseUrl()}/api/embed/reindex`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ project }),
+    });
+    if (!resp.ok) {
+      let msg = `HTTP ${resp.status}`;
+      try {
+        const bodyText = await resp.text();
+        if (bodyText) {
+          try {
+            const j = JSON.parse(bodyText);
+            if (j && j.error) msg = `${msg} - ${j.error}`;
+            else msg = `${msg} - ${bodyText}`;
+          } catch {
+            msg = `${msg} - ${bodyText}`;
+          }
+        }
+      } catch {}
+      throw new Error(msg);
+    }
+    const data = await resp.json();
+    if (data && data.meta) {
+      const m = data.meta;
+      const built = m.builtAt ? new Date(m.builtAt).toLocaleString() : "unknown";
+      setProjectStatus(project, `Completed  Built: ${built}  Vectors: ${m.vectorCount}  Model: ${m.model}`);
+    } else {
+      setProjectStatus(project, "Rebuild complete, but no metadata returned.");
+    }
+  } catch (e) {
+    setProjectStatus(project, `Rebuild failed: ${e.message || e}`);
+  } finally {
+    if (buttonEl) {
+      buttonEl.disabled = false;
+      buttonEl.textContent = original || "Reindex";
+    }
+  }
+}
+
+// Initialize collapsible embed settings
+if (embedSettingsHeader && embedSettingsContent) {
+  embedSettingsHeader.addEventListener("click", () => {
+    embedSettingsContent.classList.toggle("visible");
+    if (embedChevron) embedChevron.classList.toggle("open");
+  });
+}
+
+if (embedRefreshAllBtn) {
+  embedRefreshAllBtn.addEventListener("click", () => {
+    refreshAllProjectStatuses();
+  });
+}
+
+// Load projects list on startup
+loadProjectsConfig();
+
 // Initialize collapsible advanced settings
 const advancedSettingsHeader = document.getElementById(
   "advanced-settings-header"
@@ -417,6 +599,8 @@ serverPortInput.addEventListener("change", (e) => {
   saveSettings();
   // Automatically test connection when port is changed
   testConnection(settings.serverHost, settings.serverPort);
+  // Also refresh embedding status after settings change
+  refreshEmbedStatus();
 });
 
 // Add event listener for auto-paste checkbox
@@ -464,7 +648,10 @@ function cancelOngoingDiscovery() {
 testConnectionButton.addEventListener("click", async () => {
   // Cancel any ongoing discovery operations before testing
   cancelOngoingDiscovery();
-  await testConnection(settings.serverHost, settings.serverPort);
+  const ok = await testConnection(settings.serverHost, settings.serverPort);
+  if (ok) {
+    await refreshEmbedStatus();
+  }
 });
 
 // Function to test server connection
@@ -920,6 +1107,21 @@ async function discoverServer(quietMode = false) {
 
 // Bind discover server button to the extracted function
 discoverServerButton.addEventListener("click", () => discoverServer(false));
+
+// Embedding controls listeners
+if (embedRefreshBtn) {
+  embedRefreshBtn.addEventListener("click", () => {
+    refreshEmbedStatus();
+  });
+}
+if (embedReindexBtn) {
+  embedReindexBtn.addEventListener("click", () => {
+    triggerReindex();
+  });
+}
+
+// Attempt initial status refresh (will show not connected until server is found)
+refreshEmbedStatus();
 
 // Screenshot capture functionality
 captureScreenshotButton.addEventListener("click", () => {
