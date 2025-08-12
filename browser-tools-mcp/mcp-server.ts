@@ -1309,7 +1309,7 @@ server.tool(
         };
       }
 
-      // Call backend semantic search endpoint; backend uses ACTIVE_PROJECT internally
+      // Call backend semantic search endpoint. Pass implicit project via header (no param changes for tool callers).
       const payload = {
         query: effectiveQuery,
         tag: effectiveTag,
@@ -1318,11 +1318,17 @@ server.tool(
       } as any;
 
       const apiResult = await withServerConnection(async () => {
+        const activeProjectHeader = getActiveProjectName();
         const resp = await fetch(
           `http://${discoveredHost}:${discoveredPort}/api/embed/search`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(activeProjectHeader
+                ? { "X-ACTIVE-PROJECT": activeProjectHeader }
+                : {}),
+            },
             body: JSON.stringify(payload),
           }
         );

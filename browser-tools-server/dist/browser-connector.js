@@ -7,6 +7,9 @@ import os from "os";
 import ScreenshotService from "./screenshot-service.js";
 import dotenv from "dotenv";
 dotenv.config();
+// Install global colored logger (subtle)
+import { installGlobalLogger } from "./modules/logger.js";
+installGlobalLogger();
 // Moved scaffolding imports and helpers
 import { __filename as __top_filename, __dirname as __top_dirname, getScreenshotStoragePath, MAX_DETAILED_NETWORK_LOG_CACHE, clearAllLogs as clearImportedLogs, detailedNetworkLogCache, truncateLogsToQueryLimit, } from "./modules/shared.js";
 import { buildScreenshotConfig, buildScreenshotResponse, } from "./modules/screenshot.js";
@@ -420,7 +423,10 @@ app.post("/api/embed/search", async (req, res) => {
     try {
         const { query, tag, method, limit } = req.body || {};
         const lim = typeof limit === "number" ? limit : Number(limit) || undefined;
-        const result = await searchSemantic({ query, tag, method, limit: lim });
+        // Implicit multi-client routing: prefer header ACTIVE-PROJECT, then env/default
+        const projectFromHeader = req.headers["x-active-project"] ||
+            req.headers["active-project"];
+        const result = await searchSemantic({ query, tag, method, limit: lim }, projectFromHeader);
         res.json(result);
     }
     catch (e) {

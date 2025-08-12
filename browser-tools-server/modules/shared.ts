@@ -315,8 +315,16 @@ export interface ProjectsConfig {
 }
 
 // Load project configuration
+// Lightweight in-process cache to avoid repeated filesystem reads and duplicate logs
+let cachedProjectsConfig: ProjectsConfig | null = null;
+let cachedProjectsConfigPath: string | null = null;
+let hasLoggedProjectsConfig: boolean = false;
+
 export function loadProjectConfig(): ProjectsConfig | null {
   try {
+    // Return cached config if available
+    if (cachedProjectsConfig) return cachedProjectsConfig;
+
     const configPath = path.join(
       __dirname,
       "..",
@@ -325,24 +333,40 @@ export function loadProjectConfig(): ProjectsConfig | null {
       "chrome-extension",
       "projects.json"
     );
-    console.log(
-      `[DEBUG] Browser Connector: Looking for projects.json at: ${configPath}`
-    );
-    if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, "utf8");
+
+    // Only log once for discoverability
+    if (!hasLoggedProjectsConfig) {
       console.log(
-        `[DEBUG] Browser Connector: Successfully loaded projects.json`
-      );
-      return JSON.parse(configData);
-    } else {
-      console.log(
-        `[DEBUG] Browser Connector: projects.json not found at: ${configPath}`
+        `[INFO] Browser Connector: Loading projects.json from ${configPath}`
       );
     }
+
+    if (fs.existsSync(configPath)) {
+      const configData = fs.readFileSync(configPath, "utf8");
+      const parsed = JSON.parse(configData) as ProjectsConfig;
+      cachedProjectsConfig = parsed;
+      cachedProjectsConfigPath = configPath;
+      if (!hasLoggedProjectsConfig) {
+        const projectCount = Object.keys(parsed.projects || {}).length;
+        console.log(
+          `[INFO] Browser Connector: Loaded projects.json (projects=${projectCount}, defaultProject=${parsed.defaultProject})`
+        );
+      }
+    } else {
+      if (!hasLoggedProjectsConfig) {
+        console.log(
+          `[WARN] Browser Connector: projects.json not found at: ${configPath}`
+        );
+      }
+      cachedProjectsConfig = null;
+    }
+
+    hasLoggedProjectsConfig = true;
+    return cachedProjectsConfig;
   } catch (error) {
     console.error("Browser Connector: Error loading projects config:", error);
+    return null;
   }
-  return null;
 }
 
 // Get configuration value with fallback priority:
@@ -356,6 +380,11 @@ export function getConfigValue(
   // First check environment variables
   if (process.env[key]) {
     return process.env[key];
+  }
+
+  // Security: never read embedding API keys from projects.json
+  if (key === "OPENAI_API_KEY" || key === "GEMINI_API_KEY") {
+    return defaultValue;
   }
 
   // Then check project config
@@ -386,7 +415,8 @@ export function getScreenshotStoragePath(): string | undefined {
 export function getActiveProjectName(): string | undefined {
   const projectsConfig = loadProjectConfig();
   if (projectsConfig) {
-    return process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+    const active = process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+    return active;
   }
   return undefined;
 }

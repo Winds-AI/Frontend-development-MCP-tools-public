@@ -175,7 +175,7 @@ async function embedBatch(texts, dims = DEFAULT_DIMS, taskType = "SEMANTIC_SIMIL
             const retryAfter = resp.headers?.get?.("retry-after");
             let delay = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.min(16000, 500 * Math.pow(2, attempt));
             delay += Math.floor(Math.random() * 250);
-            console.warn(`[embed] rate limited status=${status} attempt=${attempt + 1} delayMs=${delay}`);
+            console.warn(`[warn] embed rate limited status=${status} attempt=${attempt + 1} delayMs=${delay}`);
             await sleep(isFinite(delay) && delay > 0 ? delay : 1000);
             continue;
         }
@@ -334,8 +334,11 @@ export async function rebuildIndex(project) {
     console.log(`[index] Rebuild complete project=${proj} model=${meta.model} dims=${meta.dims} vectors=${meta.vectorCount}`);
     return meta;
 }
-export async function searchSemantic(params) {
-    const project = getProjectName(); // Use ACTIVE_PROJECT
+export async function searchSemantic(params, projectOverride) {
+    const project = getProjectName(projectOverride); // Prefer per-request override
+    if (project) {
+        console.log(`[search] Using project "${project}" for semantic API search`);
+    }
     const status = await getStatus(project);
     if (!status.exists) {
         throw new Error("Semantic index not built. Open Dev Panel and re-index.");
@@ -344,14 +347,18 @@ export async function searchSemantic(params) {
     const needDims = getProviderDims();
     const needModel = getProviderModel();
     if (meta.dims !== needDims || meta.model !== needModel) {
-        console.warn(`[search] Index settings mismatch: have model=${meta.model} dims=${meta.dims}, need model=${needModel} dims=${needDims}`);
+        console.warn(`[warn] Index settings mismatch: have model=${meta.model} dims=${meta.dims}, need model=${needModel} dims=${needDims}`);
         throw new Error("Semantic index was built with different embedding settings. Please open the Dev Panel and Reindex for the current provider/model.");
     }
     const idx = await getOrCreateIndex(project);
     const swagger = await getProjectSwagger(project);
     const qStr = buildQueryString({ query: params.query, tag: params.tag, method: params.method });
     console.log(`[search] Embedding query provider=${resolveEmbeddingProvider()} model=${getProviderModel()}`);
+    const queryChars = (params.query || "").length;
+    const t0 = Date.now();
     const [qVec] = await embedBatch([qStr], getProviderDims(), "RETRIEVAL_QUERY");
+    const elapsedMs = Date.now() - t0;
+    console.log(`[search] Query embed completed timeMs=${elapsedMs} queryChars=${queryChars} builtChars=${qStr.length} provider=${resolveEmbeddingProvider()} model=${getProviderModel()}`);
     const pool = await idx.queryItems(qVec, "", TOPK);
     const method = params.method ? params.method.toUpperCase() : undefined;
     const tag = params.tag;

@@ -1,6 +1,6 @@
 {
   "project": "bandar-admin-frontend",
-  "builtAt": "2025-08-10T12:25:45.211Z",
+  "builtAt": "2025-08-12T04:04:33.717Z",
   "model": "text-embedding-3-small",
   "dims": 1536,
   "vectorCount": 147,

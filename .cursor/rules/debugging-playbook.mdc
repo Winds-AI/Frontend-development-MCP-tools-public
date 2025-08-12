@@ -1,0 +1,38 @@
+---
+description: Practical debugging steps for the MCP + server + extension stack
+---
+## Debugging Playbook — Common Issues and Fixes
+
+### Active project mismatches
+- Symptom: API doc search returns endpoints from the wrong project.
+- Checks:
+  1) Confirm Cursor MCP config sets `ACTIVE_PROJECT` for this IDE instance.
+  2) Verify server logs show `[search] Using project "<name>"` on request.
+  3) Ensure MCP sends `X-ACTIVE-PROJECT` (handled automatically in [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts)).
+  4) Inspect `defaultProject` in [projects.json](mdc:chrome-extension/projects.json).
+- Fix: Re-set `ACTIVE_PROJECT` or adjust `defaultProject`. If needed, run two servers on different ports and set `BROWSER_TOOLS_PORT` per IDE.
+
+### Missing/old semantic index
+- Symptom: "Semantic index not built" or stale results.
+- Checks: Open DevTools panel (extension) and check status per project.
+- Fix: Click Reindex for the project; ensure embedding provider/API key is configured.
+
+### Embedding provider errors / rate limiting
+- Symptom: 429 or provider error in logs.
+- Checks: Server logs (look for `[warn] embed rate limited` or `[error]`).
+- Fix: Retry, lower batch size (if changed), or switch provider/model.
+
+### Live API failures
+- Symptom: `fetchLiveApiResponse` returns auth or base URL errors.
+- Checks: Ensure `API_BASE_URL` and `API_AUTH_TOKEN` set in project config or env; token validates.
+- Fix: Update [projects.json](mdc:chrome-extension/projects.json) config and restart MCP/server.
+
+### Extension connection problems
+- Symptom: Screenshot/navigation/element tools fail.
+- Checks: Server `.identity` reachable; WS connected; extension loaded; DevTools open.
+- Fix: Reload extension, reopen DevTools, ensure server running and ports match MCP discovery.
+
+### Reducing log noise
+- Use `LOG_LEVEL=warn` or `LOG_LEVEL=error` on the server.
+- Coloring and filtering are applied globally via [logger.ts](mdc:browser-tools-server/modules/logger.ts).
+

@@ -207,23 +207,43 @@ export function convertPathForCurrentPlatform(inputPath) {
     return inputPath;
 }
 // Load project configuration
+// Lightweight in-process cache to avoid repeated filesystem reads and duplicate logs
+let cachedProjectsConfig = null;
+let cachedProjectsConfigPath = null;
+let hasLoggedProjectsConfig = false;
 export function loadProjectConfig() {
     try {
+        // Return cached config if available
+        if (cachedProjectsConfig)
+            return cachedProjectsConfig;
         const configPath = path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json");
-        console.log(`[DEBUG] Browser Connector: Looking for projects.json at: ${configPath}`);
+        // Only log once for discoverability
+        if (!hasLoggedProjectsConfig) {
+            console.log(`[INFO] Browser Connector: Loading projects.json from ${configPath}`);
+        }
         if (fs.existsSync(configPath)) {
             const configData = fs.readFileSync(configPath, "utf8");
-            console.log(`[DEBUG] Browser Connector: Successfully loaded projects.json`);
-            return JSON.parse(configData);
+            const parsed = JSON.parse(configData);
+            cachedProjectsConfig = parsed;
+            cachedProjectsConfigPath = configPath;
+            if (!hasLoggedProjectsConfig) {
+                const projectCount = Object.keys(parsed.projects || {}).length;
+                console.log(`[INFO] Browser Connector: Loaded projects.json (projects=${projectCount}, defaultProject=${parsed.defaultProject})`);
+            }
         }
         else {
-            console.log(`[DEBUG] Browser Connector: projects.json not found at: ${configPath}`);
+            if (!hasLoggedProjectsConfig) {
+                console.log(`[WARN] Browser Connector: projects.json not found at: ${configPath}`);
+            }
+            cachedProjectsConfig = null;
         }
+        hasLoggedProjectsConfig = true;
+        return cachedProjectsConfig;
     }
     catch (error) {
         console.error("Browser Connector: Error loading projects config:", error);
+        return null;
     }
-    return null;
 }
 // Get configuration value with fallback priority:
 // 1. Environment variable (highest priority)
@@ -233,6 +253,10 @@ export function getConfigValue(key, defaultValue) {
     // First check environment variables
     if (process.env[key]) {
         return process.env[key];
+    }
+    // Security: never read embedding API keys from projects.json
+    if (key === "OPENAI_API_KEY" || key === "GEMINI_API_KEY") {
+        return defaultValue;
     }
     // Then check project config
     const projectsConfig = loadProjectConfig();
@@ -258,7 +282,8 @@ export function getScreenshotStoragePath() {
 export function getActiveProjectName() {
     const projectsConfig = loadProjectConfig();
     if (projectsConfig) {
-        return process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+        const active = process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
+        return active;
     }
     return undefined;
 }

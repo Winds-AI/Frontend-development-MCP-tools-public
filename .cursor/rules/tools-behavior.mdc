@@ -1,0 +1,60 @@
+---
+globs: *.ts,*.tsx,*.js
+---
+## MCP Tools — Behavior, Inputs, and Business Logic
+
+Use this as a quick reference for how tools work and where their logic lives. For end-user docs, also see:
+- [HOW_TO_USE.md](mdc:docs/HOW_TO_USE.md)
+- [each-tool-explained/](mdc:docs/each-tool-explained)
+
+### Project configuration and scoping
+- Config source: [projects.json](mdc:chrome-extension/projects.json) with per-project `config`.
+- Env resolution: [shared.ts](mdc:browser-tools-server/modules/shared.ts) → `getConfigValue`, `getActiveProjectName`.
+- Active project selection order: header `X-ACTIVE-PROJECT` → `process.env.ACTIVE_PROJECT` → `defaultProject` in `projects.json`.
+- Per-project storage: indices in `.vectra/<project>` and cached Swagger per project.
+
+### searchApiDocumentation
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts) → server endpoint `/api/embed/search` → [semantic-index.ts](mdc:browser-tools-server/modules/semantic-index.ts)
+- Input: `{ query?: string, tag?: string, method?: 'GET'|'POST'|'PUT'|'PATCH'|'DELETE', limit?: number }`
+- Behavior: Semantic recall over Swagger (path, summary, tags) with method/tag filtering; minimal request/response hints are hydrated from Swagger.
+- Output: `[{ method, path, request?, response? }]`
+- Project scoping: Implicit via header `X-ACTIVE-PROJECT` sent by MCP.
+- Notes: Server logs include query embedding timing.
+
+### listApiTags
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts)
+- Behavior: Loads Swagger for active project; returns tag counts.
+- Project scoping: Resolved by MCP via `ACTIVE_PROJECT`.
+
+### fetchLiveApiResponse
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts)
+- Input: `endpoint`, `method?`, `requestBody?`, `queryParams?`, `includeAuthToken?`
+- Behavior: Builds URL from `API_BASE_URL` and optionally adds `Authorization: Bearer <API_AUTH_TOKEN>` if requested and valid.
+- Output: Response data + details (status, headers, timing, url, method).
+- Project scoping: Resolved by MCP via `ACTIVE_PROJECT`.
+
+### captureBrowserScreenshot
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts) (tool) → server [browser-connector.ts](mdc:browser-tools-server/browser-connector.ts) → [screenshot-service.ts](mdc:browser-tools-server/screenshot-service.ts)
+- Behavior: Extension captures screenshot via WS; server saves via service; returns image data and path context.
+- Project scoping: MCP includes project name; server uses project storage path from config.
+
+### inspectBrowserConsole / inspectBrowserNetworkActivity / inspectSelectedElementCss
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts)
+- Behavior: Read logs/state from server endpoints with filters; not project-specific.
+
+### navigateBrowserTab
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts) → server `/navigate-tab`
+- Behavior: Sends navigation over WS to the extension; returns success/failure.
+
+### Embeddings and indexing
+- Provider: OpenAI or Gemini; auto-selects by keys in env. Model can be overridden by env.
+- Index path: `.vectra/<project>/index` (created if missing).
+- Status + rebuild: `/api/embed/status`, `/api/embed/reindex`.
+- Source: [semantic-index.ts](mdc:browser-tools-server/modules/semantic-index.ts)
+
+### Logging
+- Global logger installed in [browser-connector.ts](mdc:browser-tools-server/browser-connector.ts) via [logger.ts](mdc:browser-tools-server/modules/logger.ts).
+- Tags: `[search]`, `[embed]`, `[index]`, `[info]`, `[warn]`, `[error]` (subtle colors).
+- Control noise with `LOG_LEVEL=error|warn|info|debug`.
+
+
