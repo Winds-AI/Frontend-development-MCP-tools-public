@@ -1,8 +1,0 @@
-{
-  "project": "docorigin-frontend",
-  "builtAt": "2025-08-12T08:58:26.711Z",
-  "model": "text-embedding-3-small",
-  "dims": 1536,
-  "vectorCount": 29,
-  "swaggerHash": "5f706b9a5720360380705c128feb94cb2e8e3616678d31e3f04250a9e6d2ea37"
-}
