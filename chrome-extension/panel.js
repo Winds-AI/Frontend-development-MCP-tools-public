@@ -599,8 +599,8 @@ serverPortInput.addEventListener("change", (e) => {
   saveSettings();
   // Automatically test connection when port is changed
   testConnection(settings.serverHost, settings.serverPort);
-  // Also refresh embedding status after settings change
-  refreshEmbedStatus();
+  // Also refresh embedding statuses after settings change
+  refreshAllProjectStatuses();
 });
 
 // Add event listener for auto-paste checkbox
@@ -650,7 +650,7 @@ testConnectionButton.addEventListener("click", async () => {
   cancelOngoingDiscovery();
   const ok = await testConnection(settings.serverHost, settings.serverPort);
   if (ok) {
-    await refreshEmbedStatus();
+    await refreshAllProjectStatuses();
   }
 });
 
@@ -1108,20 +1108,8 @@ async function discoverServer(quietMode = false) {
 // Bind discover server button to the extracted function
 discoverServerButton.addEventListener("click", () => discoverServer(false));
 
-// Embedding controls listeners
-if (embedRefreshBtn) {
-  embedRefreshBtn.addEventListener("click", () => {
-    refreshEmbedStatus();
-  });
-}
-if (embedReindexBtn) {
-  embedReindexBtn.addEventListener("click", () => {
-    triggerReindex();
-  });
-}
-
 // Attempt initial status refresh (will show not connected until server is found)
-refreshEmbedStatus();
+refreshAllProjectStatuses();
 
 // Screenshot capture functionality
 captureScreenshotButton.addEventListener("click", () => {

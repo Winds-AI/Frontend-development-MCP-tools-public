@@ -1596,6 +1596,51 @@ async function setupWebSocket() {
               }
             }
           );
+        } else if (message.type === "dom-action") {
+          try {
+            chrome.runtime.sendMessage(
+              {
+                type: "PERFORM_DOM_ACTION",
+                tabId: chrome.devtools.inspectedWindow.tabId,
+                requestId: message.requestId,
+                payload: message.payload,
+              },
+              (response) => {
+                if (chrome.runtime.lastError) {
+                  ws.send(
+                    JSON.stringify({
+                      type: "dom-action-response",
+                      requestId: message.requestId,
+                      success: false,
+                      error:
+                        "Failed to communicate with background script: " +
+                        chrome.runtime.lastError.message,
+                    })
+                  );
+                  return;
+                }
+                const r = response || {};
+                ws.send(
+                  JSON.stringify({
+                    type: "dom-action-response",
+                    requestId: message.requestId,
+                    success: !!r.success,
+                    details: r.details,
+                    error: r.error,
+                  })
+                );
+              }
+            );
+          } catch (e) {
+            ws.send(
+              JSON.stringify({
+                type: "dom-action-response",
+                requestId: message.requestId,
+                success: false,
+                error: e?.message || "Unknown error performing DOM action",
+              })
+            );
+          }
         }
       } catch (error) {
         console.error(

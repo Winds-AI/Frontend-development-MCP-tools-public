@@ -659,6 +659,14 @@ export class BrowserConnector {
       }
     );
 
+    // Add DOM action endpoint
+    this.app.post(
+      "/dom-action",
+      async (req: express.Request, res: express.Response): Promise<void> => {
+        await this.domAction(req, res);
+      }
+    );
+
     // Handle upgrade requests for WebSocket
     this.server.on(
       "upgrade",
@@ -1255,6 +1263,75 @@ export class BrowserConnector {
             ? error.message
             : "An unknown error occurred during navigation",
       });
+    }
+  }
+
+  // DOM action relay to extension over WebSocket
+  async domAction(
+    req: express.Request,
+    res: express.Response
+  ): Promise<void> {
+    try {
+      const payload = req.body || {};
+
+      if (!payload || typeof payload !== "object") {
+        res.status(400).json({ error: "Invalid request body" });
+        return;
+      }
+
+      if (!this.activeConnection) {
+        res.status(503).json({ error: "Chrome extension not connected" });
+        return;
+      }
+
+      const requestId = Date.now().toString();
+
+      const actionPromise = new Promise<{ success: boolean; details?: any; error?: string }>((resolve, reject) => {
+        const messageHandler = (
+          message: string | Buffer | ArrayBuffer | Buffer[]
+        ) => {
+          try {
+            const data = JSON.parse(message.toString());
+            if (
+              data &&
+              data.type === "dom-action-response" &&
+              data.requestId === requestId
+            ) {
+              this.activeConnection?.removeListener("message", messageHandler);
+              if (data.success) {
+                resolve({ success: true, details: data.details });
+              } else {
+                resolve({ success: false, error: data.error || "DOM action failed" });
+              }
+            }
+          } catch (_) {
+          }
+        };
+
+        this.activeConnection?.on("message", messageHandler);
+
+        const message = JSON.stringify({
+          type: "dom-action",
+          requestId,
+          payload,
+        });
+        this.activeConnection?.send(message);
+
+        setTimeout(() => {
+          this.activeConnection?.removeListener("message", messageHandler);
+          reject(new Error("DOM action timeout"));
+        }, 15000);
+      });
+
+      const result = await actionPromise;
+
+      if (result.success) {
+        res.json({ success: true, details: result.details });
+      } else {
+        res.status(500).json({ error: result.error || "DOM action failed" });
+      }
+    } catch (error: any) {
+      res.status(500).json({ error: error?.message || "Unknown error" });
     }
   }
 

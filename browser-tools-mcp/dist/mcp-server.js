@@ -399,6 +399,96 @@ server.tool("inspectBrowserNetworkActivity", "Logs recent browser network reques
         }
     });
 });
+// Tool: interactWithPage (DOM-first with CDP fallback via extension)
+server.tool("interactWithPage", "Interact with the active browser tab using semantic selectors (data-testid, role+name, label, placeholder, name, text, css, xpath). Supports actions: click, type, select, check/uncheck, keypress, hover, waitForSelector. Automatically scrolls into view and waits for visibility/enabled. Uses a CDP fallback in the extension when needed.", {
+    action: z.enum(["click", "type", "select", "check", "uncheck", "keypress", "hover", "waitForSelector", "scroll"]),
+    target: z.object({
+        by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
+        value: z.string(),
+        exact: z.boolean().optional(),
+    }).describe("How to locate the element"),
+    scopeTarget: z
+        .object({
+        by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
+        value: z.string(),
+        exact: z.boolean().optional(),
+    })
+        .optional()
+        .describe("Optional container to scope the search (e.g., role=tablist)"),
+    value: z.string().optional().describe("Text/value to type/select/keypress when applicable"),
+    options: z.object({
+        timeoutMs: z.number().optional(),
+        waitForVisible: z.boolean().optional(),
+        waitForEnabled: z.boolean().optional(),
+        waitForNetworkIdleMs: z.number().optional(),
+        postActionScreenshot: z.boolean().optional(),
+        screenshotLabel: z.string().optional(),
+        fallbackToCdp: z.boolean().optional(),
+        frameSelector: z.string().optional(),
+        // scroll-specific
+        scrollX: z.number().optional(),
+        scrollY: z.number().optional(),
+        to: z.enum(["top", "bottom"]).optional(),
+        smooth: z.boolean().optional(),
+        // assertion helpers
+        assertTarget: z
+            .object({
+            by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
+            value: z.string(),
+            exact: z.boolean().optional(),
+        })
+            .optional(),
+        assertTimeoutMs: z.number().optional(),
+        assertUrlContains: z.string().optional(),
+        tabChangeWaitMs: z.number().optional(),
+    }).optional(),
+}, async (params) => {
+    return await withServerConnection(async () => {
+        try {
+            const targetUrl = `http://${discoveredHost}:${discoveredPort}/dom-action`;
+            const response = await fetch(targetUrl, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify(params),
+            });
+            const result = await response.json();
+            if (response.ok && result.success) {
+                const texts = [
+                    {
+                        type: "text",
+                        text: `✅ Action '${params.action}' succeeded on target (${params.target.by}=${params.target.value}).`,
+                    },
+                ];
+                if (result.details) {
+                    texts.push({ type: "text", text: JSON.stringify(result.details, null, 2) });
+                }
+                return { content: texts };
+            }
+            else {
+                return {
+                    content: [
+                        {
+                            type: "text",
+                            text: `❌ Action '${params.action}' failed: ${result.error || "Unknown error"}`,
+                        },
+                    ],
+                    isError: true,
+                };
+            }
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            return {
+                content: [
+                    { type: "text", text: `Failed to perform interaction: ${errorMessage}` },
+                ],
+                isError: true,
+            };
+        }
+    });
+});
 // =============================================
 // LIST API TAGS TOOL
 // =============================================
