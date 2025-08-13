@@ -1,3 +1,15 @@
 node-modules
 **node_modules**
 **/node_modules
+
+# Environment files (ignore at any depth)
+.env
+.env.*
+*.env
+**/.env
+**/.env.*
+**/*.env
+
+# Project config with secrets
+chrome-extension/projects.json
+**/projects.json

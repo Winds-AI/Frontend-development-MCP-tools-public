@@ -6,7 +6,8 @@
 4. [`inspectSelectedElementCss`](./each-tool-explained/inspectSelectedElementCss.md)
 5. [`inspectBrowserNetworkActivity`](./each-tool-explained/inspectBrowserNetworkActivity.md)
 6. [`navigateBrowserTab`](./each-tool-explained/navigateBrowserTab.md)
-7. [`inspectBrowserConsole`](./each-tool-explained/inspectBrowserConsole.md)
+7. [`listApiTags`](./each-tool-explained/listApiTags.md)
+8. [`inspectBrowserConsole`](./each-tool-explained/inspectBrowserConsole.md)
 
 # How to Use Browser Tools MCP
 
@@ -42,14 +43,14 @@ Use `searchApiDocumentation` to identify endpoints and request/response shapes. 
 
 ### **Workflow 2: UI Development & Debugging**
 
-- Use `captureBrowserScreenshot` for UI analysis (no params; always returns image)
+- Use `captureBrowserScreenshot` for UI analysis (requires a dummy `randomString` param; always returns image)
 - Use `inspectSelectedElementCss` for CSS/layout context of the DevTools-selected element
 - Use `inspectBrowserNetworkActivity` to inspect recent API calls
 - Use `inspectBrowserConsole` to capture JS errors/warnings/logs with filters
 
 ### **Workflow 3: Recursive UI Improvements**
 
-- Loop `captureBrowserScreenshot()` → analyze → apply edits → repeat
+- Loop `captureBrowserScreenshot({ randomString: "anything" })` → analyze → apply edits → repeat
 
 ### **Workflow 4: Automated Testing & Navigation**
 
@@ -70,6 +71,6 @@ Use `searchApiDocumentation` to identify endpoints and request/response shapes. 
 1. Search docs: [`searchApiDocumentation`](./each-tool-explained/searchApiDocumentation.md) for "users" endpoints
 2. Validate live response: [`fetchLiveApiResponse`](./each-tool-explained/fetchLiveApiResponse.md) with includeAuthToken if needed
 3. Open page: [`navigateBrowserTab`](./each-tool-explained/navigateBrowserTab.md) to your feature URL
-4. Visual check: [`captureBrowserScreenshot`](./each-tool-explained/captureBrowserScreenshot.md)
+4. Visual check: [`captureBrowserScreenshot`](./each-tool-explained/captureBrowserScreenshot.md) with `{ randomString: "any" }`
 5. Inspect failures: [`inspectBrowserNetworkActivity`](./each-tool-explained/inspectBrowserNetworkActivity.md) and [`inspectBrowserConsole`](./each-tool-explained/inspectBrowserConsole.md)
 6. Debug CSS: [`inspectSelectedElementCss`](./each-tool-explained/inspectSelectedElementCss.md)

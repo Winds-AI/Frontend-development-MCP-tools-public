@@ -14,10 +14,13 @@ The `captureBrowserScreenshot` tool captures the current browser tab and saves i
 ## Tool Signature
 
 ```typescript
-captureBrowserScreenshot();
+captureBrowserScreenshot({
+  randomString: string // any string; required by MCP schema
+});
 ```
 
-This tool currently takes no parameters.
+Parameters:
+- randomString: string (required) — arbitrary string to satisfy the MCP schema; not used by the server.
 
 ## File Organization System
 
@@ -74,7 +77,7 @@ The tool returns a text block with project/category info and an image payload wi
 ### Basic Screenshot
 
 ```typescript
-await captureBrowserScreenshot();
+await captureBrowserScreenshot({ randomString: "ok" });
 ```
 
 Custom filenames are not currently supported via the MCP tool. Filenames are generated from the URL.
@@ -96,11 +99,12 @@ The tool always returns image data for analysis.
 **URL**: `https://staging.example.com/admin/users`
 **Result**: `~/Downloads/MCP_Screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
 
-### Custom Project
+### Active Project Folder
+
+The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultProject`.
 
 **URL**: `http://localhost:8080/api/auth/login`
-**Custom Project**: `auth-service`
-**Custom Filename**: `login-page`
+**ACTIVE_PROJECT**: `auth-service`
 **Result**: `~/Downloads/MCP_Screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
 
 ## Technical Architecture
@@ -136,10 +140,10 @@ The tool always returns image data for analysis.
 - **Purpose**: Override base directory for screenshots
 - **Example**: `export SCREENSHOT_STORAGE_PATH="/custom/screenshots"`
 
-### `PROJECT_NAME`
+### `ACTIVE_PROJECT`
 
-- **Purpose**: Override project detection
-- **Example**: `export PROJECT_NAME="my-app"`
+- **Purpose**: Select active project name used for screenshot organization
+- **Example**: `export ACTIVE_PROJECT="my-app"`
 
 ## Error Handling
 
@@ -208,7 +212,7 @@ The most effective pattern for AI-driven UI debugging combines `captureBrowserSc
 
 ```typescript
 // 1. Capture initial state
-await captureBrowserScreenshot();
+await captureBrowserScreenshot({ randomString: "initial" });
 
 // 2. AI analyzes screenshot and identifies issues
 // (Human or AI selects problematic element in DevTools)
@@ -225,7 +229,7 @@ const elementContext = await inspectSelectedElementCss();
 // - Material-UI context (if applicable)
 
 // 5. Apply fixes and verify
-await captureBrowserScreenshot(); // Compare before/after
+await captureBrowserScreenshot({ randomString: "after" }); // Compare before/after
 ```
 
 ### **What the Enhanced Element Inspection Provides**
@@ -264,7 +268,7 @@ When you select an element and call `inspectSelectedElementCss`, you get:
 
 ```typescript
 // AI sees layout issue in screenshot
-await captureBrowserScreenshot();
+await captureBrowserScreenshot({ randomString: "issue" });
 
 // AI instructs: "Select the misaligned button element"
 // Human selects element in DevTools Elements panel
