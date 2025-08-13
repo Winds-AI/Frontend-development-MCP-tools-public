@@ -1,0 +1,59 @@
+SETUP TUTORIAL (Plain Text)
+
+1) Clone the repository
+- Open a terminal and run:
+  git clone https://github.com/<your-org>/Frontend-development-MCP-tools-public.git
+  cd Frontend-development-MCP-tools-public
+
+2) Create projects.json and set API keys
+- Create the file chrome-extension/projects.json with your project config (example):
+  {
+    "projects": {
+      "my-frontend": {
+        "config": {
+          "SWAGGER_URL": "https://api.example.com/openapi.json",
+          "API_BASE_URL": "https://api.example.com",
+          "API_AUTH_TOKEN": "<your_bearer_token>",
+          "PROJECT_ROOT": "/absolute/path/to/project/root",
+          "ROUTES_FILE_PATH": "src/routes/paths.ts"
+        }
+      }
+    },
+    "defaultProject": "my-frontend",
+    "DEFAULT_SCREENSHOT_STORAGE_PATH": "/absolute/path/to/screenshots/root"
+  }
+
+- Set embedding provider API keys (use either OpenAI or Gemini). These must be environment variables (do NOT put in projects.json):
+    create browser-tools-server/.env with for example:
+    OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxx
+    OPENAI_EMBED_MODEL=text-embedding-3-small
+    # OR use Gemini
+    # GEMINI_API_KEY=xxxxxxxxxxxxxxxx
+    # GEMINI_EMBED_MODEL=gemini-embedding-001
+
+
+3) Load the Chrome extension
+- In Chrome, go to: chrome://extensions/
+- Turn on "Developer mode" (top right)
+- Click "Load unpacked"
+- Select the chrome-extension folder from this repo
+
+4) Start the server
+- From the repo root, run ONE of:
+  node start-server.js
+  # or
+  npm run start
+
+- The server will pick an available port starting at 3025. You can verify at:
+  http://localhost:3025/.identity (or whichever port it chose)
+
+5) Test the connection from the extension
+- Open your web app on localhost in Chrome (any local URL, e.g., http://localhost:3000)
+- Open DevTools (F12) on that tab
+- Go to the "BrowserTools MCP" panel
+- Click "Test Connection"
+- You should see a success message. If not, click "Reconnect" or start the discovery, and ensure the server is running.
+
+Notes (optional for video):
+- The extension and tools require DevTools to stay open on the target tab.
+- Only the ACTIVE_PROJECT needs to be set in your MCP client config; all other settings live in projects.json.

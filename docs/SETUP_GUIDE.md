@@ -17,24 +17,53 @@ You can skip these rules or memories setup if you will not be using this tool fo
 
 ## 🚀 Quick Setup Instructions
 
-### 1. Load the Chrome Extension
+### 1) Load the Chrome Extension
 
 1. Open Chrome and navigate to `chrome://extensions/`
-2. Toggle **"Developer mode"** on (top-right corner)
-3. Click **"Load unpacked"** (top-left corner)
-4. Select the `chrome-extension` directory from the cloned repository
+2. Toggle "Developer mode" on (top-right corner)
+3. Click "Load unpacked" (top-left corner)
+4. Select the `chrome-extension` directory from this repository
 
 ---
 
-After loading the extension, you can choose one of the following setup flows:
+### 2) Create project configuration (projects.json)
 
-### 2. Choose Your Setup Flow
+Create `chrome-extension/projects.json` on your machine. This file is ignored by git and holds per-project config. See the full structure and fields at the end of this guide in "Project configuration (chrome-extension/projects.json)".
 
-#### 🟢 Recommended Way: Node.js Scripts
+File example:
 
-We provide two simple Node.js scripts for easy setup and running:
+```json
+{
+  "projects": {
+    "my-frontend": {
+      "config": {
+        "SWAGGER_URL": "https://api.example.com/openapi.json",
+        "API_BASE_URL": "https://api.example.com",
+        "API_AUTH_TOKEN": "<your_bearer_token>",
+        "PROJECT_ROOT": "/absolute/path/to/project/root",
+        "ROUTES_FILE_PATH": "src/routes/paths.ts"
+      }
+    },
+    "another-app": {
+      "config": {
+        "SWAGGER_URL": "https://staging.example.com/openapi.json",
+        "API_BASE_URL": "https://staging.example.com",
+        "API_AUTH_TOKEN": "<your_staging_token>"
+      }
+    }
+  },
+  "defaultProject": "my-frontend",
+  "DEFAULT_SCREENSHOT_STORAGE_PATH": "/absolute/path/to/screenshots/root"
+}
+```
 
-1. **First-time setup** (or after pulling new changes):
+---
+
+### 3) Start the Browser Tools Server
+
+Recommended scripts (from repo root):
+
+- First-time/full setup (installs, builds, and starts):
 
 ```bash
 node setup.js
@@ -42,15 +71,7 @@ node setup.js
 npm run setup
 ```
 
-This will:
-
-- Check/install pnpm
-- Install and build browser-tools-mcp
-- Install and build browser-tools-server
-- Show Chrome extension setup instructions
-- Start the server
-
-2. **Quick start** (for daily use, when everything is already set up):
+- Daily start (when already set up):
 
 ```bash
 node start-server.js
@@ -58,20 +79,17 @@ node start-server.js
 npm run start
 ```
 
-This will:
+Notes:
+- The server auto-selects an available port starting at 3025 (range 3025–3035).
+- Health and identity endpoints: `/.identity`, `/connection-health`.
 
-- Check if the server is properly set up
-- Show a reminder about the Chrome extension
-- Start the server directly
+---
 
-**🎯 Enhanced Server Features:** See `docs/PROJECT_OVERVIEW.md` (Server Features). 
+### 4) Configure your MCP client (ACTIVE_PROJECT only)
 
-### 4. Configure Your AI Code Platform
+The MCP client only needs to know which project to use. Put all other configuration in `chrome-extension/projects.json`.
 
-1. Add this server to your MCP configuration file in your preferred AI code platform (Windsurf, Cursor, GitHub Copilot, etc.).
-2. **Important**: After updating the MCP configuration, close and restart your AI coding platform for the changes to take effect.
-
-#### 🎯 Configuration Example (add to `.cursor/mcp.json` in your project)
+Example `.cursor/mcp.json`:
 
 ```json
 {
@@ -82,41 +100,41 @@ This will:
         "/absolute/path/to/browser-tools-mcp/dist/mcp-server.js"
       ],
       "env": {
-        // === API discovery/search ===
-        "SWAGGER_URL": "https://api.example.com/docs/swagger.json",
-
-        // === Live API calls ===
-        "API_BASE_URL": "https://api.example.com",
-        // Used only when fetchLiveApiResponse.includeAuthToken = true
-        "API_AUTH_TOKEN": "<your_token_here>",
-
-        // === Optional: connection overrides ===
-        "BROWSER_TOOLS_HOST": "127.0.0.1",
-        "BROWSER_TOOLS_PORT": "3025",
-
-        // Optional: set active project name (used by screenshot organization)
-        "ACTIVE_PROJECT": "my-project"
-        
-        // === Semantic search embeddings ===
-        // Provider auto-resolves to OpenAI if OPENAI_API_KEY is present; otherwise Gemini.
-        // Set explicitly if you want: "openai" or "gemini"
-        ,"EMBEDDING_PROVIDER": "openai"
-        // OpenAI (recommended)
-        ,"OPENAI_API_KEY": "sk-..."
-        ,"OPENAI_EMBED_MODEL": "text-embedding-3-small" // or text-embedding-3-large
-        // Gemini (optional fallback)
-        ,"GEMINI_API_KEY": "..."
-        ,"GEMINI_EMBED_MODEL": "gemini-embedding-001"
+        "ACTIVE_PROJECT": "my-frontend"
       }
     }
   }
 }
 ```
 
-#### Notes
+Notes:
+- Most settings (SWAGGER_URL, API_BASE_URL, API_AUTH_TOKEN, BROWSER_TOOLS_HOST/PORT, ROUTES_FILE_PATH) should live in `chrome-extension/projects.json`.
+- Embedding provider keys MUST remain environment variables (do not put in projects.json):
+  - `OPENAI_API_KEY` (and optional `OPENAI_EMBED_MODEL`)
+  - `GEMINI_API_KEY` (and optional `GEMINI_EMBED_MODEL`)
+- If you change embedding provider/model, reindex from the DevTools panel.
 
-- When you change `EMBEDDING_PROVIDER` or the embedding model, you must rebuild the semantic index from the Dev Panel (Reindex per project).
-- Server logs show embedding batches, rate-limit backoffs, and completion status during reindex.
+---
+
+### 5) Build the semantic index (one-time per project/model)
+
+1. Open Chrome DevTools → “BrowserTools MCP” panel.
+2. In the Embeddings section, click “Reindex” for your project.
+3. Status endpoints used by the server:
+   - `GET /api/embed/status?project=<name>`
+   - `POST /api/embed/reindex` with `{ project }`
+
+Notes:
+- Index is per-project in `.vectra/<project>`. Changing embedding provider/model requires reindex.
+- Server logs show progress/backoff during reindex.
+
+---
+
+### 6) Verify connection health
+
+- Identity: `http://localhost:3025/.identity` should return `{ signature: "mcp-browser-connector-24x7", ... }`
+- Health: `http://localhost:3025/connection-health` shows heartbeat and connection details
+- The Chrome extension panel shows connection status and allows reindex/status checks
 
 ## 🔧 System Compatibility & Features
 
@@ -198,3 +216,62 @@ Screenshot storage configuration
 - Default: `~/Downloads/MCP_Screenshots`
 
 **Happy autonomous AI development! 🚀**
+
+## Project configuration (chrome-extension/projects.json)
+
+- Location: `chrome-extension/projects.json`
+- Purpose: Central per-project configuration used by both the MCP server and the browser tools server.
+- Version control: This file is ignored by `.gitignore` (contains secrets like `API_AUTH_TOKEN`). Keep it local.
+
+### Structure
+
+```json
+{
+  "projects": {
+    "my-frontend": {
+      "config": {
+        "SWAGGER_URL": "https://api.example.com/openapi.json",
+        "API_BASE_URL": "https://api.example.com",
+        "API_AUTH_TOKEN": "<your_bearer_token>",
+        "PROJECT_ROOT": "/absolute/path/to/project/root",
+        "ROUTES_FILE_PATH": "src/routes/paths.ts"
+      }
+    },
+    "another-app": {
+      "config": {
+        "SWAGGER_URL": "https://staging.example.com/openapi.json",
+        "API_BASE_URL": "https://staging.example.com",
+        "API_AUTH_TOKEN": "<your_staging_token>"
+      }
+    }
+  },
+  "defaultProject": "my-frontend",
+  "DEFAULT_SCREENSHOT_STORAGE_PATH": "/absolute/path/to/screenshots/root"
+}
+```
+
+### Fields (per project `config`)
+- `SWAGGER_URL` (required): URL of your Swagger/OpenAPI JSON used by searchApiDocumentation and listApiTags.
+- `API_BASE_URL` (optional): Base URL used by `fetchLiveApiResponse`.
+- `API_AUTH_TOKEN` (optional): Used only when you set `includeAuthToken = true` in `fetchLiveApiResponse`.
+- `PROJECT_ROOT` (optional): Absolute path to your project (used for context/reference).
+- `ROUTES_FILE_PATH` (optional): Shown in the `navigateBrowserTab` description to guide route references.
+- Other optional keys that can be read from project config: `BROWSER_TOOLS_HOST`, `BROWSER_TOOLS_PORT`.
+
+Notes:
+- Embedding API keys must NOT be placed in `projects.json`. Use environment variables (`OPENAI_API_KEY`, `GEMINI_API_KEY`) as shown earlier.
+
+### Active project resolution
+- Preferred per-request header (internal): `X-ACTIVE-PROJECT`
+- MCP/IDE env: `ACTIVE_PROJECT`
+- Fallback: `defaultProject` in `projects.json`
+
+### Screenshot storage precedence
+- `projects.json: DEFAULT_SCREENSHOT_STORAGE_PATH` (global, recommended)
+- `SCREENSHOT_STORAGE_PATH` env (fallback)
+- Default: `~/Downloads/MCP_Screenshots`
+
+After creating or updating `chrome-extension/projects.json`:
+- Reload the Chrome extension (chrome://extensions → reload)
+- Restart the server if running, or it will pick up on next start
+- If you changed `SWAGGER_URL`, reindex from the DevTools panel if needed

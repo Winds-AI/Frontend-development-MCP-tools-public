@@ -13,3 +13,7 @@ node-modules
 # Project config with secrets
 chrome-extension/projects.json
 **/projects.json
+
+# Vectra semantic index (per-project indices)
+.vectra/
+**/.vectra/
