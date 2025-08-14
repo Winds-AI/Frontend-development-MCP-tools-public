@@ -160,9 +160,9 @@ Real-time connection status at `/connection-health`:
 
 | Tool | What it does | When to use | Key params | Preconditions |
 | --- | --- | --- | --- | --- |
-| `searchApiDocumentation` | Semantic search over Swagger/OpenAPI. Returns minimal endpoint info (method, path, simple param/request/response hints). | Finding endpoints and basic shapes before coding. | `query?`, `tag?`, `method?`, `limit?` | Embedding index built for the active project; `SWAGGER_URL` configured. |
+| `searchApiDocumentation` | Semantic search over Swagger/OpenAPI. Returns minimal endpoint info (method, path, simple param/request/response hints) and `requiresAuth` from OpenAPI security. | Finding endpoints and basic shapes before coding. | `query?`, `tag?`, `method?`, `limit?` | Embedding index built for the active project; `SWAGGER_URL` configured. |
 | `listApiTags` | Lists all tags with operation counts. | Get a domain overview; seed further API searches. | none | `SWAGGER_URL` configured. |
-| `fetchLiveApiResponse` | Makes a real HTTP request to `API_BASE_URL`; optionally includes `Authorization: Bearer ${API_AUTH_TOKEN}`. | Validate exact responses; verify auth/headers; confirm behavior. | `endpoint`, `method?`, `requestBody?`, `queryParams?`, `includeAuthToken?` | `API_BASE_URL` set; `API_AUTH_TOKEN` set if `includeAuthToken: true`. |
+| `fetchLiveApiResponse` | Makes a real HTTP request to `API_BASE_URL`; optionally includes `Authorization: Bearer <token>`. Token source: dynamic via browser storage. | Validate exact responses; verify auth/headers; confirm behavior. | `endpoint`, `method?`, `requestBody?`, `queryParams?`, `includeAuthToken?` | `API_BASE_URL` set; if `includeAuthToken: true` then configure `AUTH_STORAGE_TYPE` + `AUTH_TOKEN_KEY` (and optional `AUTH_ORIGIN`). |
 | `captureBrowserScreenshot` | Captures current tab, saves to a structured path, and returns the image. | UI analysis, visual verification, before/after loops. | `randomString` (dummy, required by MCP schema) | Extension connected; DevTools open. |
 | `inspectSelectedElementCss` | Enhanced element context: computed styles, layout relations, issue detection, accessibility hints. | Rapid UI debugging after selecting an element in DevTools. | none | DevTools open and an element selected. |
 | `inspectBrowserNetworkActivity` | Recent network requests with filters (URL substring, fields, time window, sort, limit). | Debug HTTP failures, payloads, and sequences (DevTools‑like). | `urlFilter`, `details[]`, `timeOffset?`, `orderBy?`, `orderDirection?`, `limit?` | Extension connected; trigger the requests first. |
@@ -197,7 +197,8 @@ Notes:
 - Per‑project `config`:
   - `SWAGGER_URL` (required for API search/tag tools)
   - `API_BASE_URL` (required for live API calls)
-  - `API_AUTH_TOKEN` (only if `includeAuthToken: true`)
+  - `AUTH_STORAGE_TYPE` + `AUTH_TOKEN_KEY` (and optional `AUTH_ORIGIN`) for dynamic auth
+  - `requiresAuth` in search results indicates whether to set includeAuthToken
   - `ROUTES_FILE_PATH` (optional; referenced in navigation tool description)
   - Optional: `BROWSER_TOOLS_HOST`, `BROWSER_TOOLS_PORT`
 - Global: `DEFAULT_SCREENSHOT_STORAGE_PATH` (base screenshot directory)

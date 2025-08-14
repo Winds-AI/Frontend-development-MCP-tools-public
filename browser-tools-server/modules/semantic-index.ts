@@ -44,7 +44,7 @@ function resolveSchemaType(schema: any | undefined): string | undefined {
 function hydrateOperationTypes(swagger: any, method: string, apiPath: string) {
   const p = swagger.paths?.[apiPath];
   const op = p?.[method.toLowerCase()];
-  if (!op) return { request: {}, response: {} };
+  if (!op) return { request: {}, response: {}, requiresAuth: false };
 
   // Request body
   let request: { contentType?: string; schemaType?: string } = {};
@@ -73,7 +73,17 @@ function hydrateOperationTypes(swagger: any, method: string, apiPath: string) {
     }
   }
 
-  return { request, response };
+  // Determine if auth is required using OpenAPI security objects
+  const hasAuth = (sec: any): boolean => {
+    if (!Array.isArray(sec)) return false;
+    for (const req of sec) {
+      if (req && typeof req === "object" && Object.keys(req).length > 0) return true;
+    }
+    return false;
+  };
+  const requiresAuth = op.security !== undefined ? hasAuth(op.security) : hasAuth(swagger.security);
+
+  return { request, response, requiresAuth };
 }
 
 export interface SearchParams {
@@ -88,6 +98,7 @@ export interface SearchResultItem {
   path: string;
   request?: { contentType?: string; schemaType?: string };
   response?: { status?: string; contentType?: string; schemaType?: string };
+  requiresAuth?: boolean;
 }
 
 interface EmbedResponse {
@@ -459,12 +470,13 @@ export async function searchSemantic(
   // Hydrate request/response minimal types from Swagger
   const results: SearchResultItem[] = top.map((r: any) => {
     const md = r.item.metadata || {};
-    const { request, response } = hydrateOperationTypes(swagger, md.method, md.path);
+    const { request, response, requiresAuth } = hydrateOperationTypes(swagger, md.method, md.path);
     return {
       method: md.method,
       path: md.path,
       request,
       response,
+      requiresAuth,
     };
   });
 

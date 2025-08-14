@@ -125,6 +125,16 @@ async function main() {
   // Show Chrome extension instructions
   showChromeInstructions();
 
+  // Launch Setup UI (same experience as npx afbt-setup)
+  log.info("Launching Setup UI on http://127.0.0.1:5055 ...");
+  try {
+    execCommand("node tools/afbt-setup.js", rootDir);
+  } catch (e) {
+    log.warning(
+      "Setup UI could not be launched automatically. You can run 'pnpm run setup:ui' manually."
+    );
+  }
+
   // Start the server
   log.info("Starting the server...");
   if (!execCommand("pnpm start", serverPath)) {

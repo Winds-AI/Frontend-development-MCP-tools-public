@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0
+- api.searchEndpoints now returns `requiresAuth` derived from OpenAPI security (operation-level first, then top-level).
+- fetch requests: dynamic token-only path clarified in docs; recommend using `requiresAuth` to decide `includeAuthToken`.
+- Setup UI: added dedicated Environment tab; expanded auth config guidance.
+- Test script: `tools/test-token-latency.js` for timing token retrieval and API calls.
+
+## 1.3.6
+- Internal interim build prior to minor version bump.
+
+# Changelog
+
 All notable changes to this project will be documented in this file.
 
 This project adheres to Semantic Versioning.

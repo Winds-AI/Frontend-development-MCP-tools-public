@@ -2,7 +2,7 @@
 
 ## What does this tool do?
 
-`searchApiDocumentation` performs a semantic search over your API spec (Swagger/OpenAPI) using vector embeddings. It returns the minimal fields required for integration: `method`, `path`, and minimal `request`/`response` type hints extracted from Swagger. It no longer uses keyword/hybrid search.
+`searchApiDocumentation` performs a semantic search over your API spec (Swagger/OpenAPI) using vector embeddings. It returns the minimal fields required for integration: `method`, `path`, minimal `request`/`response` type hints extracted from Swagger, and `requiresAuth` derived from OpenAPI `security` (operation-level first, then top-level).
 
 ---
 
@@ -34,7 +34,8 @@
     "method": "GET",
     "path": "/v1/users",
     "request": { "contentType": "application/json", "schemaType": "object" },
-    "response": { "status": "200", "contentType": "application/json", "schemaType": "#/components/schemas/UserList" }
+    "response": { "status": "200", "contentType": "application/json", "schemaType": "#/components/schemas/UserList" },
+    "requiresAuth": true
   }
 ]
 ```
@@ -49,7 +50,7 @@ We provide minimal hints only. For detailed schemas/examples, use your Swagger s
 
 ## Integration with fetchLiveApiResponse
 
-Use `fetchLiveApiResponse` for endpoints where you need exact payload/response shapes beyond minimal hints.
+Use `fetchLiveApiResponse` for endpoints where you need exact payload/response shapes beyond minimal hints. When `requiresAuth` is true, call it with `{ includeAuthToken: true }` so the token is appended automatically.
 
 ---
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Executes a live HTTP request to your API using `API_BASE_URL`. Optionally attaches `Authorization: Bearer ${API_AUTH_TOKEN}` when `includeAuthToken` is true.
+Executes a live HTTP request to your API using `API_BASE_URL`. Optionally attaches `Authorization: Bearer <token>` when `includeAuthToken` is true. Token source: dynamic via Chrome extension from browser storage using `AUTH_STORAGE_TYPE` + `AUTH_TOKEN_KEY` (and optional `AUTH_ORIGIN` for cookies).
 
 ## Tool Signature
 
@@ -12,14 +12,15 @@ fetchLiveApiResponse({
   method?: "GET"|"POST"|"PUT"|"PATCH"|"DELETE",
   requestBody?: any,            // JSON-serializable body for non-GET
   queryParams?: Record<string, string>,
-  includeAuthToken?: boolean    // requires API_AUTH_TOKEN to be set
+  includeAuthToken?: boolean    // uses dynamic retrieval when configured
 });
 ```
 
 ## Required Environment
 
 - `API_BASE_URL`: base URL for your API (e.g., `https://api.example.com`)
-- `API_AUTH_TOKEN`: only required when `includeAuthToken` is true
+- Set `AUTH_STORAGE_TYPE` (`localStorage|sessionStorage|cookies`) and `AUTH_TOKEN_KEY` (and `AUTH_ORIGIN` for cookies) to enable token retrieval
+- Use `requiresAuth` from `searchApiDocumentation` results to decide whether to set `includeAuthToken`
 
 ## Response
 

@@ -1484,6 +1484,10 @@ async function setupWebSocket() {
               origin: message.origin,
               storageType: message.storageType,
               tokenKey: message.tokenKey,
+              // Provide the inspected tabId for targeted execution
+              tabId: chrome.devtools.inspectedWindow.tabId,
+              // Preserve correlation id for roundtrip
+              requestId: message.requestId,
             },
             (response) => {
               if (chrome.runtime.lastError) {
@@ -1496,6 +1500,7 @@ async function setupWebSocket() {
                 ws.send(
                   JSON.stringify({
                     type: "RETRIEVE_AUTH_TOKEN_RESPONSE",
+                    requestId: message.requestId,
                     error:
                       "Failed to communicate with background script: " +
                       chrome.runtime.lastError.message,
@@ -1512,6 +1517,7 @@ async function setupWebSocket() {
                 ws.send(
                   JSON.stringify({
                     type: "RETRIEVE_AUTH_TOKEN_RESPONSE",
+                    requestId: message.requestId,
                     token: response.token,
                   })
                 );
@@ -1524,6 +1530,7 @@ async function setupWebSocket() {
                 ws.send(
                   JSON.stringify({
                     type: "RETRIEVE_AUTH_TOKEN_RESPONSE",
+                    requestId: message.requestId,
                     error:
                       response?.error || "Unknown error retrieving auth token",
                   })

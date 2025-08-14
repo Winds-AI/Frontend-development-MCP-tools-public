@@ -103,7 +103,7 @@ function sendJson(res, obj, status = 200) {
 
 function serveHtml(res) {
   const launchedByMain = process.env.AFBT_PARENT === 'main';
-  const html = `<!doctype html>
+    const html = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -131,6 +131,7 @@ function serveHtml(res) {
     .hint.small { font-size: 11px; }
     .success { color: var(--ok); }
     .error { color: var(--err); }
+    .invalid { border-color: var(--err) !important; box-shadow: 0 0 0 1px var(--err) inset; }
     footer { padding: 14px clamp(12px, 2vw, 24px); color: var(--muted); font-size: 12px; border-top: 1px solid var(--border); }
     .split { display:flex; gap:16px; height: calc(100dvh - var(--header-h) - var(--footer-h) - 32px); }
     .left { width: clamp(280px, 22vw, 420px); background: var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px; overflow:auto; display:flex; flex-direction:column; }
@@ -182,10 +183,46 @@ function serveHtml(res) {
     setButtonActive('tab-'+tab);
     if (tab === 'docs') loadDocs();
     if (tab === 'overview') refreshInfo();
+    if (tab === 'env') reloadEnv();
   }
+  function validateProjectsJson(text) {
+    try {
+      const parsed = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object') return { ok: false, error: 'Root must be an object' };
+      if (!parsed.projects || typeof parsed.projects !== 'object') return { ok: false, error: "Missing required 'projects' object" };
+      // optional defaultProject if present must be string
+      if (parsed.defaultProject !== undefined && typeof parsed.defaultProject !== 'string') return { ok: false, error: "'defaultProject' must be a string if provided" };
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Invalid JSON' };
+    }
+  }
+
+  function updateEditorValidation() {
+    const ta = document.getElementById('projects');
+    const btn = document.getElementById('btn-save-config');
+    if (!ta) return;
+    const result = validateProjectsJson(ta.value || '');
+    if (result.ok) {
+      ta.classList.remove('invalid');
+      if (btn) btn.disabled = false;
+      setStatus('JSON looks valid.', '');
+    } else {
+      ta.classList.add('invalid');
+      if (btn) btn.disabled = true;
+      setStatus('Invalid JSON: ' + result.error, 'error');
+    }
+  }
+
   async function saveConfig() {
     try {
       const text = document.getElementById('projects').value;
+      const result = validateProjectsJson(text);
+      if (!result.ok) {
+        setStatus('Invalid JSON: ' + result.error, 'error');
+        updateEditorValidation();
+        return;
+      }
       const parsed = JSON.parse(text);
       const res = await fetch('/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(parsed) });
       if (!res.ok) throw new Error('Save failed');
@@ -329,9 +366,12 @@ function serveHtml(res) {
     try {
       const res = await fetch('/env');
       const data = await res.json();
-      document.getElementById('envText').value = data.content || '';
-      const hint = document.querySelector('#config-guide .hint.small');
-      if (hint) hint.textContent = 'Path: ' + (data.path || '.env') + ' (auto-detected)';
+      const envText = document.getElementById('envText');
+      if (envText) envText.value = data.content || '';
+      const cfgHint = document.querySelector('#config-guide .hint.small');
+      if (cfgHint) cfgHint.textContent = 'Path: ' + (data.path || '.env') + ' (auto-detected)';
+      const envPathHint = document.getElementById('envPathHint');
+      if (envPathHint) envPathHint.textContent = data.path || '.env';
     } catch { /* ignore */ }
   }
   async function saveEnv() {
@@ -367,6 +407,12 @@ function serveHtml(res) {
     }, 1200);
     const search = document.getElementById('docs-search');
     if (search) search.addEventListener('input', (e) => renderDocsList(e.target.value));
+    // Live JSON validation for projects editor
+    const ta = document.getElementById('projects');
+    if (ta) {
+      ta.addEventListener('input', updateEditorValidation);
+      updateEditorValidation();
+    }
   });
   </script>
 </head>
@@ -376,10 +422,11 @@ function serveHtml(res) {
     <nav>
       <button id="tab-overview" onclick="showTab('overview')">Overview</button>
       <button id="tab-configure" onclick="showTab('configure')">Configure</button>
+      <button id="tab-env" onclick="showTab('env')">Environment</button>
       <button id="tab-docs" onclick="showTab('docs')">Docs</button>
     </nav>
     <div class="top-actions">
-      <button id="btn-start-conn" class="secondary" onclick="startConnector()">Start Connector</button>
+       <button id="btn-start-conn" class="secondary" onclick="startConnector()">Start Connector</button>
       <button id="btn-stop-conn" class="secondary" onclick="stopConnector()">Stop Connector</button>
       <a id="btn-open-health" class="secondary" style="text-decoration:none; padding:9px 12px; border-radius:8px; background:#374151; color:#fff" href="javascript:void(0)" onclick="openHealth()">Open Health</a>
       <a id="btn-open-id" class="secondary" style="text-decoration:none; padding:9px 12px; border-radius:8px; background:#374151; color:#fff" href="javascript:void(0)" onclick="openIdentity()">Open Identity</a>
@@ -405,38 +452,90 @@ function serveHtml(res) {
     <section id="section-configure" class="section" style="display:none">
       <div class="split">
         <div class="left" id="config-guide">
-          <h3 style="margin:4px 0 8px 0">Configuration</h3>
+           <h3 style="margin:4px 0 8px 0">Configuration</h3>
+           <div class="hint" style="margin:6px 0 12px 0">
+             To enable auth, provide:
+             <ul>
+               <li><b>AUTH_ORIGIN</b>: e.g. <code>http://localhost:5173</code></li>
+               <li><b>AUTH_STORAGE_TYPE</b>: <code>localStorage</code> | <code>sessionStorage</code> | <code>cookies</code></li>
+               <li><b>AUTH_TOKEN_KEY</b>: token key or cookie name</li>
+               <li><b>API_AUTH_TOKEN_TTL_SECONDS</b>: optional cache TTL; if JWT is used, <code>exp</code> is auto-respected</li>
+             </ul>
+             No fallback token is used.
+           </div>
           <div class="hint">This file is local and intended to be ignored by git.</div>
           <ul style="margin-top:10px; padding-left:18px; line-height:1.5">
             <li><b>SWAGGER_URL</b>: Required for <code>api.searchEndpoints</code> and <code>api.listTags</code>.</li>
             <li><b>API_BASE_URL</b>: Required for <code>api.request</code>.</li>
-            <li><b>API_AUTH_TOKEN</b>: Optional; used only when <code>includeAuthToken</code> is true for <code>api.request</code>.</li>
+            <li><b>AUTH_STORAGE_TYPE</b>: Required for auth. One of <code>localStorage</code>, <code>sessionStorage</code>, or <code>cookies</code>.</li>
+            <li><b>AUTH_TOKEN_KEY</b>: Required for auth. The key/name of the token in the chosen storage (or cookie name).</li>
+            <li><b>AUTH_ORIGIN</b>: Required for cookies, optional for storage. Example: <code>http://localhost:5173</code>.</li>
+            <li><b>API_AUTH_TOKEN_TTL_SECONDS</b>: Optional TTL for token cache. If omitted and token is a JWT, its <code>exp</code> is used.</li>
             <li><b>ROUTES_FILE_PATH</b>: Optional; referenced in <code>browser.navigate</code> description.</li>
             <li><b>DEFAULT_SCREENSHOT_STORAGE_PATH</b>: Optional; base folder for screenshots.</li>
             <li><b>Embedding keys</b>: set via env only — <code>OPENAI_API_KEY</code> or <code>GEMINI_API_KEY</code> (do not store in JSON).</li>
           </ul>
+          <div class="hint small" style="margin-top:6px">
+            For auth, there is no fallback token. Ensure your app is open at the provided origin and DevTools with the BrowserTools extension is connected.
+          </div>
           <div class="hint small" style="margin-top:8px">
             Tip: Set <code>defaultProject</code> to the project you work with most. You can keep multiple projects side‑by‑side here.
           </div>
-          <h3 style="margin:16px 0 8px 0">Environment (.env)</h3>
-          <div class="hint">Keys used by the connector. These are loaded automatically on start.</div>
-          <textarea id="envText" spellcheck="false" style="height: 160px; margin-top:8px; background:#0b1220; color:#e6edf3; border:1px solid var(--border); border-radius:8px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px;"></textarea>
-          <div class="actions">
-            <button onclick="saveEnv()">Save .env</button>
-            <button class="secondary" onclick="reloadEnv()">Reload .env</button>
-          </div>
-          <div class="hint small">Path: .env in the current working directory</div>
         </div>
         <div class="right" id="config-editor-pane">
           <p style="margin-top:0">Edit your per-project configuration below.</p>
+          <div class="hint" style="margin:8px 0 12px 0">
+            Minimum auth config example:
+            <pre><code>{
+  "projects": {
+    "my-frontend": {
+      "config": {
+        "SWAGGER_URL": "https://api.example.com/openapi.json",
+        "API_BASE_URL": "https://api.example.com",
+        "AUTH_STORAGE_TYPE": "localStorage",
+        "AUTH_TOKEN_KEY": "access_token",
+        "AUTH_ORIGIN": "http://localhost:5173",
+        "API_AUTH_TOKEN_TTL_SECONDS": 3300
+      }
+    }
+  },
+  "defaultProject": "my-frontend"
+}</code></pre>
+          </div>
           <textarea id="projects" spellcheck="false" class="config-textarea" style="height: calc(100% - 96px)"></textarea>
-          <div class="actions">
-            <button onclick="saveConfig()">Save</button>
+              <div class="actions">
+            <button id="btn-save-config" onclick="saveConfig()">Save</button>
             <button class="secondary" onclick="loadConfig()">Reload</button>
             <button onclick="finish()">Finish & Close</button>
           </div>
           <div id="status" class="hint"></div>
           <div class="hint">Path: chrome-extension/projects.json</div>
+          <div class="hint" style="margin-top:12px">
+            Run this UI directly with <code>pnpm run setup:ui</code> or implicitly via <code>pnpm run setup</code> (which also builds and starts the server).
+          </div>
+        </div>
+      </div>
+    </section>
+    <section id="section-env" class="section" style="display:none">
+      <div class="split">
+        <div class="left" id="env-guide">
+          <h3 style="margin:4px 0 8px 0">Environment (.env)</h3>
+          <div class="hint">Keys used by the connector. These are loaded automatically on start.</div>
+          <div class="hint small" style="margin-top:8px">Path detected below reflects where the server will read .env from.</div>
+          <div class="hint" style="margin-top:8px">Common keys:
+            <ul>
+              <li><b>OPENAI_API_KEY</b> or <b>GEMINI_API_KEY</b> (embedding provider)</li>
+              <li><b>LOG_LEVEL</b>: error | warn | info | debug</li>
+            </ul>
+          </div>
+        </div>
+        <div class="right" id="env-editor-pane">
+          <textarea id="envText" spellcheck="false" style="height: calc(100% - 96px); margin-top:0; background:#0b1220; color:#e6edf3; border:1px solid var(--border); border-radius:8px; padding:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 13px;"></textarea>
+          <div class="actions">
+            <button onclick="saveEnv()">Save .env</button>
+            <button class="secondary" onclick="reloadEnv()">Reload .env</button>
+          </div>
+          <div class="hint small">Path: <span id="envPathHint">.env</span></div>
         </div>
       </div>
     </section>

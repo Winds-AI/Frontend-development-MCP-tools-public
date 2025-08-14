@@ -25,13 +25,14 @@ Use `searchApiDocumentation` to identify endpoints and request/response shapes. 
    Tool: fetchLiveApiResponse
    - endpoint: "/api/users"
    - method: "GET"
-   - includeAuthToken: true // requires API_AUTH_TOKEN to be set
+   - includeAuthToken: true // uses dynamic token retrieval when AUTH_STORAGE_TYPE + AUTH_TOKEN_KEY are configured
    ```
 
    The tool:
 
    - Builds the full URL using `API_BASE_URL`
-   - Optionally adds `Authorization: Bearer ${API_AUTH_TOKEN}` if `includeAuthToken` is true
+ - If `includeAuthToken` is true, token is retrieved dynamically from browser storage via extension using `AUTH_STORAGE_TYPE` (`localStorage`|`sessionStorage`|`cookies`), `AUTH_TOKEN_KEY`, and optional `AUTH_ORIGIN`. Token is cached per project; expiration inferred from `API_AUTH_TOKEN_TTL_SECONDS` or JWT `exp`.
+ - Tip: use `requiresAuth` from `searchApiDocumentation` results to decide whether to set `includeAuthToken`.
    - Returns structured response details (status, headers, timing) and parsed data
 
 2. **Development & Integration**

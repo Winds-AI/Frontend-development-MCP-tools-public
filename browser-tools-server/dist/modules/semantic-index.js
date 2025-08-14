@@ -41,7 +41,7 @@ function hydrateOperationTypes(swagger, method, apiPath) {
     const p = swagger.paths?.[apiPath];
     const op = p?.[method.toLowerCase()];
     if (!op)
-        return { request: {}, response: {} };
+        return { request: {}, response: {}, requiresAuth: false };
     // Request body
     let request = {};
     const rb = op.requestBody?.content;
@@ -67,7 +67,18 @@ function hydrateOperationTypes(swagger, method, apiPath) {
             }
         }
     }
-    return { request, response };
+    // Determine if auth is required using OpenAPI security objects
+    const hasAuth = (sec) => {
+        if (!Array.isArray(sec))
+            return false;
+        for (const req of sec) {
+            if (req && typeof req === "object" && Object.keys(req).length > 0)
+                return true;
+        }
+        return false;
+    };
+    const requiresAuth = op.security !== undefined ? hasAuth(op.security) : hasAuth(swagger.security);
+    return { request, response, requiresAuth };
 }
 function resolveEmbeddingProvider() {
     const env = (process.env.EMBEDDING_PROVIDER || "").toLowerCase();
@@ -391,12 +402,13 @@ export async function searchSemantic(params, projectOverride) {
     // Hydrate request/response minimal types from Swagger
     const results = top.map((r) => {
         const md = r.item.metadata || {};
-        const { request, response } = hydrateOperationTypes(swagger, md.method, md.path);
+        const { request, response, requiresAuth } = hydrateOperationTypes(swagger, md.method, md.path);
         return {
             method: md.method,
             path: md.path,
             request,
             response,
+            requiresAuth,
         };
     });
     return results;

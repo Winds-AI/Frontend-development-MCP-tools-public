@@ -164,6 +164,13 @@ function truncateLogsWithCurrentSettings(logs: any[]): any[] {
 
 // Endpoint for the extension to POST data
 app.post("/extension-log", (req, res) => {
+  if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+    console.log("[debug] /extension-log hit", {
+      hasData: !!req.body?.data,
+      hasSettings: !!req.body?.settings,
+      dataType: req.body?.data?.type,
+    });
+  }
   console.log("\n=== Received Extension Log ===");
   console.log("Request body:", {
     dataType: req.body.data?.type,
@@ -419,6 +426,9 @@ app.get("/.port", (req, res) => {
 
 // Add new identity endpoint with a unique signature
 app.get("/.identity", (req, res) => {
+  if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+    console.log("[debug] /.identity hit");
+  }
   res.json({
     port: PORT,
     name: "frontend-browser-tools-server",
@@ -439,6 +449,9 @@ app.get("/.identity", (req, res) => {
  * - limit: number (default: 20)
  */
 app.get("/network-request-details", (req, res) => {
+  if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+    console.log("[debug] /network-request-details hit", req.query);
+  }
   try {
     const urlFilter = String(req.query.urlFilter ?? "");
     const detailsCsv = String(req.query.details ?? "url,method,status");
@@ -505,6 +518,9 @@ app.post("/wipelogs", (req, res) => {
 
 // Add endpoint for the extension to report the current URL
 app.post("/current-url", (req, res) => {
+  if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+    console.log("[debug] /current-url hit", req.body);
+  }
   console.log(
     "Received current URL update request:",
     JSON.stringify(req.body, null, 2)
@@ -745,6 +761,13 @@ export class BrowserConnector {
               this.urlRequestCallbacks.delete(data.requestId);
             }
           }
+          // Relay auth token retrieval responses back to waiting HTTP callers
+          if (data.type === "RETRIEVE_AUTH_TOKEN_RESPONSE") {
+            // Attach to request-scoped response via pending map if implemented later
+            // For now, store on the websocket to be picked up by /retrieve-auth-token handler awaiting this message
+            // This is handled via a temporary Promise in the HTTP handler.
+            // No-op here; actual wiring happens within the HTTP request handler's message listener.
+          }
           // Handle page navigation event via WebSocket
           // Note: This is intentionally duplicated from the HTTP handler in /extension-log
           // as the extension may send navigation events through either channel
@@ -854,6 +877,9 @@ export class BrowserConnector {
         );
       });
     });
+
+    // Register token retrieval HTTP endpoint
+    this.registerRetrieveAuthTokenEndpoint();
   }
 
   // Connection health monitoring methods
@@ -1182,6 +1208,9 @@ export class BrowserConnector {
     req: express.Request,
     res: express.Response
   ): Promise<void> {
+    if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+      console.log("[debug] navigateTab handler", req.body);
+    }
     console.log("Browser Connector: Received navigateTab request");
     console.log("Browser Connector: Request body:", req.body);
 
@@ -1271,6 +1300,9 @@ export class BrowserConnector {
     req: express.Request,
     res: express.Response
   ): Promise<void> {
+    if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+      console.log("[debug] domAction handler", req.body);
+    }
     try {
       const payload = req.body || {};
 
@@ -1333,6 +1365,93 @@ export class BrowserConnector {
     } catch (error: any) {
       res.status(500).json({ error: error?.message || "Unknown error" });
     }
+  }
+
+  // Endpoint to request auth token from the active tab via extension
+  // Expects: { storageType: 'localStorage'|'sessionStorage'|'cookies', tokenKey: string, origin?: string, requestId?: string }
+  private registerRetrieveAuthTokenEndpoint() {
+    this.app.post(
+      "/retrieve-auth-token",
+      async (req: express.Request, res: express.Response): Promise<void> => {
+        if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+          console.log("[debug] /retrieve-auth-token hit", req.body);
+        }
+        try {
+          if (!this.activeConnection) {
+            res.status(503).json({ error: "Chrome extension not connected" });
+            return;
+          }
+          const payload = req.body || {};
+          const { storageType, tokenKey, origin } = payload;
+          if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+            console.log("[debug] token params", { storageType, tokenKey, origin });
+          }
+          if (!storageType || !tokenKey) {
+            res.status(400).json({ error: "storageType and tokenKey are required" });
+            return;
+          }
+          const requestId = Date.now().toString();
+
+          const tokenPromise = new Promise<{ success: boolean; token?: string; error?: string }>((resolve, reject) => {
+            const messageHandler = (
+              message: string | Buffer | ArrayBuffer | Buffer[]
+            ) => {
+              try {
+                const data = JSON.parse(message.toString());
+                if (
+                  data &&
+                  data.type === "RETRIEVE_AUTH_TOKEN_RESPONSE" &&
+                  data.requestId === requestId
+                ) {
+                  this.activeConnection?.removeListener("message", messageHandler);
+                  if (data.token) {
+                    resolve({ success: true, token: data.token });
+                  } else {
+                    resolve({ success: false, error: data.error || "Token not found" });
+                  }
+                }
+              } catch (_) {}
+            };
+
+            this.activeConnection?.on("message", messageHandler);
+
+            // Send request to extension
+            const msg = JSON.stringify({
+              type: "RETRIEVE_AUTH_TOKEN",
+              requestId,
+              origin: origin,
+              storageType,
+              tokenKey,
+            });
+            if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+              console.log("[debug] sending WS to extension", msg);
+            }
+            this.activeConnection?.send(msg);
+
+            // Timeout
+            setTimeout(() => {
+              this.activeConnection?.removeListener("message", messageHandler);
+              reject(new Error("Auth token retrieval timeout"));
+            }, 10000);
+          });
+
+          const result = await tokenPromise;
+          if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+            console.log("[debug] tokenPromise result", result);
+          }
+          if (result.success) {
+            res.json({ token: result.token });
+          } else {
+            res.status(404).json({ error: result.error || "Token not found" });
+          }
+        } catch (error: any) {
+          if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
+            console.log("[debug] token retrieval error", error?.message || error);
+          }
+          res.status(500).json({ error: error?.message || "Unknown error" });
+        }
+      }
+    );
   }
 
   // Add shutdown method

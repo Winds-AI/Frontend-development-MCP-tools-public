@@ -53,7 +53,11 @@ File example:
       "config": {
         "SWAGGER_URL": "https://api.example.com/openapi.json",
         "API_BASE_URL": "https://api.example.com",
-        "API_AUTH_TOKEN": "<your_bearer_token>",
+        "AUTH_STORAGE_TYPE": "localStorage", 
+        "AUTH_TOKEN_KEY": "<token_key_in_storage>",
+        "AUTH_ORIGIN": "https://app.example.com",
+        "API_AUTH_TOKEN_TTL_SECONDS": 3300,
+        "API_AUTH_TOKEN": "<optional_fallback_bearer_token>",
         "PROJECT_ROOT": "/absolute/path/to/project/root",
         "ROUTES_FILE_PATH": "src/routes/paths.ts"
       }
@@ -62,7 +66,10 @@ File example:
       "config": {
         "SWAGGER_URL": "https://staging.example.com/openapi.json",
         "API_BASE_URL": "https://staging.example.com",
-        "API_AUTH_TOKEN": "<your_staging_token>"
+        "AUTH_STORAGE_TYPE": "cookies",
+        "AUTH_TOKEN_KEY": "auth_token",
+        "AUTH_ORIGIN": "https://staging.example.com",
+        "API_AUTH_TOKEN": "<optional_staging_fallback_token>"
       }
     }
   },
@@ -122,7 +129,7 @@ Example `.cursor/mcp.json`:
 ```
 
 Notes:
-- Most settings (SWAGGER_URL, API_BASE_URL, API_AUTH_TOKEN, BROWSER_TOOLS_HOST/PORT, ROUTES_FILE_PATH) should live in `chrome-extension/projects.json`.
+- Most settings (SWAGGER_URL, API_BASE_URL, AUTH_STORAGE_TYPE/AUTH_TOKEN_KEY/AUTH_ORIGIN or API_AUTH_TOKEN, BROWSER_TOOLS_HOST/PORT, ROUTES_FILE_PATH) should live in `chrome-extension/projects.json`.
 - Embedding provider keys MUST remain environment variables (do not put in projects.json):
   - `OPENAI_API_KEY` (and optional `OPENAI_EMBED_MODEL`)
   - `GEMINI_API_KEY` (and optional `GEMINI_EMBED_MODEL`)

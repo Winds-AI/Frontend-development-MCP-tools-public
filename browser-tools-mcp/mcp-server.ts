@@ -16,6 +16,8 @@ interface ProjectConfig {
   AUTH_STORAGE_TYPE?: string;
   AUTH_TOKEN_KEY?: string;
   API_BASE_URL?: string;
+  API_AUTH_TOKEN?: string;
+  API_AUTH_TOKEN_TTL_SECONDS?: number;
   SCREENSHOT_STORAGE_PATH?: string;
   BROWSER_TOOLS_HOST?: string;
   BROWSER_TOOLS_PORT?: string;
@@ -86,8 +88,12 @@ function getConfigValue(
     const activeProject =
       process.env.ACTIVE_PROJECT || projectsConfig.defaultProject;
     const project = projectsConfig.projects[activeProject];
-    if (project && project.config[key as keyof ProjectConfig]) {
-      return project.config[key as keyof ProjectConfig];
+    if (project) {
+      const val = project.config[key as keyof ProjectConfig] as any;
+      if (val !== undefined && val !== null) {
+        if (typeof val === "string") return val;
+        if (typeof val === "number") return String(val);
+      }
     }
   }
 
@@ -184,6 +190,86 @@ const server = new McpServer({
   name: "Frontend Browser Tools MCP",
   version: "1.2.0",
 });
+
+// In-memory cache for dynamically retrieved auth tokens per project
+type CachedToken = { token: string; expiresAtMs: number };
+const authTokenCacheByProject: Record<string, CachedToken> = {};
+
+function getCachedToken(project: string | undefined): string | undefined {
+  if (!project) return undefined;
+  const entry = authTokenCacheByProject[project];
+  if (!entry) return undefined;
+  if (Date.now() >= entry.expiresAtMs) {
+    delete authTokenCacheByProject[project];
+    return undefined;
+  }
+  return entry.token;
+}
+
+function decodeJwtExpirationMs(token: string): number | undefined {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return undefined;
+    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
+    if (!payload || typeof payload.exp !== "number") return undefined;
+    return payload.exp * 1000;
+  } catch {
+    return undefined;
+  }
+}
+
+async function retrieveTokenViaExtension(): Promise<string | undefined> {
+  const storageType = (getConfigValue("AUTH_STORAGE_TYPE") || "").toString();
+  const tokenKey = (getConfigValue("AUTH_TOKEN_KEY") || "").toString();
+  const origin = getConfigValue("AUTH_ORIGIN");
+  if (!storageType || !tokenKey) return undefined;
+
+  return await withServerConnection(async () => {
+    const targetUrl = `http://${discoveredHost}:${discoveredPort}/retrieve-auth-token`;
+    const response = await fetch(targetUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storageType, tokenKey, origin }),
+    });
+    if (!response.ok) {
+      return undefined;
+    }
+    const json = (await response.json()) as any;
+    const token = json?.token;
+    if (typeof token === "string" && token.length > 0) return token;
+    return undefined;
+  });
+}
+
+async function resolveAuthToken(includeAuthToken?: boolean): Promise<string | undefined | { error: string }> {
+  if (includeAuthToken !== true) return undefined;
+
+  const projectName = getActiveProjectName() || "default-project";
+
+  // 1) Use cached token if valid
+  const cached = getCachedToken(projectName);
+  if (cached) return cached;
+
+  // 2) Mandatory dynamic retrieval via extension (no fallback)
+  const storageType = getConfigValue("AUTH_STORAGE_TYPE");
+  const tokenKey = getConfigValue("AUTH_TOKEN_KEY");
+  if (!storageType || !tokenKey) {
+    return { error: "Auth token retrieval not configured. Set AUTH_STORAGE_TYPE, AUTH_TOKEN_KEY, and optional AUTH_ORIGIN in projects.json." };
+  }
+  const token = await retrieveTokenViaExtension();
+  if (!token) {
+    return { error: "Failed to retrieve auth token from configured browser storage. Ensure the target app is open and DevTools extension connected." };
+  }
+  const ttlSecondsRaw = getConfigValue("API_AUTH_TOKEN_TTL_SECONDS");
+  let expiresAtMs: number | undefined;
+  if (ttlSecondsRaw && !isNaN(Number(ttlSecondsRaw))) {
+    expiresAtMs = Date.now() + Number(ttlSecondsRaw) * 1000;
+  } else {
+    expiresAtMs = decodeJwtExpirationMs(token) || Date.now() + 5 * 60 * 1000;
+  }
+  authTokenCacheByProject[projectName] = { token, expiresAtMs };
+  return token;
+}
 
 // Allow disabling deprecated alias tools to reduce duplicates in clients like Cursor
 // Default: disabled (can re-enable with AFBT_DISABLE_ALIASES=0/false)
@@ -985,7 +1071,7 @@ if (!DISABLE_ALIASES) {
 
 server.tool(
   "api.request",
-  "Execute a live HTTP request to API_BASE_URL; optionally include Authorization: Bearer API_AUTH_TOKEN. Use after 'api.searchEndpoints' or for known endpoints.",
+  "Execute a live HTTP request to API_BASE_URL; optionally include an Authorization bearer token retrieved from configured browser storage. Use after 'api.searchEndpoints' or for known endpoints.",
   {
     endpoint: z
       .string()
@@ -1027,34 +1113,20 @@ server.tool(
 
       // Check required environment variables or config
       const apiBaseUrl = getConfigValue("API_BASE_URL");
-      const apiAuthToken = getConfigValue("API_AUTH_TOKEN");
+      const authTokenResolved = await resolveAuthToken(includeAuthToken);
 
       console.log(
         `[fetchLiveApiResponse] - API base URL: ${apiBaseUrl} ${endpoint}`
       );
 
-      // Validate auth token first if it's required
+      // Validate/resolve auth token if requested
       if (includeAuthToken === true) {
-        // check if apiAuthToken is set and it is a valid token string
-        if (!apiAuthToken || typeof apiAuthToken !== "string") {
+        if (typeof (authTokenResolved as any)?.error === "string") {
           return {
             content: [
               {
                 type: "text",
-                text: "Missing required environment variable. Please set API_AUTH_TOKEN in projects.json or as environment variable.",
-              },
-            ],
-            isError: true,
-          };
-        }
-
-        // Validate token format
-        if (!isValidAuthToken(apiAuthToken)) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: "Invalid API_AUTH_TOKEN format. Token should be a valid JWT, API key, or other recognized authentication token format.",
+                text: (authTokenResolved as any).error,
               },
             ],
             isError: true,
@@ -1093,8 +1165,16 @@ server.tool(
 
       // Add Authorization header if auth token is provided
       if (includeAuthToken === true) {
-        // We've already validated the token above, so we can safely add it to headers
-        headers["Authorization"] = `Bearer ${apiAuthToken}`;
+        const tokenString = typeof authTokenResolved === "string" ? authTokenResolved : undefined;
+        if (!tokenString) {
+          return {
+            content: [
+              { type: "text", text: "Auth token requested but could not be resolved." },
+            ],
+            isError: true,
+          };
+        }
+        headers["Authorization"] = `Bearer ${tokenString}`;
       }
 
       // Prepare fetch options
@@ -1576,6 +1656,8 @@ server.tool(
           methodFilter: method || "all",
         },
         endpoints,
+        // Hint for callers: include requiresAuth boolean if present
+        note: "Each endpoint may include 'requiresAuth' derived from OpenAPI security. If true, call api_request with includeAuthToken: true.",
       };
 
       return {
