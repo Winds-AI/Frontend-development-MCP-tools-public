@@ -25,6 +25,7 @@
     "prepublishOnly": "pnpm build"
   },
   "bin": {
+    "@winds-ai/autonomous-frontend-browser-tools": "tools/afbt-entry.js",
     "afbt-setup": "tools/afbt-setup.js",
     "afbt-mcp": "browser-tools-mcp/dist/mcp-server.js"
   },
