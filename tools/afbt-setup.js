@@ -83,9 +83,56 @@ function ensureProjectsJsonExists() {
 function copyExtensionAssetsIfMissing() {
   try {
     const manifestPath = path.join(extensionDir, "manifest.json");
-    if (!fs.existsSync(manifestPath) && fs.existsSync(embeddedExtensionDir)) {
+    // Determine package version (from root package.json of installed package)
+    let pkgVersion = "0.0.0";
+    try {
+      const rootPkg = JSON.parse(
+        fs.readFileSync(path.join(packageRoot, "package.json"), "utf8")
+      );
+      if (rootPkg && typeof rootPkg.version === "string") pkgVersion = rootPkg.version;
+    } catch {}
+
+    const versionMarker = path.join(afbtDir, "extension.version");
+    let localVersion = null;
+    try {
+      if (fs.existsSync(versionMarker)) {
+        localVersion = fs.readFileSync(versionMarker, "utf8").trim();
+      } else if (fs.existsSync(manifestPath)) {
+        const man = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+        if (man && typeof man.version === "string") localVersion = man.version;
+      }
+    } catch {}
+
+    // Copy when: extension missing, or packaged version differs from local recorded version
+    const needsCopy = (!fs.existsSync(manifestPath) || localVersion !== pkgVersion) && fs.existsSync(embeddedExtensionDir);
+
+    if (needsCopy) {
+      // Backup existing extension if present
+      if (fs.existsSync(extensionDir)) {
+        try {
+          const backupsDir = path.join(afbtDir, "extension-backups");
+          if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
+          const backupPath = path.join(backupsDir, `chrome-extension-backup-${Date.now()}`);
+          fs.cpSync(extensionDir, backupPath, { recursive: true });
+          console.log("Backed up existing chrome-extension to:", backupPath);
+          fs.rmSync(extensionDir, { recursive: true, force: true });
+        } catch (e) {
+          console.warn("Warning: could not backup/remove existing chrome-extension:", e?.message || e);
+        }
+      }
+
       fs.cpSync(embeddedExtensionDir, extensionDir, { recursive: true });
       console.log("Copied chrome-extension assets to:", extensionDir);
+      try {
+        if (!fs.existsSync(afbtDir)) fs.mkdirSync(afbtDir, { recursive: true });
+        fs.writeFileSync(versionMarker, String(pkgVersion || "0.0.0"));
+      } catch {}
+    } else {
+      console.log(
+        "Chrome extension assets up-to-date (package=%s, local=%s). Skipping copy.",
+        pkgVersion,
+        localVersion || "unknown"
+      );
     }
   } catch (e) {
     console.warn("Could not copy chrome-extension assets:", e?.message || e);

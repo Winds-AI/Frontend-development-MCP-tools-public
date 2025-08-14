@@ -1,3 +1,5 @@
+## 1.4.1
+- Setup UI: auto-refresh Chrome extension folder when packaged version changes (backs up and replaces local `chrome-extension/`, writes `.afbt/extension.version`).
 # Changelog
 
 ## 1.4.0
