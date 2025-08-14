@@ -1,7 +1,7 @@
 {
   "name": "@Winds-AI/Frontend-development-mcp-tools",
   "version": "1.2.1",
-  "description": "A browser tools server for capturing and managing browser events, logs, and screenshots",
+  "description": "Autonomous Frontend Browser Tools — Browser Connector server (events, logs, screenshots, MCP integration)",
   "type": "module",
   "main": "dist/browser-connector.js",
   "git": "https://github.com/Winds-AI/Frontend-development-mcp-tools.git",

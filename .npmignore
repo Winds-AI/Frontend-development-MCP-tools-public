@@ -1,0 +1,9 @@
+# Exclude local secrets and user-specific config from npm package
+.env
+**/.env
+
+# Local caches/artifacts that shouldn't ship (defensive)
+.vectra/
+MCP_Screenshots/
+Downloads/MCP_Screenshots/
+

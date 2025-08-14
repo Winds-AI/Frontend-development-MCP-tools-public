@@ -17,7 +17,17 @@ You can skip these rules or memories setup if you will not be using this tool fo
 
 ## 🚀 Quick Setup Instructions
 
-### 1) Load the Chrome Extension
+### 1) Start with npx (recommended)
+
+```bash
+npx afbt-setup
+```
+
+- Connector runs in your terminal; Setup UI opens at `http://127.0.0.1:5055`
+- Configure `projects.json` (right) and `.env` (left → Environment)
+- Click Save, then Close (UI stops; connector keeps running)
+
+### 2) Load the Chrome Extension
 
 1. Open Chrome and navigate to `chrome://extensions/`
 2. Toggle "Developer mode" on (top-right corner)
@@ -26,7 +36,11 @@ You can skip these rules or memories setup if you will not be using this tool fo
 
 ---
 
-### 2) Create project configuration (projects.json)
+### 3) Create project configuration (projects.json)
+
+Option A — Use the Setup UI (recommended): already covered above. It creates a mock file if missing and saves your changes to `chrome-extension/projects.json`.
+
+Option B — Manual:
 
 Create `chrome-extension/projects.json` on your machine. This file is ignored by git and holds per-project config. See the full structure and fields at the end of this guide in "Project configuration (chrome-extension/projects.json)".
 
@@ -59,7 +73,7 @@ File example:
 
 ---
 
-### 3) Start the Browser Tools Server
+### 4) Start the Browser Tools Server (manual)
 
 Recommended scripts (from repo root):
 

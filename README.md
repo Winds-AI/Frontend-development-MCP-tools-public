@@ -1,13 +1,59 @@
-# Browser Tools MCP Extension
+# Autonomous Frontend Browser Tools (AFBT)
 
 **🚀 Optimized for Autonomous AI-Powered Frontend Development Workflows**
 
-- Browser Tools MCP Extension enables AI tools to interact with your browser for enhanced development capabilities. This document provides an overview of the available tools within the MCP server. For setup instructions, please refer to `SETUP_GUIDE.md` in docs folder.
+- Autonomous Frontend Browser Tools enables AI tools to interact with your browser for enhanced development capabilities. This document provides an overview of the available tools within the MCP server. For setup instructions, please refer to `SETUP_GUIDE.md` in docs folder.
 - For future plans refer to `FUTURE_PLANS.md`
 - For few helper instructions on how to use these tools `HOW_TO_USE.md`
 - How it works and architecture is in `PROJECT_OVERVIEW.md`
 - For understandig how each tool works `each-tool-explained` directory (Work In Progress).
 - For a single, skimmable overview and quick-reference of tools and workflows, see `docs/PROJECT_OVERVIEW.md`.
+
+## Quickstart (npx)
+
+1) Start the connector + setup UI
+
+```bash
+npx afbt-setup
+```
+
+- The Browser Connector runs in your terminal (logs remain there)
+- A Setup UI opens at `http://127.0.0.1:5055`
+- Configure `chrome-extension/projects.json` and `.env` (left column → Environment)
+- Click "Save" then "Close" — the UI stops; the connector keeps running
+
+2) Load the Chrome extension (manual once)
+
+- Open `chrome://extensions` → Enable Developer mode → "Load unpacked" → select `chrome-extension/` (the folder is auto-copied on first run)
+
+3) Configure your MCP client (Cursor example)
+
+```json
+{
+  "mcpServers": {
+    "autonomous-frontend-browser-tools": {
+      "command": "npx",
+      "args": ["-y", "afbt-mcp"],
+      "env": {
+        "ACTIVE_PROJECT": "my-frontend"
+      }
+    }
+  }
+}
+```
+
+4) Open DevTools on your target tab (extension panel) and use tools
+
+### Environment variables
+
+- Preferred: set in `.env` from the Setup UI (Configure tab) or in your shell
+- Keys/models supported:
+  - `OPENAI_API_KEY` (+ optional `OPENAI_EMBED_MODEL`)
+  - `GEMINI_API_KEY` (+ optional `GEMINI_EMBED_MODEL`)
+
+Notes:
+- `.env` and `chrome-extension/projects.json` are local-only; they are excluded from npm publish
+- Health shows disconnected until DevTools is open on the inspected tab
 
 ## Motivation
 

@@ -1,17 +1,57 @@
 {
-  "name": "browser-mcp-root",
-  "version": "1.0.0",
-  "git": "https://github.com/Winds-AI/Frontend-development-mcp-tools.git",
+  "name": "autonomous-frontend-browser-tools",
+  "version": "1.3.0",
+  "description": "Autonomous Frontend Browser Tools — npx setup UI, connector server, Chrome extension, MCP server bin",
+  "license": "MIT",
+  "homepage": "https://github.com/Winds-AI/Frontend-development-MCP-tools-public",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Winds-AI/Frontend-development-MCP-tools-public.git"
+  },
+  "keywords": ["mcp","browser","frontend","chrome","automation","ai","embedding","openai","gemini"],
+  "engines": { "node": ">=18" },
   "scripts": {
     "setup": "node setup.js",
     "start": "node start-server.js",
+    "setup:ui": "node tools/afbt-setup.js",
     "install:mcp": "cd browser-tools-mcp && pnpm install",
     "install:server": "cd browser-tools-server && pnpm install",
     "install:all": "pnpm install:mcp && pnpm install:server",
     "build:mcp": "cd browser-tools-mcp && pnpm build",
     "build:server": "cd browser-tools-server && pnpm build",
     "build:all": "pnpm build:mcp && pnpm build:server",
-    "start:server": "cd browser-tools-server && pnpm start"
+    "start:server": "cd browser-tools-server && pnpm start",
+    "build": "pnpm build:all",
+    "prepublishOnly": "pnpm build"
+  },
+  "bin": {
+    "afbt-setup": "tools/afbt-setup.js",
+    "afbt-mcp": "browser-tools-mcp/dist/mcp-server.js"
+  },
+  "files": [
+    "tools/afbt-setup.js",
+    "browser-tools-server/dist/**/*",
+    "browser-tools-server/package.json",
+    "browser-tools-mcp/dist/**/*",
+    "browser-tools-mcp/package.json",
+    "chrome-extension/**/*",
+    "docs/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.4.1",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.1",
+    "express": "^4.21.2",
+    "node-fetch": "^2.7.0",
+    "vectra": "^0.11.1",
+    "ws": "^8.18.0",
+    "zod": "^3.25.67"
+  },
+  "optionalDependencies": {
+    "chrome-launcher": "^1.1.2"
   },
   "devDependencies": {
     "@types/yauzl": "^2.10.3"

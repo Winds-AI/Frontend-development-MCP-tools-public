@@ -421,7 +421,7 @@ app.get("/.port", (req, res) => {
 app.get("/.identity", (req, res) => {
   res.json({
     port: PORT,
-    name: "browser-tools-server",
+    name: "frontend-browser-tools-server",
     version: "1.2.0",
     signature: "mcp-browser-connector-24x7",
   });

@@ -181,7 +181,7 @@ function isValidAuthToken(token: string): boolean {
 
 // Create the MCP server
 const server = new McpServer({
-  name: "Frontend-development-tools",
+  name: "Frontend Browser Tools MCP",
   version: "1.2.0",
 });
 
@@ -389,14 +389,100 @@ function generateSearchSuggestions(searchTerm: string): string[] {
 
   return suggestions;
 }
+
+async function handleInspectBrowserNetworkActivity(params: any) {
+  const { urlFilter, details, timeOffset, orderBy, orderDirection, limit } =
+    params;
+
+  const currentTime = Date.now();
+  let finalTimeStart: number | undefined;
+  let finalTimeEnd: number | undefined;
+
+  if (timeOffset !== undefined) {
+    if (timeOffset <= 0) {
+      throw new Error("timeOffset must be a positive number");
+    }
+    if (timeOffset > 86400) {
+      throw new Error("timeOffset cannot exceed 24 hours (86400 seconds)");
+    }
+    finalTimeStart = currentTime - timeOffset * 1000;
+    finalTimeEnd = currentTime;
+    console.log(
+      `Time offset calculation: ${timeOffset}s ago = ${new Date(
+        finalTimeStart
+      ).toISOString()} to ${new Date(finalTimeEnd).toISOString()}`
+    );
+  }
+
+  const queryString = `?urlFilter=${encodeURIComponent(
+    urlFilter
+  )}&details=${details.join(",")}&includeTimestamp=true${
+    finalTimeStart ? `&timeStart=${finalTimeStart}` : ""
+  }${finalTimeEnd ? `&timeEnd=${finalTimeEnd}` : ""}&orderBy=${
+    orderBy || "timestamp"
+  }&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
+  const targetUrl = `http://${discoveredHost}:${discoveredPort}/network-request-details${queryString}`;
+
+  console.log(`MCP Tool: Fetching network details from ${targetUrl}`);
+
+  return await withServerConnection(async () => {
+    try {
+      const response = await fetch(targetUrl);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `Server returned ${response.status}: ${
+            errorText || response.statusText
+          }`
+        );
+      }
+      const json = await response.json();
+      const results = json;
+      if (Array.isArray(results) && results.length === 0) {
+        const suggestions = generateSearchSuggestions(urlFilter);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `No API calls found matching '${urlFilter}'. Try these search strategies:\n\n${suggestions.join(
+                "\n"
+              )}`,
+            },
+          ],
+        } as any;
+      }
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(results, null, 2),
+          },
+        ],
+      } as any;
+    } catch (error: any) {
+      console.error("Error fetching network request details:", error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to get network request details: ${error.message}`,
+          },
+        ],
+        isError: true,
+      } as any;
+    }
+  });
+}
+
+// New name
 server.tool(
-  "inspectBrowserNetworkActivity",
-  "Logs recent browser network requests (like DevTools Network tab). **Use for debugging HTTP request failures (404, 500, etc.), API call sequences, or data fetching issues.** **Note: This tool captures network request failures that console inspection tools miss.** User should trigger relevant API calls in browser first.",
+  "browser.network.inspect",
+  "Inspect recent browser network requests (DevTools-like). Use for debugging HTTP failures (4xx/5xx), payloads, and request sequences. Note: This captures network errors that console tools miss.",
   {
     urlFilter: z
       .string()
       .describe(
-        "Substring or pattern to filter request URLs. **Tips**: Use partial matches (e.g., 'activity' finds both 'get-activity-list' and 'activity-categories'). Try both singular/plural forms if first search returns empty results."
+        "Substring or pattern to filter request URLs. Tips: Use partial matches; try singular/plural variants if empty."
       ),
     details: z
       .array(
@@ -413,131 +499,103 @@ server.tool(
       )
       .min(1)
       .describe(
-        "Specific details to retrieve for matching requests. Note: 'timestamp' is always included by default for chronological ordering."
+        "Fields to include for each entry. 'timestamp' is useful for chronological ordering."
       ),
     timeOffset: z
       .number()
       .optional()
       .describe(
-        "Time offset in seconds from current time. Use this for relative time filtering (e.g., 10 = last 10 seconds, 300 = last 5 minutes, 3600 = last hour). Maximum allowed: 24 hours (86400 seconds)."
+        "Relative window in seconds (e.g., 300 = last 5 minutes, max 86400)."
       ),
     orderBy: z
-      .enum(["timestamp", "url"])
+      .enum(["timestamp", "url"]) 
       .optional()
       .default("timestamp")
-      .describe("Order results by this field"),
+      .describe("Sort field"),
     orderDirection: z
-      .enum(["asc", "desc"])
-      .optional()
-      .default("desc")
-      .describe("Order direction, newest first (desc) or oldest first (asc)"),
-    limit: z
-      .number()
-      .optional()
-      .default(20)
-      .describe("Maximum number of results to return"),
+      .enum(["asc", "desc"]).optional().default("desc").describe("Sort direction"),
+    limit: z.number().optional().default(20).describe("Max entries to return"),
   },
-  async (params) => {
-    const { urlFilter, details, timeOffset, orderBy, orderDirection, limit } =
-      params;
+  handleInspectBrowserNetworkActivity
+);
 
-    // Capture current time when tool is called
-    const currentTime = Date.now();
-    let finalTimeStart: number | undefined;
-    let finalTimeEnd: number | undefined;
-
-    // Handle timeOffset parameter - calculate relative time range
-    if (timeOffset !== undefined) {
-      // Validate timeOffset
-      if (timeOffset <= 0) {
-        throw new Error("timeOffset must be a positive number");
-      }
-      if (timeOffset > 86400) {
-        throw new Error("timeOffset cannot exceed 24 hours (86400 seconds)");
-      }
-
-      // Calculate time range based on offset
-      finalTimeStart = currentTime - timeOffset * 1000;
-      finalTimeEnd = currentTime;
-
-      console.log(
-        `Time offset calculation: ${timeOffset}s ago = ${new Date(
-          finalTimeStart
-        ).toISOString()} to ${new Date(finalTimeEnd).toISOString()}`
-      );
-    }
-
-    // Build query parameters with includeTimestamp=true to always include timestamps but only for filtered results
-    const queryString = `?urlFilter=${encodeURIComponent(
-      urlFilter
-    )}&details=${details.join(",")}&includeTimestamp=true${
-      finalTimeStart ? `&timeStart=${finalTimeStart}` : ""
-    }${finalTimeEnd ? `&timeEnd=${finalTimeEnd}` : ""}&orderBy=${
-      orderBy || "timestamp"
-    }&orderDirection=${orderDirection || "desc"}&limit=${limit || 20}`;
-    const targetUrl = `http://${discoveredHost}:${discoveredPort}/network-request-details${queryString}`;
-
-    console.log(`MCP Tool: Fetching network details from ${targetUrl}`);
-
-    return await withServerConnection(async () => {
-      try {
-        const response = await fetch(targetUrl);
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(
-            `Server returned ${response.status}: ${
-              errorText || response.statusText
-            }`
-          );
-        }
-
-        const json = await response.json(); // Expecting an array of results from the server
-        const results = json;
-
-        // If no results found, provide search suggestions
-        if (Array.isArray(results) && results.length === 0) {
-          const suggestions = generateSearchSuggestions(urlFilter);
-          return {
-            content: [
-              {
-                type: "text",
-                text: `No API calls found matching '${urlFilter}'. Try these search strategies:\n\n${suggestions.join(
-                  "\n"
-                )}`,
-              },
-            ],
-          };
-        }
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(results, null, 2),
-            },
-          ],
-        };
-      } catch (error: any) {
-        console.error("Error fetching network request details:", error);
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Failed to get network request details: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    });
-  }
+// Backward-compatible alias
+server.tool(
+  "inspectBrowserNetworkActivity",
+  "[DEPRECATED] Use 'browser.network.inspect'. Logs recent browser network requests (DevTools Network tab).",
+  {
+    urlFilter: z.string(),
+    details: z.array(
+      z.enum([
+        "url",
+        "method",
+        "status",
+        "timestamp",
+        "requestHeaders",
+        "responseHeaders",
+        "requestBody",
+        "responseBody",
+      ])
+    ).min(1),
+    timeOffset: z.number().optional(),
+    orderBy: z.enum(["timestamp", "url"]).optional().default("timestamp"),
+    orderDirection: z.enum(["asc", "desc"]).optional().default("desc"),
+    limit: z.number().optional().default(20),
+  },
+  handleInspectBrowserNetworkActivity
 );
 
 // Tool: interactWithPage (DOM-first with CDP fallback via extension)
+async function handleUiInteract(params: any) {
+  return await withServerConnection(async () => {
+    try {
+      const targetUrl = `http://${discoveredHost}:${discoveredPort}/dom-action`;
+      const response = await fetch(targetUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(params),
+      });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        const texts: any[] = [
+          {
+            type: "text",
+            text: `✅ Action '${params.action}' succeeded on target (${params.target.by}=${params.target.value}).`,
+          },
+        ];
+        if (result.details) {
+          texts.push({ type: "text", text: JSON.stringify(result.details, null, 2) });
+        }
+        return { content: texts };
+      } else {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `❌ Action '${params.action}' failed: ${result.error || "Unknown error"}`,
+            },
+          ],
+          isError: true,
+        } as any;
+      }
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        content: [
+          { type: "text", text: `Failed to perform interaction: ${errorMessage}` },
+        ],
+        isError: true,
+      } as any;
+    }
+  });
+}
+
+// New name
 server.tool(
-  "interactWithPage",
-  "Interact with the active browser tab using semantic selectors (data-testid, role+name, label, placeholder, name, text, css, xpath). Supports actions: click, type, select, check/uncheck, keypress, hover, waitForSelector. Automatically scrolls into view and waits for visibility/enabled. Uses a CDP fallback in the extension when needed.",
+  "ui.interact",
+  "Interact with the active browser tab using semantic selectors (data-testid, role+name, label, placeholder, name, text, css, xpath). Supports actions: click, type, select, check/uncheck, keypress, hover, waitForSelector, scroll. Automatically scrolls into view and waits for visibility/enabled. Uses a CDP fallback in the extension when needed.",
   {
     action: z.enum(["click", "type", "select", "check", "uncheck", "keypress", "hover", "waitForSelector", "scroll"]),
     target: z.object({
@@ -581,201 +639,221 @@ server.tool(
       tabChangeWaitMs: z.number().optional(),
     }).optional(),
   },
-  async (params) => {
-    return await withServerConnection(async () => {
-      try {
-        const targetUrl = `http://${discoveredHost}:${discoveredPort}/dom-action`;
-        const response = await fetch(targetUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(params),
-        });
-        const result = await response.json();
-        if (response.ok && result.success) {
-          const texts: any[] = [
-            {
-              type: "text",
-              text: `✅ Action '${params.action}' succeeded on target (${params.target.by}=${params.target.value}).`,
-            },
-          ];
-          if (result.details) {
-            texts.push({ type: "text", text: JSON.stringify(result.details, null, 2) });
-          }
-          return { content: texts };
-        } else {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `❌ Action '${params.action}' failed: ${result.error || "Unknown error"}`,
-              },
-            ],
-            isError: true,
-          } as any;
-        }
-      } catch (error: any) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return {
-          content: [
-            { type: "text", text: `Failed to perform interaction: ${errorMessage}` },
-          ],
-          isError: true,
-        } as any;
-      }
-    });
-  }
+  handleUiInteract
+);
+
+// Backward-compatible alias
+server.tool(
+  "interactWithPage",
+  "[DEPRECATED] Use 'ui.interact'. Interact with the active browser tab using semantic selectors.",
+  {
+    action: z.enum(["click", "type", "select", "check", "uncheck", "keypress", "hover", "waitForSelector", "scroll"]),
+    target: z.object({
+      by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
+      value: z.string(),
+      exact: z.boolean().optional(),
+    }),
+    scopeTarget: z
+      .object({
+        by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
+        value: z.string(),
+        exact: z.boolean().optional(),
+      })
+      .optional(),
+    value: z.string().optional(),
+    options: z.object({
+      timeoutMs: z.number().optional(),
+      waitForVisible: z.boolean().optional(),
+      waitForEnabled: z.boolean().optional(),
+      waitForNetworkIdleMs: z.number().optional(),
+      postActionScreenshot: z.boolean().optional(),
+      screenshotLabel: z.string().optional(),
+      fallbackToCdp: z.boolean().optional(),
+      frameSelector: z.string().optional(),
+      scrollX: z.number().optional(),
+      scrollY: z.number().optional(),
+      to: z.enum(["top", "bottom"]).optional(),
+      smooth: z.boolean().optional(),
+      assertTarget: z
+        .object({
+          by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
+          value: z.string(),
+          exact: z.boolean().optional(),
+        })
+        .optional(),
+      assertTimeoutMs: z.number().optional(),
+      assertUrlContains: z.string().optional(),
+      tabChangeWaitMs: z.number().optional(),
+    }).optional(),
+  },
+  handleUiInteract
 );
 
 // =============================================
 // LIST API TAGS TOOL
 // =============================================
 
-server.tool(
-  "listApiTags",
-  "Lists all tags in the API documentation and how many operations each has (count only).",
-  {},
-  async () => {
-    try {
-      const swaggerSource = getConfigValue("SWAGGER_URL");
-      if (!swaggerSource) {
-        throw new Error(
-          "SWAGGER_URL environment variable or config is not set"
-        );
-      }
+async function handleListApiTags() {
+  try {
+    const swaggerSource = getConfigValue("SWAGGER_URL");
+    if (!swaggerSource) {
+      throw new Error(
+        "SWAGGER_URL environment variable or config is not set"
+      );
+    }
 
-      const swaggerDoc = await loadSwaggerDoc(swaggerSource);
-      if (!swaggerDoc.paths) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({ totalTags: 0, tags: [] }, null, 2),
-            },
-          ],
-        };
-      }
+    const swaggerDoc = await loadSwaggerDoc(swaggerSource);
+    if (!swaggerDoc.paths) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({ totalTags: 0, tags: [] }, null, 2),
+          },
+        ],
+      } as any;
+    }
 
-      const counts: Record<string, number> = {};
-      for (const [, pathItem] of Object.entries(swaggerDoc.paths)) {
-        for (const [httpMethod, operation] of Object.entries(
-          pathItem as object
-        )) {
-          if (httpMethod === "parameters") continue;
-          const op = operation as any;
-          if (op.tags && Array.isArray(op.tags)) {
-            for (const t of op.tags) {
-              if (!t || typeof t !== "string") continue;
-              counts[t] = (counts[t] || 0) + 1;
-            }
+    const counts: Record<string, number> = {};
+    for (const [, pathItem] of Object.entries(swaggerDoc.paths)) {
+      for (const [httpMethod, operation] of Object.entries(
+        pathItem as object
+      )) {
+        if (httpMethod === "parameters") continue;
+        const op = operation as any;
+        if (op.tags && Array.isArray(op.tags)) {
+          for (const t of op.tags) {
+            if (!t || typeof t !== "string") continue;
+            counts[t] = (counts[t] || 0) + 1;
           }
         }
       }
-
-      const tags = Object.entries(counts)
-        .map(([tag, count]) => ({ tag, count }))
-        .sort((a, b) => b.count - a.count);
-
-      const result = { totalTags: tags.length, tags };
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(result, null, 2),
-          },
-        ],
-      };
-    } catch (error: any) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Failed to list API tags: ${errorMessage}`,
-          },
-        ],
-        isError: true,
-      };
     }
+
+    const tags = Object.entries(counts)
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const result = { totalTags: tags.length, tags };
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    } as any;
+  } catch (error: any) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Failed to list API tags: ${errorMessage}`,
+        },
+      ],
+      isError: true,
+    } as any;
   }
+}
+
+server.tool(
+  "api.listTags",
+  "List all API tags with operation counts (from Swagger/OpenAPI).",
+  {},
+  handleListApiTags
 );
 
-// Tool 2: captureBrowserScreenshot
 server.tool(
-  "captureBrowserScreenshot",
-  "Captures current browser tab. Returns image data directly **and** saves file. **Use for UI inspection, visual verification, or recursive UI improvement loops.**",
-  { randomString: z.string().describe("any random string") },
-  async () => {
-    return await withServerConnection(async () => {
-      try {
-        const targetUrl = `http://${discoveredHost}:${discoveredPort}/capture-screenshot`;
-        const activeProjectName = getActiveProjectName();
-        const requestPayload = {
-          returnImageData: true, // Always return image data
-          projectName: activeProjectName, // Pass active project name
-        };
+  "listApiTags",
+  "[DEPRECATED] Use 'api.listTags'. Lists API tags with operation counts.",
+  {},
+  handleListApiTags
+);
 
-        const response = await fetch(targetUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+async function handleCaptureBrowserScreenshot() {
+  return await withServerConnection(async () => {
+    try {
+      const targetUrl = `http://${discoveredHost}:${discoveredPort}/capture-screenshot`;
+      const activeProjectName = getActiveProjectName();
+      const requestPayload = {
+        returnImageData: true, // Always return image data
+        projectName: activeProjectName, // Pass active project name
+      };
+
+      const response = await fetch(targetUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestPayload),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        const responseContent: any[] = [
+          {
+            type: "text",
+            text: `📁 Project: ${
+              result.projectDirectory || "default-project"
+            }\n📌 Now Analyze the UI Layout and it's structure properly given the task at hand, then continue`,
           },
-          body: JSON.stringify(requestPayload),
+        ];
+
+        responseContent.push({
+          type: "image",
+          data: result.imageData,
+          mimeType: "image/png",
         });
 
-        const result = await response.json();
-
-        if (response.ok) {
-          const responseContent: any[] = [
-            {
-              type: "text",
-              text: `📁 Project: ${
-                result.projectDirectory || "default-project"
-              }\n📌 Now Analyze the UI Layout and it's structure properly given the task at hand, then continue`,
-            },
-          ];
-
-          responseContent.push({
-            type: "image",
-            data: result.imageData,
-            mimeType: "image/png",
-          });
-
-          return {
-            content: responseContent,
-          };
-        } else {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Error taking screenshot: ${result.error}`,
-              },
-            ],
-            isError: true,
-          };
-        }
-      } catch (error: any) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
+        return {
+          content: responseContent,
+        } as any;
+      } else {
         return {
           content: [
             {
               type: "text",
-              text: `Failed to take screenshot: ${errorMessage}`,
+              text: `Error taking screenshot: ${result.error}`,
             },
           ],
           isError: true,
-        };
+        } as any;
       }
-    });
-  }
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Failed to take screenshot: ${errorMessage}`,
+          },
+        ],
+        isError: true,
+      } as any;
+    }
+  });
+}
+
+// New name
+server.tool(
+  "browser.screenshot",
+  "Capture current browser tab; saves to structured path and returns image. Requires extension connection with DevTools open.",
+  { randomString: z.string().describe("any string (ignored)") },
+  handleCaptureBrowserScreenshot
+);
+
+// Backward-compatible alias
+server.tool(
+  "captureBrowserScreenshot",
+  "[DEPRECATED] Use 'browser.screenshot'. Captures current browser tab.",
+  { randomString: z.string().describe("any random string") },
+  handleCaptureBrowserScreenshot
 );
 
 server.tool(
-  "inspectSelectedElementCss",
+  "ui.inspectElement",
   `**Enhanced UI Debugging Context Tool** - Gets comprehensive debugging information for the element selected in browser DevTools. 
 
 **Prerequisite**: DevTools open, element selected in Elements panel.
@@ -876,9 +954,19 @@ server.tool(
   }
 );
 
+// Backward-compatible alias
 server.tool(
-  "fetchLiveApiResponse",
-  "Executes a live, authenticated API call to a known endpoint. **Use after `searchApiDocumentation` or for known endpoints** to get real server responses and verify data structures.",
+  "inspectSelectedElementCss",
+  "[DEPRECATED] Use 'ui.inspectElement'. Enhanced UI debugging for the selected element.",
+  {},
+  async () => {
+    return (await (server as any).executeTool?.("ui.inspectElement")) as any;
+  }
+);
+
+server.tool(
+  "api.request",
+  "Execute a live HTTP request to API_BASE_URL; optionally include Authorization: Bearer API_AUTH_TOKEN. Use after 'api.searchEndpoints' or for known endpoints.",
   {
     endpoint: z
       .string()
@@ -1075,6 +1163,22 @@ server.tool(
         isError: true,
       };
     }
+  }
+);
+
+// Backward-compatible alias
+server.tool(
+  "fetchLiveApiResponse",
+  "[DEPRECATED] Use 'api.request'. Executes a live API call to a known endpoint.",
+  {
+    endpoint: z.string(),
+    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional().default("GET"),
+    requestBody: z.any().optional(),
+    queryParams: z.record(z.string()).optional(),
+    includeAuthToken: z.boolean().optional(),
+  },
+  async (params) => {
+    return (await (server as any).executeTool?.("api.request", params)) as any;
   }
 );
 
@@ -1343,8 +1447,8 @@ function createSimplifiedEndpoint(
 // =============================================
 
 server.tool(
-  "searchApiDocumentation",
-  "Simplified API documentation search that returns only essential information: API paths, parameters (GET), request payloads (POST/PUT/PATCH/DELETE), and success responses. If response schemas are missing, provides guidance to use fetchLiveApiResponse for live testing.",
+  "api.searchEndpoints",
+  "Semantic API documentation search returning essential info: path, method, params (GET), request body (POST/PUT/PATCH/DELETE), and success responses. If schemas are missing, suggests using 'api.request' for live testing.",
   {
     query: z
       .string()
@@ -1474,9 +1578,26 @@ server.tool(
   }
 );
 
+// Backward-compatible alias
+server.tool(
+  "searchApiDocumentation",
+  "[DEPRECATED] Use 'api.searchEndpoints'. Simplified API documentation search.",
+  {
+    query: z.string().optional(),
+    tag: z.string().optional(),
+    searchTerms: z.array(z.string()).optional(),
+    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
+    limit: z.number().optional().default(10),
+    maxResults: z.number().optional(),
+  },
+  async (params) => {
+    return (await (server as any).executeTool?.("api.searchEndpoints", params)) as any;
+  }
+);
+
 // Register navigate tool with static description (set once at startup)
 server.tool(
-  "navigateBrowserTab",
+  "browser.navigate",
   generateNavigateToolDescription(),
   {
     url: z
@@ -1561,14 +1682,26 @@ server.tool(
   }
 );
 
+// Backward-compatible alias
+server.tool(
+  "navigateBrowserTab",
+  "[DEPRECATED] Use 'browser.navigate'. Navigates the active browser tab to a URL.",
+  {
+    url: z.string().describe(`The URL to navigate to (must be a valid URL including protocol, e.g., 'https://example.com')`),
+  },
+  async (params) => {
+    return (await (server as any).executeTool?.("browser.navigate", params)) as any;
+  }
+);
+
 // Note: Dynamic tool updates don't work with most MCP clients (like Cursor/Kiro)
 // They only support basic tool listing, not listChanged notifications
 // So we set the description once at startup instead of trying to update it dynamically
 
 // Tool 7: inspectBrowserConsole
 server.tool(
-  "inspectBrowserConsole",
-  "Inspects browser console logs, errors, and warnings with filtering capabilities. **Use for debugging JavaScript errors, monitoring console output, or analyzing application behavior.** **Note: This tool captures JavaScript console messages (console.log, console.error, etc.) but NOT network request failures (404, 500, etc.). For network errors, use `inspectBrowserNetworkActivity` instead.** Supports filtering by level (log/error/warn/info/debug), time range, and search terms.",
+  "browser.console.read",
+  "Read browser console logs with filters; returns formatted summary + stats. Use for JS errors/warnings/logs. Note: Does not include HTTP failures (use 'browser.network.inspect').",
   {
     level: z
       .enum(["log", "error", "warn", "info", "debug", "all"])
@@ -1731,6 +1864,21 @@ server.tool(
         isError: true,
       };
     }
+  }
+);
+
+// Backward-compatible alias
+server.tool(
+  "inspectBrowserConsole",
+  "[DEPRECATED] Use 'browser.console.read'.",
+  {
+    level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional(),
+    limit: z.number().optional(),
+    timeOffset: z.number().optional(),
+    search: z.string().optional(),
+  },
+  async (params) => {
+    return (await (server as any).executeTool?.("browser.console.read", params)) as any;
   }
 );
 
