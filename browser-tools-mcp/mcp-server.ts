@@ -1898,19 +1898,21 @@ server.tool(
 );
 
 // Backward-compatible alias
-server.tool(
-  "inspectBrowserConsole",
-  "[DEPRECATED] Use 'browser.console.read'.",
-  {
-    level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional(),
-    limit: z.number().optional(),
-    timeOffset: z.number().optional(),
-    search: z.string().optional(),
-  },
-  async (params) => {
-    return (await (server as any).executeTool?.("browser.console.read", params)) as any;
-  }
-);
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "inspectBrowserConsole",
+    "[DEPRECATED] Use 'browser.console.read'.",
+    {
+      level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional(),
+      limit: z.number().optional(),
+      timeOffset: z.number().optional(),
+      search: z.string().optional(),
+    },
+    async (params) => {
+      return (await (server as any).executeTool?.("browser.console.read", params)) as any;
+    }
+  );
+}
 
 (async () => {
   try {

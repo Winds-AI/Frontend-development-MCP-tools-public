@@ -125,8 +125,11 @@ const server = new McpServer({
     version: "1.2.0",
 });
 // Allow disabling deprecated alias tools to reduce duplicates in clients like Cursor
-const DISABLE_ALIASES = String(process.env.AFBT_DISABLE_ALIASES || "").toLowerCase() === "1" ||
-    String(process.env.AFBT_DISABLE_ALIASES || "").toLowerCase() === "true";
+// Default: disabled (can re-enable with AFBT_DISABLE_ALIASES=0/false)
+const DISABLE_ALIASES = (() => {
+    const v = String(process.env.AFBT_DISABLE_ALIASES ?? "1").toLowerCase();
+    return v === "1" || v === "true";
+})();
 // Log active project on startup
 logActiveProject();
 // Track the discovered server connection - enhanced for autonomous operation
