@@ -185,6 +185,11 @@ const server = new McpServer({
   version: "1.2.0",
 });
 
+// Allow disabling deprecated alias tools to reduce duplicates in clients like Cursor
+const DISABLE_ALIASES =
+  String(process.env.AFBT_DISABLE_ALIASES || "").toLowerCase() === "1" ||
+  String(process.env.AFBT_DISABLE_ALIASES || "").toLowerCase() === "true";
+
 // Log active project on startup
 logActiveProject();
 
@@ -520,30 +525,34 @@ server.tool(
 );
 
 // Backward-compatible alias
-server.tool(
-  "inspectBrowserNetworkActivity",
-  "[DEPRECATED] Use 'browser.network.inspect'. Logs recent browser network requests (DevTools Network tab).",
-  {
-    urlFilter: z.string(),
-    details: z.array(
-      z.enum([
-        "url",
-        "method",
-        "status",
-        "timestamp",
-        "requestHeaders",
-        "responseHeaders",
-        "requestBody",
-        "responseBody",
-      ])
-    ).min(1),
-    timeOffset: z.number().optional(),
-    orderBy: z.enum(["timestamp", "url"]).optional().default("timestamp"),
-    orderDirection: z.enum(["asc", "desc"]).optional().default("desc"),
-    limit: z.number().optional().default(20),
-  },
-  handleInspectBrowserNetworkActivity
-);
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "inspectBrowserNetworkActivity",
+    "[DEPRECATED] Use 'browser.network.inspect'. Logs recent browser network requests (DevTools Network tab).",
+    {
+      urlFilter: z.string(),
+      details: z
+        .array(
+          z.enum([
+            "url",
+            "method",
+            "status",
+            "timestamp",
+            "requestHeaders",
+            "responseHeaders",
+            "requestBody",
+            "responseBody",
+          ])
+        )
+        .min(1),
+      timeOffset: z.number().optional(),
+      orderBy: z.enum(["timestamp", "url"]).optional().default("timestamp"),
+      orderDirection: z.enum(["asc", "desc"]).optional().default("desc"),
+      limit: z.number().optional().default(20),
+    },
+    handleInspectBrowserNetworkActivity
+  );
+}
 
 // Tool: interactWithPage (DOM-first with CDP fallback via extension)
 async function handleUiInteract(params: any) {
@@ -643,51 +652,53 @@ server.tool(
 );
 
 // Backward-compatible alias
-server.tool(
-  "interactWithPage",
-  "[DEPRECATED] Use 'ui.interact'. Interact with the active browser tab using semantic selectors.",
-  {
-    action: z.enum(["click", "type", "select", "check", "uncheck", "keypress", "hover", "waitForSelector", "scroll"]),
-    target: z.object({
-      by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
-      value: z.string(),
-      exact: z.boolean().optional(),
-    }),
-    scopeTarget: z
-      .object({
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "interactWithPage",
+    "[DEPRECATED] Use 'ui.interact'. Interact with the active browser tab using semantic selectors.",
+    {
+      action: z.enum(["click", "type", "select", "check", "uncheck", "keypress", "hover", "waitForSelector", "scroll"]),
+      target: z.object({
         by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
         value: z.string(),
         exact: z.boolean().optional(),
-      })
-      .optional(),
-    value: z.string().optional(),
-    options: z.object({
-      timeoutMs: z.number().optional(),
-      waitForVisible: z.boolean().optional(),
-      waitForEnabled: z.boolean().optional(),
-      waitForNetworkIdleMs: z.number().optional(),
-      postActionScreenshot: z.boolean().optional(),
-      screenshotLabel: z.string().optional(),
-      fallbackToCdp: z.boolean().optional(),
-      frameSelector: z.string().optional(),
-      scrollX: z.number().optional(),
-      scrollY: z.number().optional(),
-      to: z.enum(["top", "bottom"]).optional(),
-      smooth: z.boolean().optional(),
-      assertTarget: z
+      }),
+      scopeTarget: z
         .object({
           by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
           value: z.string(),
           exact: z.boolean().optional(),
         })
         .optional(),
-      assertTimeoutMs: z.number().optional(),
-      assertUrlContains: z.string().optional(),
-      tabChangeWaitMs: z.number().optional(),
-    }).optional(),
-  },
-  handleUiInteract
-);
+      value: z.string().optional(),
+      options: z.object({
+        timeoutMs: z.number().optional(),
+        waitForVisible: z.boolean().optional(),
+        waitForEnabled: z.boolean().optional(),
+        waitForNetworkIdleMs: z.number().optional(),
+        postActionScreenshot: z.boolean().optional(),
+        screenshotLabel: z.string().optional(),
+        fallbackToCdp: z.boolean().optional(),
+        frameSelector: z.string().optional(),
+        scrollX: z.number().optional(),
+        scrollY: z.number().optional(),
+        to: z.enum(["top", "bottom"]).optional(),
+        smooth: z.boolean().optional(),
+        assertTarget: z
+          .object({
+            by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
+            value: z.string(),
+            exact: z.boolean().optional(),
+          })
+          .optional(),
+        assertTimeoutMs: z.number().optional(),
+        assertUrlContains: z.string().optional(),
+        tabChangeWaitMs: z.number().optional(),
+      }).optional(),
+    },
+    handleUiInteract
+  );
+}
 
 // =============================================
 // LIST API TAGS TOOL
@@ -764,12 +775,14 @@ server.tool(
   handleListApiTags
 );
 
-server.tool(
-  "listApiTags",
-  "[DEPRECATED] Use 'api.listTags'. Lists API tags with operation counts.",
-  {},
-  handleListApiTags
-);
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "listApiTags",
+    "[DEPRECATED] Use 'api.listTags'. Lists API tags with operation counts.",
+    {},
+    handleListApiTags
+  );
+}
 
 async function handleCaptureBrowserScreenshot() {
   return await withServerConnection(async () => {
@@ -845,12 +858,14 @@ server.tool(
 );
 
 // Backward-compatible alias
-server.tool(
-  "captureBrowserScreenshot",
-  "[DEPRECATED] Use 'browser.screenshot'. Captures current browser tab.",
-  { randomString: z.string().describe("any random string") },
-  handleCaptureBrowserScreenshot
-);
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "captureBrowserScreenshot",
+    "[DEPRECATED] Use 'browser.screenshot'. Captures current browser tab.",
+    { randomString: z.string().describe("any random string") },
+    handleCaptureBrowserScreenshot
+  );
+}
 
 server.tool(
   "ui.inspectElement",
@@ -955,14 +970,16 @@ server.tool(
 );
 
 // Backward-compatible alias
-server.tool(
-  "inspectSelectedElementCss",
-  "[DEPRECATED] Use 'ui.inspectElement'. Enhanced UI debugging for the selected element.",
-  {},
-  async () => {
-    return (await (server as any).executeTool?.("ui.inspectElement")) as any;
-  }
-);
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "inspectSelectedElementCss",
+    "[DEPRECATED] Use 'ui.inspectElement'. Enhanced UI debugging for the selected element.",
+    {},
+    async () => {
+      return (await (server as any).executeTool?.("ui.inspectElement")) as any;
+    }
+  );
+}
 
 server.tool(
   "api.request",
@@ -1167,20 +1184,25 @@ server.tool(
 );
 
 // Backward-compatible alias
-server.tool(
-  "fetchLiveApiResponse",
-  "[DEPRECATED] Use 'api.request'. Executes a live API call to a known endpoint.",
-  {
-    endpoint: z.string(),
-    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional().default("GET"),
-    requestBody: z.any().optional(),
-    queryParams: z.record(z.string()).optional(),
-    includeAuthToken: z.boolean().optional(),
-  },
-  async (params) => {
-    return (await (server as any).executeTool?.("api.request", params)) as any;
-  }
-);
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "fetchLiveApiResponse",
+    "[DEPRECATED] Use 'api.request'. Executes a live API call to a known endpoint.",
+    {
+      endpoint: z.string(),
+      method: z
+        .enum(["GET", "POST", "PUT", "PATCH", "DELETE"]) 
+        .optional()
+        .default("GET"),
+      requestBody: z.any().optional(),
+      queryParams: z.record(z.string()).optional(),
+      includeAuthToken: z.boolean().optional(),
+    },
+    async (params) => {
+      return (await (server as any).executeTool?.("api.request", params)) as any;
+    }
+  );
+}
 
 // Function to load Swagger documentation (either from URL or file)
 async function loadSwaggerDoc(swaggerSource: string): Promise<any> {
@@ -1579,21 +1601,23 @@ server.tool(
 );
 
 // Backward-compatible alias
-server.tool(
-  "searchApiDocumentation",
-  "[DEPRECATED] Use 'api.searchEndpoints'. Simplified API documentation search.",
-  {
-    query: z.string().optional(),
-    tag: z.string().optional(),
-    searchTerms: z.array(z.string()).optional(),
-    method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
-    limit: z.number().optional().default(10),
-    maxResults: z.number().optional(),
-  },
-  async (params) => {
-    return (await (server as any).executeTool?.("api.searchEndpoints", params)) as any;
-  }
-);
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "searchApiDocumentation",
+    "[DEPRECATED] Use 'api.searchEndpoints'. Simplified API documentation search.",
+    {
+      query: z.string().optional(),
+      tag: z.string().optional(),
+      searchTerms: z.array(z.string()).optional(),
+      method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
+      limit: z.number().optional().default(10),
+      maxResults: z.number().optional(),
+    },
+    async (params) => {
+      return (await (server as any).executeTool?.("api.searchEndpoints", params)) as any;
+    }
+  );
+}
 
 // Register navigate tool with static description (set once at startup)
 server.tool(
@@ -1683,16 +1707,20 @@ server.tool(
 );
 
 // Backward-compatible alias
-server.tool(
-  "navigateBrowserTab",
-  "[DEPRECATED] Use 'browser.navigate'. Navigates the active browser tab to a URL.",
-  {
-    url: z.string().describe(`The URL to navigate to (must be a valid URL including protocol, e.g., 'https://example.com')`),
-  },
-  async (params) => {
-    return (await (server as any).executeTool?.("browser.navigate", params)) as any;
-  }
-);
+if (!DISABLE_ALIASES) {
+  server.tool(
+    "navigateBrowserTab",
+    "[DEPRECATED] Use 'browser.navigate'. Navigates the active browser tab to a URL.",
+    {
+      url: z.string().describe(
+        `The URL to navigate to (must be a valid URL including protocol, e.g., 'https://example.com')`
+      ),
+    },
+    async (params) => {
+      return (await (server as any).executeTool?.("browser.navigate", params)) as any;
+    }
+  );
+}
 
 // Note: Dynamic tool updates don't work with most MCP clients (like Cursor/Kiro)
 // They only support basic tool listing, not listChanged notifications
