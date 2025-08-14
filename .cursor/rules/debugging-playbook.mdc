@@ -1,7 +1,9 @@
 ---
-description: Practical debugging steps for the MCP + server + extension stack
+alwaysApply: true
 ---
 ## Debugging Playbook — Common Issues and Fixes
+
+For a consolidated system overview and tool quick-reference, see: [PROJECT_OVERVIEW.md](mdc:docs/PROJECT_OVERVIEW.md)
 
 ### Active project mismatches
 - Symptom: API doc search returns endpoints from the wrong project.

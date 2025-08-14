@@ -5,6 +5,8 @@ alwaysApply: true
 
 This workspace provides a complete loop for AI-assisted frontend work across multiple projects using an MCP server, a browser tools server, and a Chrome extension.
 
+See the full consolidated overview and tools quick-reference here: [PROJECT_OVERVIEW.md](mdc:docs/PROJECT_OVERVIEW.md)
+
 ### Components
 - MCP server: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts)
 - Browser tools server: [browser-connector.ts](mdc:browser-tools-server/browser-connector.ts)

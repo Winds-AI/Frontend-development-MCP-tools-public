@@ -1,11 +1,12 @@
 ---
-globs: *.ts,*.tsx,*.js
+alwaysApply: true
 ---
 ## MCP Tools — Behavior, Inputs, and Business Logic
 
 Use this as a quick reference for how tools work and where their logic lives. For end-user docs, also see:
 - [HOW_TO_USE.md](mdc:docs/HOW_TO_USE.md)
 - [each-tool-explained/](mdc:docs/each-tool-explained)
+- [PROJECT_OVERVIEW.md](mdc:docs/PROJECT_OVERVIEW.md)
 
 ### Project configuration and scoping
 - Config source: [projects.json](mdc:chrome-extension/projects.json) with per-project `config`.

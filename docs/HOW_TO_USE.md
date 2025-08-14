@@ -59,9 +59,9 @@ Use `searchApiDocumentation` to identify endpoints and request/response shapes. 
 - Example:
   ```
   1. navigateBrowserTab({ url: "https://app.example.com/login" })
-  2. captureBrowserScreenshot()
+  2. captureBrowserScreenshot({ randomString: "any" })
   3. navigateBrowserTab({ url: "https://app.example.com/dashboard" })
-  4. captureBrowserScreenshot()
+  4. captureBrowserScreenshot({ randomString: "any" })
   ```
 
 - For environment/config setup, see `docs/SETUP_GUIDE.md`. For architecture and features, see `docs/PROJECT_OVERVIEW.md`.

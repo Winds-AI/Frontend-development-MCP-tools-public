@@ -138,3 +138,84 @@ Real-time connection status at `/connection-health`:
   "uptime": 3600.45
 }
 ```
+
+---
+
+## ✅ Prerequisites
+
+- Chrome extension installed and DevTools open on the inspected tab
+- Browser Tools Server running and discoverable (defaults to port 3025)
+- Project configuration in `chrome-extension/projects.json` (see cheat sheet below)
+
+---
+
+## 🧭 Multi‑Project Selection
+
+- Resolution order: request header `X-ACTIVE-PROJECT` → `ACTIVE_PROJECT` env (MCP) → `defaultProject` in `chrome-extension/projects.json`.
+- Each project has its own embedding index at `.vectra/<project>` and API doc source.
+
+---
+
+## 🧰 Tools Quick Reference
+
+| Tool | What it does | When to use | Key params | Preconditions |
+| --- | --- | --- | --- | --- |
+| `searchApiDocumentation` | Semantic search over Swagger/OpenAPI. Returns minimal endpoint info (method, path, simple param/request/response hints). | Finding endpoints and basic shapes before coding. | `query?`, `tag?`, `method?`, `limit?` | Embedding index built for the active project; `SWAGGER_URL` configured. |
+| `listApiTags` | Lists all tags with operation counts. | Get a domain overview; seed further API searches. | none | `SWAGGER_URL` configured. |
+| `fetchLiveApiResponse` | Makes a real HTTP request to `API_BASE_URL`; optionally includes `Authorization: Bearer ${API_AUTH_TOKEN}`. | Validate exact responses; verify auth/headers; confirm behavior. | `endpoint`, `method?`, `requestBody?`, `queryParams?`, `includeAuthToken?` | `API_BASE_URL` set; `API_AUTH_TOKEN` set if `includeAuthToken: true`. |
+| `captureBrowserScreenshot` | Captures current tab, saves to a structured path, and returns the image. | UI analysis, visual verification, before/after loops. | `randomString` (dummy, required by MCP schema) | Extension connected; DevTools open. |
+| `inspectSelectedElementCss` | Enhanced element context: computed styles, layout relations, issue detection, accessibility hints. | Rapid UI debugging after selecting an element in DevTools. | none | DevTools open and an element selected. |
+| `inspectBrowserNetworkActivity` | Recent network requests with filters (URL substring, fields, time window, sort, limit). | Debug HTTP failures, payloads, and sequences (DevTools‑like). | `urlFilter`, `details[]`, `timeOffset?`, `orderBy?`, `orderDirection?`, `limit?` | Extension connected; trigger the requests first. |
+| `inspectBrowserConsole` | Filtered console messages with stats and formatted output. | Surface JS errors/warnings/logs quickly. | `level?`, `limit?`, `timeOffset?`, `search?` | Extension connected; DevTools open. |
+| `navigateBrowserTab` | Navigates the active tab to a URL. | Multi‑step flows; move to pages before taking screenshots or interacting. | `url` | Extension connected; optional `ROUTES_FILE_PATH` referenced in description. |
+| `interactWithPage` | DOM interactions via semantic selectors (data‑testid, role+name, label, placeholder, name, text, css, xpath) with intelligent waits and CDP fallback. | Automate clicks/typing/selecting; assert visibility/enabled; optional post‑action screenshot. | `action`, `target`, `scopeTarget?`, `value?`, `options?` | Extension connected; DevTools open recommended. |
+
+Notes:
+- Prefer `inspectBrowserNetworkActivity` for network errors; console tool does not capture HTTP failures.
+- Some MCP clients cache tool descriptions; dynamic updates are not always reflected live.
+
+---
+
+## 🔁 Common Workflows
+
+- API integration
+  1) `searchApiDocumentation` → 2) `fetchLiveApiResponse` → 3) implement/types → 4) iterate.
+
+- UI debugging loop
+  1) `captureBrowserScreenshot` → 2) select element in DevTools → 3) `inspectSelectedElementCss` → 4) fix → 5) screenshot again.
+
+- Navigation + checks
+  1) `navigateBrowserTab` → 2) `captureBrowserScreenshot` → 3) `inspectBrowserNetworkActivity`/`inspectBrowserConsole`.
+
+- Automated UI interaction
+  1) `navigateBrowserTab` → 2) `interactWithPage` (perform click/type/etc.) → 3) optional `captureBrowserScreenshot` → 4) verify via `inspectBrowserNetworkActivity`.
+
+---
+
+## 🗂️ Configuration Cheat Sheet (`chrome-extension/projects.json`)
+
+- Per‑project `config`:
+  - `SWAGGER_URL` (required for API search/tag tools)
+  - `API_BASE_URL` (required for live API calls)
+  - `API_AUTH_TOKEN` (only if `includeAuthToken: true`)
+  - `ROUTES_FILE_PATH` (optional; referenced in navigation tool description)
+  - Optional: `BROWSER_TOOLS_HOST`, `BROWSER_TOOLS_PORT`
+- Global: `DEFAULT_SCREENSHOT_STORAGE_PATH` (base screenshot directory)
+
+Embedding provider keys (env only, not in projects.json): `OPENAI_API_KEY`, `GEMINI_API_KEY` (+ optional model vars). Reindex from DevTools panel after provider/model changes.
+
+---
+
+## 🧑‍⚕️ Health & Troubleshooting
+
+- Identity: `GET /.identity` → `{ signature: "mcp-browser-connector-24x7", ... }`
+- Connection health: `GET /connection-health` → heartbeat status, uptime, pending screenshots, etc.
+- Ports: auto‑select in range 3025–3035 (first free).
+
+---
+
+## ⚠️ Constraints & Tips
+
+- Keep DevTools open on the inspected tab for console, network, selected element, and screenshots.
+- Trigger real user actions before inspecting network activity to ensure logs exist.
+- When docs lack detailed schemas, pair `searchApiDocumentation` with `fetchLiveApiResponse` to get exact shapes.

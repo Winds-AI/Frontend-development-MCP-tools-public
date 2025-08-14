@@ -42,7 +42,7 @@ Element: BUTTON#save.primary
 
 ## Workflow
 
-1) Take a screenshot with `captureBrowserScreenshot()` (optional)
+1) Take a screenshot with `captureBrowserScreenshot({ randomString: "any" })` (optional)
 2) Select the problematic element in DevTools
 3) Run `inspectSelectedElementCss()` and apply fixes based on suggestions
 4) Re-screenshot to verify

@@ -7,6 +7,7 @@
 - For few helper instructions on how to use these tools `HOW_TO_USE.md`
 - How it works and architecture is in `PROJECT_OVERVIEW.md`
 - For understandig how each tool works `each-tool-explained` directory (Work In Progress).
+- For a single, skimmable overview and quick-reference of tools and workflows, see `docs/PROJECT_OVERVIEW.md`.
 
 ## Motivation
 

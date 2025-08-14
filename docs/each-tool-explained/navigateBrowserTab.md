@@ -302,7 +302,7 @@ await navigateBrowserTab({ url: `${baseUrl}/dashboard` });
 ```typescript
 // Navigate to page and capture screenshot
 await navigateBrowserTab({ url: "https://example.com/dashboard" });
-await captureBrowserScreenshot({ filename: "dashboard-page" });
+await captureBrowserScreenshot({ randomString: "dashboard-page" });
 ```
 
 ### Combined with Network Inspection

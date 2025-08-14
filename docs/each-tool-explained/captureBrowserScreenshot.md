@@ -166,17 +166,13 @@ The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultPr
 
 ```typescript
 // 1. Capture screenshot
-const screenshot = await captureBrowserScreenshot({
-  filename: "before-changes",
-});
+await captureBrowserScreenshot({ randomString: "before" });
 
 // 2. Make UI changes
 // ... code changes ...
 
 // 3. Capture after screenshot
-const afterScreenshot = await captureBrowserScreenshot({
-  filename: "after-changes",
-});
+await captureBrowserScreenshot({ randomString: "after" });
 
 // 4. Compare visually or programmatically
 ```
@@ -184,16 +180,9 @@ const afterScreenshot = await captureBrowserScreenshot({
 ### Documentation Workflow
 
 ```typescript
-// Capture screenshots for documentation
-await captureBrowserScreenshot({
-  projectName: "user-guide",
-  filename: "step-1-login",
-});
-
-await captureBrowserScreenshot({
-  projectName: "user-guide",
-  filename: "step-2-dashboard",
-});
+// Capture screenshots for documentation (filenames are auto-generated)
+await captureBrowserScreenshot({ randomString: "step-1-login" });
+await captureBrowserScreenshot({ randomString: "step-2-dashboard" });
 ```
 
 ## Best Practices
