@@ -318,47 +318,82 @@ export interface ProjectsConfig {
 // Lightweight in-process cache to avoid repeated filesystem reads and duplicate logs
 let cachedProjectsConfig: ProjectsConfig | null = null;
 let cachedProjectsConfigPath: string | null = null;
+let cachedProjectsConfigMtimeMs: number | null = null;
 let hasLoggedProjectsConfig: boolean = false;
+
+/**
+ * Resolve the path to projects.json with priority:
+ * 1) env AFBT_PROJECTS_JSON (absolute path)
+ * 2) CWD/chrome-extension/projects.json (Setup UI writes here)
+ * 3) Packaged fallback relative to this module (node_modules/...)
+ */
+function resolveProjectsJsonPath(): string {
+  const envPath = process.env.AFBT_PROJECTS_JSON;
+  if (envPath && fs.existsSync(envPath)) return envPath;
+
+  const cwdPath = path.join(process.cwd(), "chrome-extension", "projects.json");
+  if (fs.existsSync(cwdPath)) return cwdPath;
+
+  // Packaged fallback (current behavior)
+  return path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json");
+}
 
 export function loadProjectConfig(): ProjectsConfig | null {
   try {
-    // Return cached config if available
-    if (cachedProjectsConfig) return cachedProjectsConfig;
+    const configPath = resolveProjectsJsonPath();
 
-    const configPath = path.join(
-      __dirname,
-      "..",
-      "..",
-      "..",
-      "chrome-extension",
-      "projects.json"
-    );
-
-    // Only log once for discoverability
+    // Only log once for discoverability (shows chosen path)
     if (!hasLoggedProjectsConfig) {
       console.log(
         `[INFO] Browser Connector: Loading projects.json from ${configPath}`
       );
     }
 
-    if (fs.existsSync(configPath)) {
-      const configData = fs.readFileSync(configPath, "utf8");
-      const parsed = JSON.parse(configData) as ProjectsConfig;
-      cachedProjectsConfig = parsed;
-      cachedProjectsConfigPath = configPath;
-      if (!hasLoggedProjectsConfig) {
-        const projectCount = Object.keys(parsed.projects || {}).length;
-        console.log(
-          `[INFO] Browser Connector: Loaded projects.json (projects=${projectCount}, defaultProject=${parsed.defaultProject})`
-        );
-      }
-    } else {
+    if (!fs.existsSync(configPath)) {
       if (!hasLoggedProjectsConfig) {
         console.log(
           `[WARN] Browser Connector: projects.json not found at: ${configPath}`
         );
       }
       cachedProjectsConfig = null;
+      cachedProjectsConfigPath = null;
+      cachedProjectsConfigMtimeMs = null;
+      hasLoggedProjectsConfig = true;
+      return null;
+    }
+
+    // Reload when the file changes or path differs
+    let stat: fs.Stats | null = null;
+    try {
+      stat = fs.statSync(configPath);
+    } catch {
+      stat = null;
+    }
+    const mtimeMs = stat ? stat.mtimeMs : null;
+
+    const shouldReload =
+      !cachedProjectsConfig ||
+      cachedProjectsConfigPath !== configPath ||
+      (mtimeMs !== null && cachedProjectsConfigMtimeMs !== mtimeMs);
+
+    if (shouldReload) {
+      const configData = fs.readFileSync(configPath, "utf8");
+      const parsed = JSON.parse(configData) as ProjectsConfig;
+      cachedProjectsConfig = parsed;
+      const previousPath = cachedProjectsConfigPath;
+      cachedProjectsConfigPath = configPath;
+      cachedProjectsConfigMtimeMs = mtimeMs;
+      if (previousPath && previousPath !== configPath) {
+        console.log(
+          `[INFO] Browser Connector: Reloaded projects.json from ${configPath} (was ${previousPath})`
+        );
+      }
+      if (!hasLoggedProjectsConfig) {
+        const projectCount = Object.keys(parsed.projects || {}).length;
+        console.log(
+          `[INFO] Browser Connector: Loaded projects.json (projects=${projectCount}, defaultProject=${parsed.defaultProject})`
+        );
+      }
     }
 
     hasLoggedProjectsConfig = true;
