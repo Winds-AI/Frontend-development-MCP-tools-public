@@ -14,7 +14,7 @@
 1) Start the connector + setup UI
 
 ```bash
-npx afbt-setup
+npx @winds-ai/autonomous-frontend-browser-tools
 ```
 
 - The Browser Connector runs in your terminal (logs remain there)
@@ -33,10 +33,8 @@ npx afbt-setup
   "mcpServers": {
     "autonomous-frontend-browser-tools": {
       "command": "npx",
-      "args": ["-y", "afbt-mcp"],
-      "env": {
-        "ACTIVE_PROJECT": "my-frontend"
-      }
+      "args": ["-y", "@winds-ai/autonomous-frontend-browser-tools", "afbt-mcp"],
+      "env": { "ACTIVE_PROJECT": "my-frontend" }
     }
   }
 }

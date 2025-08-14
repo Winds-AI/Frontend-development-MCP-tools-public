@@ -6,7 +6,7 @@ This project adheres to Semantic Versioning.
 
 ## [1.3.0] - 2025-08-14
 ### Added
-- npx launcher `afbt-setup` (main process runs connector; Setup UI runs as child)
+- npx launcher `@winds-ai/autonomous-frontend-browser-tools` (main process runs connector; Setup UI runs as child)
 - Docs tab in Setup UI with responsive layout and search
 - Configure tab: two-column layout with Environment (.env) editor
 - Auto-detect `.env` from repo root or `browser-tools-server/.env`; show path and save back to the same file

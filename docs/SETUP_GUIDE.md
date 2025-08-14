@@ -20,7 +20,7 @@ You can skip these rules or memories setup if you will not be using this tool fo
 ### 1) Start with npx (recommended)
 
 ```bash
-npx afbt-setup
+npx @winds-ai/autonomous-frontend-browser-tools
 ```
 
 - Connector runs in your terminal; Setup UI opens at `http://127.0.0.1:5055`
