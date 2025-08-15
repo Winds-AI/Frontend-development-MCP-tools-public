@@ -852,13 +852,13 @@ server.tool("api.request", "Execute a live HTTP request to API_BASE_URL; optiona
         .optional()
         .describe("Whether to include auth token"),
 }, async (params) => {
-    console.log(`[fetchLiveApiResponse] - Making request to: ${params.endpoint}`);
+    console.log(`[api.request] - Making request to: ${params.endpoint}`);
     try {
         const { endpoint, method = "GET", requestBody, queryParams, includeAuthToken, } = params;
         // Check required environment variables or config
         const apiBaseUrl = getConfigValue("API_BASE_URL");
         const authTokenResolved = await resolveAuthToken(includeAuthToken);
-        console.log(`[fetchLiveApiResponse] - API base URL: ${apiBaseUrl} ${endpoint}`);
+        console.log(`[api.request] - API base URL: ${apiBaseUrl} ${endpoint}`);
         // Validate/resolve auth token if requested
         if (includeAuthToken === true) {
             if (typeof authTokenResolved?.error === "string") {
@@ -924,12 +924,12 @@ server.tool("api.request", "Execute a live HTTP request to API_BASE_URL; optiona
             ["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
             fetchOptions.body = JSON.stringify(requestBody);
         }
-        console.log(`[fetchLiveApiResponse] - Making ${method} request to ${fullUrl}`);
+        console.log(`[api.request] - Making ${method} request to ${fullUrl}`);
         // Make the API call
         const startTime = Date.now();
         const response = await fetch(fullUrl, fetchOptions);
         const endTime = Date.now();
-        console.log(`[fetchLiveApiResponse] - Response status: ${response.status}`);
+        console.log(`[api.request] - Response status: ${response.status}`);
         // Parse response
         let responseData;
         const contentType = response.headers.get("content-type");
@@ -970,7 +970,7 @@ server.tool("api.request", "Execute a live HTTP request to API_BASE_URL; optiona
         };
     }
     catch (error) {
-        console.error("[fetchLiveApiResponse] - Error:", error);
+        console.error("[api.request] - Error:", error);
         return {
             content: [
                 {
