@@ -118,5 +118,3 @@ export function installGlobalLogger(): void {
 }
 
 export const loggerColors = ANSI;
-
-

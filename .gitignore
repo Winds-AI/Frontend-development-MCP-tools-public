@@ -17,3 +17,7 @@ chrome-extension/projects.json
 # Vectra semantic index (per-project indices)
 .vectra/
 **/.vectra/
+
+# Local backups created by setup UI (should never be committed)
+.afbt/
+**/.afbt/

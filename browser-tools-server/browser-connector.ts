@@ -6,7 +6,6 @@ import { WebSocketServer, WebSocket } from "ws";
 import { IncomingMessage } from "http";
 import { Socket } from "net";
 import os from "os";
-import * as net from "net";
 import ScreenshotService from "./screenshot-service.js";
 import dotenv from "dotenv";
 dotenv.config();
@@ -15,28 +14,20 @@ dotenv.config();
 import { installGlobalLogger } from "./modules/logger.js";
 installGlobalLogger();
 
+// Lightweight log helpers to tag levels for global logger filtering
+const logInfo = (...args: any[]) => console.log("[info]", ...args);
+const logDebug = (...args: any[]) => console.log("[debug]", ...args);
+
 // Local deps needed earlier that were removed when moving scaffolding
-import path from "path";
 
 // Moved scaffolding imports and helpers
 import {
   __filename as __top_filename,
   __dirname as __top_dirname,
-  loadProjectConfig,
-  getConfigValue,
   getScreenshotStoragePath,
   getActiveProjectName,
-  convertPathForCurrentPlatform,
-  getDefaultDownloadsFolder,
-  truncateStringsInData,
-  processJsonString,
-  calculateLogSize,
-  type NetworkLogEntry,
   MAX_DETAILED_NETWORK_LOG_CACHE,
-  getAvailablePort,
   clearAllLogs as clearImportedLogs,
-  logs,
-  networkLogs,
   detailedNetworkLogCache,
   truncateLogsToQueryLimit,
 } from "./modules/shared.js";
@@ -48,7 +39,7 @@ import {
   buildNavigationMessage,
   parseNavigationResponse,
 } from "./modules/navigation.js";
-import { formatSelectedElementDebugText } from "./modules/element-inspector.js";
+// (unused import removed) import { formatSelectedElementDebugText } from "./modules/element-inspector.js";
 import {
   filterNetworkLogs,
   sortNetworkLogs,
@@ -60,11 +51,7 @@ import {
   buildConsoleInspectionResponse,
   type ConsoleFilterParams,
 } from "./modules/console-inspector.js";
-import type {
-  ProjectConfig,
-  Project,
-  ProjectsConfig,
-} from "./modules/shared.js";
+// (unused types removed)
 
 // Semantic embedding index utilities
 import {
@@ -94,7 +81,7 @@ const consoleErrors: any[] = [];
 const consoleWarnings: any[] = [];
 const networkErrors: any[] = [];
 const networkSuccess: any[] = [];
-const allXhr: any[] = [];
+// Removed unused allXhr cache
 
 // Store the current URL from the extension
 let currentUrl: string = "";
@@ -171,8 +158,8 @@ app.post("/extension-log", (req, res) => {
       dataType: req.body?.data?.type,
     });
   }
-  console.log("\n=== Received Extension Log ===");
-  console.log("Request body:", {
+  logDebug("\n=== Received Extension Log ===");
+  logDebug("Request body:", {
     dataType: req.body.data?.type,
     timestamp: req.body.data?.timestamp,
     hasSettings: !!req.body.settings,
@@ -182,7 +169,7 @@ app.post("/extension-log", (req, res) => {
 
   // Update settings if provided
   if (settings) {
-    console.log("Updating settings:", settings);
+    logDebug("Updating settings:", settings);
     currentSettings = {
       ...currentSettings,
       ...settings,
@@ -190,31 +177,31 @@ app.post("/extension-log", (req, res) => {
   }
 
   if (!data) {
-    console.log("Warning: No data received in log request");
+    logDebug("No data received in log request");
     res.status(400).json({ status: "error", message: "No data provided" });
     return;
   }
 
-  console.log(`Processing ${data.type} log entry`);
+  logDebug(`Processing ${data.type} log entry`);
 
   switch (data.type) {
     case "page-navigated":
       // Handle page navigation event via HTTP POST
       // Note: This is also handled in the WebSocket message handler
       // as the extension may send navigation events through either channel
-      console.log("Received page navigation event with URL:", data.url);
+      logDebug("Received page navigation event with URL:", data.url);
       currentUrl = data.url;
 
       // Also update the tab ID if provided
       if (data.tabId) {
-        console.log("Updating tab ID from page navigation event:", data.tabId);
+        logDebug("Updating tab ID from page navigation event:", data.tabId);
         currentTabId = data.tabId;
       }
 
-      console.log("Updated current URL:", currentUrl);
+      logDebug("Updated current URL:", currentUrl);
       break;
     case "console-log":
-      console.log("Adding console log:", {
+      logDebug("Adding console log:", {
         level: data.level,
         message:
           data.message?.substring(0, 100) +
@@ -223,14 +210,14 @@ app.post("/extension-log", (req, res) => {
       });
       consoleLogs.push(data);
       if (consoleLogs.length > currentSettings.logLimit) {
-        console.log(
+        logDebug(
           `Console logs exceeded limit (${currentSettings.logLimit}), removing oldest entry`
         );
         consoleLogs.shift();
       }
       break;
     case "console-error":
-      console.log("Adding console error:", {
+      logDebug("Adding console error:", {
         level: data.level,
         message:
           data.message?.substring(0, 100) +
@@ -239,14 +226,14 @@ app.post("/extension-log", (req, res) => {
       });
       consoleErrors.push(data);
       if (consoleErrors.length > currentSettings.logLimit) {
-        console.log(
+        logDebug(
           `Console errors exceeded limit (${currentSettings.logLimit}), removing oldest entry`
         );
         consoleErrors.shift();
       }
       break;
     case "console-warn":
-      console.log("Adding console warning:", {
+      logDebug("Adding console warning:", {
         level: data.level,
         message:
           data.message?.substring(0, 100) +
@@ -255,7 +242,7 @@ app.post("/extension-log", (req, res) => {
       });
       consoleWarnings.push(data);
       if (consoleWarnings.length > currentSettings.logLimit) {
-        console.log(
+        logDebug(
           `Console warnings exceeded limit (${currentSettings.logLimit}), removing oldest entry`
         );
         consoleWarnings.shift();
@@ -272,30 +259,30 @@ app.post("/extension-log", (req, res) => {
         requestBody: data.requestBody,
         responseBody: data.responseBody,
       };
-      console.log("Adding network request:", {
+      logDebug("Adding network request:", {
         url: logEntry.url,
         method: logEntry.method,
         status: logEntry.status,
         timestamp: logEntry.timestamp,
       });
       // Store the full request data in the detailedNetworkLogCache for the getNetworkRequestDetails tool
-      console.log("[DEBUG] Adding detailed network log to cache");
+      console.log("[debug] Adding detailed network log to cache");
       detailedNetworkLogCache.push(logEntry);
       if (detailedNetworkLogCache.length > MAX_CACHE_SIZE) {
-        console.log(
+        logDebug(
           `[DEBUG] Detailed network logs exceeded limit (${MAX_CACHE_SIZE}), removing oldest entry`
         );
         detailedNetworkLogCache.shift();
       }
-      console.log(
-        `[DEBUG] Current detailedNetworkLogCache size: ${detailedNetworkLogCache.length}`
+      logDebug(
+        `Current detailedNetworkLogCache size: ${detailedNetworkLogCache.length}`
       );
 
       // Route network requests based on status code
       if (data.status >= 400) {
         networkErrors.push(data);
         if (networkErrors.length > currentSettings.logLimit) {
-          console.log(
+          logDebug(
             `Network errors exceeded limit (${currentSettings.logLimit}), removing oldest entry`
           );
           networkErrors.shift();
@@ -303,7 +290,7 @@ app.post("/extension-log", (req, res) => {
       } else {
         networkSuccess.push(data);
         if (networkSuccess.length > currentSettings.logLimit) {
-          console.log(
+          logDebug(
             `Network success logs exceeded limit (${currentSettings.logLimit}), removing oldest entry`
           );
           networkSuccess.shift();
@@ -311,7 +298,7 @@ app.post("/extension-log", (req, res) => {
       }
       break;
     case "selected-element":
-      console.log("Updating selected element:", {
+      logDebug("Updating selected element:", {
         tagName: data.element?.tagName,
         id: data.element?.id,
         className: data.element?.className,
@@ -319,17 +306,17 @@ app.post("/extension-log", (req, res) => {
       selectedElement = data.element;
       break;
     default:
-      console.log("Unknown log type:", data.type);
+      logDebug("Unknown log type:", data.type);
   }
 
-  console.log("Current log counts:", {
+  logDebug("Current log counts:", {
     consoleLogs: consoleLogs.length,
     consoleErrors: consoleErrors.length,
     consoleWarnings: consoleWarnings.length,
     networkErrors: networkErrors.length,
     networkSuccess: networkSuccess.length,
   });
-  console.log("=== End Extension Log ===\n");
+  logDebug("=== End Extension Log ===\n");
 
   res.json({ status: "ok" });
 });
@@ -353,17 +340,17 @@ app.get("/console-warnings", (req, res) => {
 
 // New MCP tool endpoint: Console Inspector
 app.get("/console-inspection", (req, res) => {
-  console.log("Browser Connector: Received console inspection request");
+  logInfo("Browser Connector: Received console inspection request");
 
   // Parse query parameters for filtering
   const filters: ConsoleFilterParams = {
-    level: req.query.level as any || 'all',
+    level: (req.query.level as any) || "all",
     limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
     since: req.query.since ? parseInt(req.query.since as string) : undefined,
-    search: req.query.search as string || undefined,
+    search: (req.query.search as string) || undefined,
   };
 
-  console.log("Browser Connector: Console inspection filters:", filters);
+  logDebug("Browser Connector: Console inspection filters:", filters);
 
   try {
     // Build comprehensive console inspection response
@@ -374,8 +361,10 @@ app.get("/console-inspection", (req, res) => {
       filters
     );
 
-    console.log(`Browser Connector: Returning ${response.logs.length} console entries`);
-    console.log(`Browser Connector: Stats:`, response.stats);
+    logInfo(
+      `Browser Connector: Returning ${response.logs.length} console entries`
+    );
+    logDebug(`Browser Connector: Stats:`, response.stats);
 
     res.json(response);
   } catch (error) {
@@ -495,19 +484,18 @@ app.get("/network-request-details", (req, res) => {
 
 // Add function to clear all logs (local version that also clears imported logs)
 function clearAllLogs() {
-  console.log("Wiping all logs...");
+  logInfo("Wiping all logs...");
   consoleLogs.length = 0;
   consoleErrors.length = 0;
   consoleWarnings.length = 0;
   networkErrors.length = 0;
   networkSuccess.length = 0;
-  allXhr.length = 0;
   selectedElement = null;
 
   // Also clear imported logs from top-scaffold
   clearImportedLogs();
 
-  console.log("All logs have been wiped");
+  logInfo("All logs have been wiped");
 }
 
 // Add endpoint to wipe logs
@@ -521,7 +509,7 @@ app.post("/current-url", (req, res) => {
   if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
     console.log("[debug] /current-url hit", req.body);
   }
-  console.log(
+  logDebug(
     "Received current URL update request:",
     JSON.stringify(req.body, null, 2)
   );
@@ -534,7 +522,7 @@ app.post("/current-url", (req, res) => {
     if (req.body.tabId) {
       const oldTabId = currentTabId;
       currentTabId = req.body.tabId;
-      console.log(`Updated current tab ID: ${oldTabId} -> ${currentTabId}`);
+      logInfo(`Updated current tab ID: ${oldTabId} -> ${currentTabId}`);
     }
 
     // Log the source of the update if provided
@@ -544,10 +532,10 @@ app.post("/current-url", (req, res) => {
       ? new Date(req.body.timestamp).toISOString()
       : "unknown";
 
-    console.log(
+    logInfo(
       `Updated current URL via dedicated endpoint: ${oldUrl} -> ${currentUrl}`
     );
-    console.log(
+    logDebug(
       `URL update details: source=${source}, tabId=${tabId}, timestamp=${timestamp}`
     );
 
@@ -559,36 +547,44 @@ app.post("/current-url", (req, res) => {
       updated: oldUrl !== currentUrl,
     });
   } else {
-    console.log("No URL provided in current-url request");
+    logInfo("No URL provided in current-url request");
     res.status(400).json({ status: "error", message: "No URL provided" });
   }
 });
 
 // Add endpoint to get the current URL
 app.get("/current-url", (req, res) => {
-  console.log("Current URL requested, returning:", currentUrl);
+  logInfo("Current URL requested, returning:", currentUrl);
   res.json({ url: currentUrl });
 });
 
 // Embeddings: index status
 app.get("/api/embed/status", async (req, res) => {
   try {
-    const project = typeof req.query.project === "string" ? req.query.project : undefined;
+    const project =
+      typeof req.query.project === "string" ? req.query.project : undefined;
     const status = await getEmbedStatus(project);
     res.json(status);
   } catch (e: any) {
-    res.status(500).json({ error: e?.message || "Failed to get embedding index status" });
+    res
+      .status(500)
+      .json({ error: e?.message || "Failed to get embedding index status" });
   }
 });
 
 // Embeddings: rebuild index (manual only)
 app.post("/api/embed/reindex", async (req, res) => {
   try {
-    const project = typeof req.query.project === "string" ? req.query.project : (req.body?.project as string | undefined);
+    const project =
+      typeof req.query.project === "string"
+        ? req.query.project
+        : (req.body?.project as string | undefined);
     const meta = await rebuildSemanticIndex(project);
     res.json({ status: "ok", meta });
   } catch (e: any) {
-    res.status(500).json({ error: e?.message || "Failed to rebuild embedding index" });
+    res
+      .status(500)
+      .json({ error: e?.message || "Failed to rebuild embedding index" });
   }
 });
 
@@ -607,7 +603,9 @@ app.post("/api/embed/search", async (req, res) => {
     );
     res.json(result);
   } catch (e: any) {
-    res.status(500).json({ error: e?.message || "Failed to perform semantic search" });
+    res
+      .status(500)
+      .json({ error: e?.message || "Failed to perform semantic search" });
   }
 });
 
@@ -616,7 +614,6 @@ export class BrowserConnector {
   private activeConnection: WebSocket | null = null;
   private app: express.Application;
   private server: any;
-  private urlRequestCallbacks: Map<string, (url: string) => void> = new Map();
 
   // Connection health monitoring - optimized for autonomous operation
   private lastHeartbeatTime: number = 0;
@@ -687,7 +684,8 @@ export class BrowserConnector {
     this.server.on(
       "upgrade",
       (request: IncomingMessage, socket: Socket, head: Buffer) => {
-        if (request.url === "/extension-ws") {
+        const urlPath = (request.url || "").split("?")[0];
+        if (urlPath === "/extension-ws") {
           this.wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
             this.wss.emit("connection", ws, request);
           });
@@ -695,18 +693,22 @@ export class BrowserConnector {
       }
     );
 
+    this.wss.on("error", (err) => {
+      console.error("[error] WebSocket server error:", err);
+    });
+
     this.wss.on("connection", (ws: WebSocket) => {
       // Generate unique connection ID for debugging autonomous operation
       this.connectionId = `conn_${Date.now()}_${Math.random()
         .toString(36)
         .substr(2, 9)}`;
-      console.log(
+      logInfo(
         `Chrome extension connected via WebSocket [${this.connectionId}]`
       );
 
       // Close any existing connection gracefully
       if (this.activeConnection) {
-        console.log(
+        logInfo(
           `Closing existing connection for new one [${this.connectionId}]`
         );
         this.activeConnection.close(1000, "New connection established");
@@ -718,47 +720,62 @@ export class BrowserConnector {
       // Start heartbeat monitoring
       this.startHeartbeatMonitoring();
 
+      // Track low-level pong frames from the browser client
+      ws.on("pong", () => {
+        this.lastHeartbeatTime = Date.now();
+      });
+
+      ws.on("error", (err) => {
+        console.error("[error] WebSocket connection error:", err);
+        this.handleConnectionClose();
+      });
+
       ws.on("message", (message: string | Buffer | ArrayBuffer | Buffer[]) => {
         try {
+          // Any inbound message indicates liveness
+          this.lastHeartbeatTime = Date.now();
+
           const data = JSON.parse(message.toString());
+
+          // Handle client-initiated heartbeats
+          if (data.type === "heartbeat") {
+            this.lastHeartbeatTime = Date.now();
+            try {
+              ws.send(
+                JSON.stringify({
+                  type: "heartbeat-response",
+                  connectionId: this.connectionId,
+                  timestamp: Date.now(),
+                })
+              );
+            } catch {}
+            return;
+          }
 
           // Handle heartbeat responses
           if (data.type === "heartbeat-response") {
             this.lastHeartbeatTime = Date.now();
-            console.log(
+            logDebug(
               "Browser Connector: Received heartbeat response from extension"
             );
             return;
           }
 
           // Log message without the base64 data
-          console.log("Received WebSocket message:", {
+          logDebug("Received WebSocket message:", {
             ...data,
             data: data.data ? "[base64 data]" : undefined,
           });
 
           // Handle URL response
           if (data.type === "current-url-response" && data.url) {
-            console.log("Received current URL from browser:", data.url);
+            logDebug("Received current URL from browser:", data.url);
             currentUrl = data.url;
 
             // Also update the tab ID if provided
             if (data.tabId) {
-              console.log(
-                "Updating tab ID from WebSocket message:",
-                data.tabId
-              );
+              logDebug("Updating tab ID from WebSocket message:", data.tabId);
               currentTabId = data.tabId;
-            }
-
-            // Call the callback if exists
-            if (
-              data.requestId &&
-              this.urlRequestCallbacks.has(data.requestId)
-            ) {
-              const callback = this.urlRequestCallbacks.get(data.requestId);
-              if (callback) callback(data.url);
-              this.urlRequestCallbacks.delete(data.requestId);
             }
           }
           // Relay auth token retrieval responses back to waiting HTTP callers
@@ -772,12 +789,12 @@ export class BrowserConnector {
           // Note: This is intentionally duplicated from the HTTP handler in /extension-log
           // as the extension may send navigation events through either channel
           if (data.type === "page-navigated" && data.url) {
-            console.log("Page navigated to:", data.url);
+            logDebug("Page navigated to:", data.url);
             currentUrl = data.url;
 
             // Also update the tab ID if provided
             if (data.tabId) {
-              console.log(
+              logDebug(
                 "Updating tab ID from page navigation event:",
                 data.tabId
               );
@@ -786,12 +803,12 @@ export class BrowserConnector {
           }
           // Handle screenshot response - enhanced for autonomous operation
           if (data.type === "screenshot-data" && data.data) {
-            console.log(`Received screenshot data [${this.connectionId}]`);
+            logDebug(`Received screenshot data [${this.connectionId}]`);
 
             // Find the specific callback for this request ID (if provided)
             if (data.requestId && screenshotCallbacks.has(data.requestId)) {
               const callback = screenshotCallbacks.get(data.requestId);
-              console.log(
+              logDebug(
                 `Found specific callback for requestId: ${data.requestId} [${this.connectionId}]`
               );
               if (callback) {
@@ -805,7 +822,7 @@ export class BrowserConnector {
               const callbacks = Array.from(screenshotCallbacks.entries());
               if (callbacks.length > 0) {
                 const [oldestRequestId, callback] = callbacks[0]; // Use oldest pending callback
-                console.log(
+                logDebug(
                   `Using oldest callback as fallback: ${oldestRequestId} [${this.connectionId}]`
                 );
                 callback.resolve({
@@ -813,7 +830,7 @@ export class BrowserConnector {
                 });
                 screenshotCallbacks.delete(oldestRequestId); // Only delete this specific callback
               } else {
-                console.log(
+                logDebug(
                   `No callbacks found for screenshot data [${this.connectionId}]`
                 );
               }
@@ -821,7 +838,7 @@ export class BrowserConnector {
           }
           // Handle screenshot error - enhanced for autonomous operation
           else if (data.type === "screenshot-error") {
-            console.log(
+            logDebug(
               `Received screenshot error [${this.connectionId}]:`,
               data.error
             );
@@ -829,7 +846,7 @@ export class BrowserConnector {
             // Find the specific callback for this request ID (if provided)
             if (data.requestId && screenshotCallbacks.has(data.requestId)) {
               const callback = screenshotCallbacks.get(data.requestId);
-              console.log(
+              logDebug(
                 `Found specific error callback for requestId: ${data.requestId} [${this.connectionId}]`
               );
               if (callback) {
@@ -843,7 +860,7 @@ export class BrowserConnector {
               const callbacks = Array.from(screenshotCallbacks.entries());
               if (callbacks.length > 0) {
                 const [oldestRequestId, callback] = callbacks[0];
-                console.log(
+                logDebug(
                   `Using oldest error callback as fallback: ${oldestRequestId} [${this.connectionId}]`
                 );
                 callback.reject(
@@ -853,16 +870,16 @@ export class BrowserConnector {
               }
             }
           } else {
-            console.log("Unhandled message type:", data.type);
+            logDebug("Unhandled message type:", data.type);
           }
         } catch (error) {
-          console.error("Error processing WebSocket message:", error);
+          console.error("[error] Error processing WebSocket message:", error);
         }
       });
 
       ws.on("close", (code: number, reason: Buffer) => {
         const reasonStr = reason.toString();
-        console.log(
+        logInfo(
           `Chrome extension disconnected [${this.connectionId}] - Code: ${code}, Reason: ${reasonStr}`
         );
 
@@ -871,8 +888,9 @@ export class BrowserConnector {
         }
 
         // Log detailed disconnection info for autonomous operation debugging
-        console.log(
-          `Connection closure details - Normal: ${code === 1000 || code === 1001
+        logInfo(
+          `Connection closure details - Normal: ${
+            code === 1000 || code === 1001
           }, Connection ID: ${this.connectionId}`
         );
       });
@@ -893,7 +911,7 @@ export class BrowserConnector {
         !this.activeConnection ||
         this.activeConnection.readyState !== WebSocket.OPEN
       ) {
-        console.log("WebSocket connection lost, clearing heartbeat monitor");
+        logInfo("WebSocket connection lost, clearing heartbeat monitor");
         this.stopHeartbeatMonitoring();
         return;
       }
@@ -909,14 +927,15 @@ export class BrowserConnector {
 
         // Enhanced callback cleanup for autonomous operation
         const callbacks = Array.from(screenshotCallbacks.entries());
-        console.log(
+        logInfo(
           `Rejecting ${callbacks.length} pending screenshot callbacks due to heartbeat timeout [${this.connectionId}]`
         );
 
         callbacks.forEach(([requestId, callback], index) => {
           callback.reject(
             new Error(
-              `Connection timeout - heartbeat failed [${this.connectionId
+              `Connection timeout - heartbeat failed [${
+                this.connectionId
               }] - request ${requestId} (${index + 1}/${callbacks.length})`
             )
           );
@@ -925,13 +944,13 @@ export class BrowserConnector {
 
         // Close the unhealthy connection
         try {
-          console.log(
+          logInfo(
             `Closing unhealthy connection [${this.connectionId}] due to heartbeat timeout`
           );
           this.activeConnection?.close(1001, "Heartbeat timeout");
         } catch (error) {
           console.error(
-            `Error closing unhealthy connection [${this.connectionId}]:`,
+            `[error] Error closing unhealthy connection [${this.connectionId}]:`,
             error
           );
         }
@@ -958,7 +977,7 @@ export class BrowserConnector {
     ) {
       try {
         // Add connection ID to heartbeat for debugging autonomous operation
-        console.log(
+        logDebug(
           `Browser Connector: Sending heartbeat to Chrome extension [${this.connectionId}]`
         );
         this.activeConnection.send(
@@ -968,15 +987,22 @@ export class BrowserConnector {
             timestamp: Date.now(),
           })
         );
+        // Also send a low-level ping frame; browsers auto-respond with pong
+        try {
+          (this.activeConnection as any).ping?.();
+        } catch {}
       } catch (error) {
-        console.error(`Error sending heartbeat [${this.connectionId}]:`, error);
+        console.error(
+          `[error] Error sending heartbeat [${this.connectionId}]:`,
+          error
+        );
         this.handleConnectionClose();
       }
     }
   }
   private handleConnectionClose() {
     const connectionInfo = this.connectionId || "unknown";
-    console.log(`Handling connection close event [${connectionInfo}]`);
+    logInfo(`Handling connection close event [${connectionInfo}]`);
 
     if (this.activeConnection) {
       this.activeConnection = null;
@@ -986,21 +1012,22 @@ export class BrowserConnector {
 
     // Enhanced callback cleanup for autonomous operation reliability
     const callbacks = Array.from(screenshotCallbacks.values());
-    console.log(
+    logInfo(
       `Cleaning up ${callbacks.length} pending screenshot callbacks due to connection loss [${connectionInfo}]`
     );
 
     callbacks.forEach((callback, index) => {
       callback.reject(
         new Error(
-          `WebSocket connection lost [${connectionInfo}] - callback ${index + 1
+          `WebSocket connection lost [${connectionInfo}] - callback ${
+            index + 1
           }/${callbacks.length}`
         )
       );
     });
     screenshotCallbacks.clear();
 
-    console.log(
+    logInfo(
       `WebSocket connection closed [${connectionInfo}] - waiting for reconnection`
     );
 
@@ -1044,8 +1071,9 @@ export class BrowserConnector {
       this.activeConnection.readyState === WebSocket.OPEN;
 
     if (!isActive && this.connectionId) {
-      console.log(
-        `Connection health check failed [${this.connectionId}] - State: ${this.activeConnection?.readyState || "null"
+      logDebug(
+        `Connection health check failed [${this.connectionId}] - State: ${
+          this.activeConnection?.readyState || "null"
         }`
       );
     }
@@ -1055,10 +1083,10 @@ export class BrowserConnector {
 
   // Add new endpoint for programmatic screenshot capture using unified service
   async captureScreenshot(req: express.Request, res: express.Response) {
-    console.log("Browser Connector: Starting captureScreenshot method");
+    logInfo("Browser Connector: Starting captureScreenshot method");
 
     if (!this.activeConnection) {
-      console.log(
+      logInfo(
         "Browser Connector: No active WebSocket connection to Chrome extension "
       );
       return res.status(503).json({
@@ -1069,11 +1097,11 @@ export class BrowserConnector {
 
     try {
       // Extract parameters from request body
-      console.log("Browser Connector: Starting screenshot capture...");
+      logDebug("Browser Connector: Starting screenshot capture...");
       const { projectName, returnImageData, baseDirectory } = req.body || {};
-      
+
       const requestId = Date.now().toString();
-      console.log("Browser Connector: Generated requestId:", requestId);
+      logDebug("Browser Connector: Generated requestId:", requestId);
 
       // Create promise that will resolve when we get the screenshot data
       const screenshotPromise = new Promise<{
@@ -1081,12 +1109,12 @@ export class BrowserConnector {
         path?: string;
         autoPaste?: boolean;
       }>((resolve, reject) => {
-        console.log(
+        logDebug(
           `Browser Connector: Setting up screenshot callback for requestId: ${requestId}`
         );
         // Store callback in map
         screenshotCallbacks.set(requestId, { resolve, reject });
-        console.log(
+        logDebug(
           "Browser Connector: Current callbacks:",
           Array.from(screenshotCallbacks.keys())
         );
@@ -1094,7 +1122,7 @@ export class BrowserConnector {
         // Set timeout to clean up if we don't get a response - increased for autonomous operation
         setTimeout(() => {
           if (screenshotCallbacks.has(requestId)) {
-            console.log(
+            logInfo(
               `Browser Connector: Screenshot capture timed out for requestId: ${requestId} [${this.connectionId}]`
             );
             screenshotCallbacks.delete(requestId);
@@ -1112,20 +1140,20 @@ export class BrowserConnector {
         type: "take-screenshot",
         requestId: requestId,
       });
-      console.log(
+      logDebug(
         `Browser Connector: Sending WebSocket message to extension:`,
         message
       );
       this.activeConnection.send(message);
 
       // Wait for screenshot data
-      console.log("Browser Connector: Waiting for screenshot data...");
+      logDebug("Browser Connector: Waiting for screenshot data...");
       const {
         data: base64Data,
         path: customPath,
         autoPaste,
       } = await screenshotPromise;
-      console.log(
+      logDebug(
         "Browser Connector: Received screenshot data, processing with unified service..."
       );
 
@@ -1154,47 +1182,45 @@ export class BrowserConnector {
         screenshotConfig
       );
 
-      console.log(
+      logInfo(
         `Browser Connector: Screenshot saved successfully to: ${result.filePath}`
       );
-      console.log(
+      logDebug(
         `Browser Connector: Project directory: ${result.projectDirectory}`
       );
-      console.log(`Browser Connector: URL category: ${result.urlCategory}`);
+      logDebug(`Browser Connector: URL category: ${result.urlCategory}`);
 
       // Execute auto-paste if requested and on macOS
       if (os.platform() === "darwin" && autoPaste === true) {
-        console.log("Browser Connector: Executing auto-paste to Cursor...");
+        logDebug("Browser Connector: Executing auto-paste to Cursor...");
         try {
           await screenshotService.executeAutoPaste(result.filePath);
-          console.log("Browser Connector: Auto-paste executed successfully");
+          logDebug("Browser Connector: Auto-paste executed successfully");
         } catch (autoPasteError) {
           console.error(
-            "Browser Connector: Auto-paste failed:",
+            "[error] Browser Connector: Auto-paste failed:",
             autoPasteError
           );
           // Don't fail the screenshot save for auto-paste errors
         }
       } else {
         if (os.platform() === "darwin" && !autoPaste) {
-          console.log("Browser Connector: Auto-paste disabled, skipping");
+          logDebug("Browser Connector: Auto-paste disabled, skipping");
         } else {
-          console.log("Browser Connector: Not on macOS, skipping auto-paste");
+          logDebug("Browser Connector: Not on macOS, skipping auto-paste");
         }
       }
 
       // Build response object via tool helper
       const response: any = buildScreenshotResponse(result);
 
-      console.log(
-        "Browser Connector: Screenshot capture completed successfully"
-      );
+      logInfo("Browser Connector: Screenshot capture completed successfully");
       res.json(response);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       console.error(
-        "Browser Connector: Error capturing screenshot:",
+        "[error] Browser Connector: Error capturing screenshot:",
         errorMessage
       );
       res.status(500).json({
@@ -1211,8 +1237,8 @@ export class BrowserConnector {
     if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
       console.log("[debug] navigateTab handler", req.body);
     }
-    console.log("Browser Connector: Received navigateTab request");
-    console.log("Browser Connector: Request body:", req.body);
+    logInfo("Browser Connector: Received navigateTab request");
+    logDebug("Browser Connector: Request body:", req.body);
 
     const { url } = req.body;
 
@@ -1227,7 +1253,7 @@ export class BrowserConnector {
     }
 
     try {
-      console.log("Browser Connector: Sending navigation request to extension");
+      logDebug("Browser Connector: Sending navigation request to extension");
 
       // Create a promise that will resolve when we get the navigation response
       const navigationPromise = new Promise<{
@@ -1264,9 +1290,7 @@ export class BrowserConnector {
         this.activeConnection?.on("message", messageHandler);
 
         // Send navigation request to extension (using tool builder - statically imported)
-        this.activeConnection?.send(
-          buildNavigationMessage({ url }, requestId)
-        );
+        this.activeConnection?.send(buildNavigationMessage({ url }, requestId));
 
         // Set timeout
         setTimeout(() => {
@@ -1278,14 +1302,20 @@ export class BrowserConnector {
       const result = await navigationPromise;
 
       if (result.success) {
-        console.log("Browser Connector: Navigation completed successfully");
+        logInfo("Browser Connector: Navigation completed successfully");
         res.json({ success: true, url: url });
       } else {
-        console.error("Browser Connector: Navigation failed:", result.error);
+        console.error(
+          "[error] Browser Connector: Navigation failed:",
+          result.error
+        );
         res.status(500).json({ error: result.error || "Navigation failed" });
       }
     } catch (error) {
-      console.error("Browser Connector: Error during navigation:", error);
+      console.error(
+        "[error] Browser Connector: Error during navigation:",
+        error
+      );
       res.status(500).json({
         error:
           error instanceof Error
@@ -1296,10 +1326,7 @@ export class BrowserConnector {
   }
 
   // DOM action relay to extension over WebSocket
-  async domAction(
-    req: express.Request,
-    res: express.Response
-  ): Promise<void> {
+  async domAction(req: express.Request, res: express.Response): Promise<void> {
     if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
       console.log("[debug] domAction handler", req.body);
     }
@@ -1318,7 +1345,11 @@ export class BrowserConnector {
 
       const requestId = Date.now().toString();
 
-      const actionPromise = new Promise<{ success: boolean; details?: any; error?: string }>((resolve, reject) => {
+      const actionPromise = new Promise<{
+        success: boolean;
+        details?: any;
+        error?: string;
+      }>((resolve, reject) => {
         const messageHandler = (
           message: string | Buffer | ArrayBuffer | Buffer[]
         ) => {
@@ -1333,11 +1364,13 @@ export class BrowserConnector {
               if (data.success) {
                 resolve({ success: true, details: data.details });
               } else {
-                resolve({ success: false, error: data.error || "DOM action failed" });
+                resolve({
+                  success: false,
+                  error: data.error || "DOM action failed",
+                });
               }
             }
-          } catch (_) {
-          }
+          } catch (_) {}
         };
 
         this.activeConnection?.on("message", messageHandler);
@@ -1384,15 +1417,25 @@ export class BrowserConnector {
           const payload = req.body || {};
           const { storageType, tokenKey, origin } = payload;
           if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
-            console.log("[debug] token params", { storageType, tokenKey, origin });
+            console.log("[debug] token params", {
+              storageType,
+              tokenKey,
+              origin,
+            });
           }
           if (!storageType || !tokenKey) {
-            res.status(400).json({ error: "storageType and tokenKey are required" });
+            res
+              .status(400)
+              .json({ error: "storageType and tokenKey are required" });
             return;
           }
           const requestId = Date.now().toString();
 
-          const tokenPromise = new Promise<{ success: boolean; token?: string; error?: string }>((resolve, reject) => {
+          const tokenPromise = new Promise<{
+            success: boolean;
+            token?: string;
+            error?: string;
+          }>((resolve, reject) => {
             const messageHandler = (
               message: string | Buffer | ArrayBuffer | Buffer[]
             ) => {
@@ -1403,11 +1446,17 @@ export class BrowserConnector {
                   data.type === "RETRIEVE_AUTH_TOKEN_RESPONSE" &&
                   data.requestId === requestId
                 ) {
-                  this.activeConnection?.removeListener("message", messageHandler);
+                  this.activeConnection?.removeListener(
+                    "message",
+                    messageHandler
+                  );
                   if (data.token) {
                     resolve({ success: true, token: data.token });
                   } else {
-                    resolve({ success: false, error: data.error || "Token not found" });
+                    resolve({
+                      success: false,
+                      error: data.error || "Token not found",
+                    });
                   }
                 }
               } catch (_) {}
@@ -1442,13 +1491,31 @@ export class BrowserConnector {
           if (result.success) {
             res.json({ token: result.token });
           } else {
-            res.status(404).json({ error: result.error || "Token not found" });
+            res.status(404).json({
+              error: result.error || "Token not found",
+              context: {
+                storageType,
+                tokenKey,
+                origin: origin || null,
+                lastKnownUrl: currentUrl || null,
+                activeProject: getActiveProjectName() || null,
+              },
+            });
           }
         } catch (error: any) {
           if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
-            console.log("[debug] token retrieval error", error?.message || error);
+            console.log(
+              "[debug] token retrieval error",
+              error?.message || error
+            );
           }
-          res.status(500).json({ error: error?.message || "Unknown error" });
+          res.status(500).json({
+            error: error?.message || "Unknown error",
+            context: {
+              lastKnownUrl: currentUrl || null,
+              activeProject: getActiveProjectName() || null,
+            },
+          });
         }
       }
     );
@@ -1457,26 +1524,29 @@ export class BrowserConnector {
   // Add shutdown method
   public shutdown() {
     return new Promise<void>((resolve) => {
-      console.log("Shutting down WebSocket server...");
+      logInfo("Shutting down WebSocket server...");
 
       // Send close message to client if connection is active
       if (
         this.activeConnection &&
         this.activeConnection.readyState === WebSocket.OPEN
       ) {
-        console.log("Notifying client to close connection...");
+        logInfo("Notifying client to close connection...");
         try {
           this.activeConnection.send(
             JSON.stringify({ type: "server-shutdown" })
           );
         } catch (err) {
-          console.error("Error sending shutdown message to client:", err);
+          console.error(
+            "[error] Error sending shutdown message to client:",
+            err
+          );
         }
       }
 
       // Set a timeout to force close after 2 seconds
       const forceCloseTimeout = setTimeout(() => {
-        console.log("Force closing connections after timeout...");
+        logDebug("Force closing connections after timeout...");
         if (this.activeConnection) {
           this.activeConnection.terminate(); // Force close the connection
           this.activeConnection = null;
@@ -1494,7 +1564,7 @@ export class BrowserConnector {
       // Close WebSocket server
       this.wss.close(() => {
         clearTimeout(forceCloseTimeout);
-        console.log("WebSocket server closed gracefully");
+        logInfo("WebSocket server closed gracefully");
         resolve();
       });
     });

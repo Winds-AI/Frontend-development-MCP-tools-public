@@ -16,7 +16,6 @@ interface ProjectConfig {
   AUTH_STORAGE_TYPE?: string;
   AUTH_TOKEN_KEY?: string;
   API_BASE_URL?: string;
-  API_AUTH_TOKEN?: string;
   API_AUTH_TOKEN_TTL_SECONDS?: number;
   SCREENSHOT_STORAGE_PATH?: string;
   BROWSER_TOOLS_HOST?: string;
@@ -1047,9 +1046,7 @@ server.tool(
       .describe("Whether to include auth token"),
   },
   async (params) => {
-    console.log(
-      `[fetchLiveApiResponse] - Making request to: ${params.endpoint}`
-    );
+    console.log(`[api.request] - Making request to: ${params.endpoint}`);
     try {
       const {
         endpoint,
@@ -1063,9 +1060,7 @@ server.tool(
       const apiBaseUrl = getConfigValue("API_BASE_URL");
       const authTokenResolved = await resolveAuthToken(includeAuthToken);
 
-      console.log(
-        `[fetchLiveApiResponse] - API base URL: ${apiBaseUrl} ${endpoint}`
-      );
+      console.log(`[api.request] - API base URL: ${apiBaseUrl} ${endpoint}`);
 
       // Validate/resolve auth token if requested
       if (includeAuthToken === true) {
@@ -1143,18 +1138,14 @@ server.tool(
         fetchOptions.body = JSON.stringify(requestBody);
       }
 
-      console.log(
-        `[fetchLiveApiResponse] - Making ${method} request to ${fullUrl}`
-      );
+      console.log(`[api.request] - Making ${method} request to ${fullUrl}`);
 
       // Make the API call
       const startTime = Date.now();
       const response = await fetch(fullUrl, fetchOptions);
       const endTime = Date.now();
 
-      console.log(
-        `[fetchLiveApiResponse] - Response status: ${response.status}`
-      );
+      console.log(`[api.request] - Response status: ${response.status}`);
 
       // Parse response
       let responseData;
@@ -1201,7 +1192,7 @@ server.tool(
         ],
       };
     } catch (error) {
-      console.error("[fetchLiveApiResponse] - Error:", error);
+      console.error("[api.request] - Error:", error);
       return {
         content: [
           {

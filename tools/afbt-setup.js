@@ -71,7 +71,11 @@ function ensureProjectsJsonExists() {
           config: {
             SWAGGER_URL: "https://api.example.com/openapi.json",
             API_BASE_URL: "https://api.example.com",
-            API_AUTH_TOKEN: "<your_bearer_token>",
+            AUTH_STORAGE_TYPE: "localStorage",
+            AUTH_TOKEN_KEY: "access_token",
+            AUTH_ORIGIN: "http://localhost:5173",
+            API_AUTH_TOKEN_TTL_SECONDS: 3300,
+            PROJECT_ROOT: "/absolute/path/to/project/root",
             ROUTES_FILE_PATH: "src/routes/paths.ts",
           },
         },
@@ -79,7 +83,11 @@ function ensureProjectsJsonExists() {
           config: {
             SWAGGER_URL: "https://api.example.com/openapi.json",
             API_BASE_URL: "https://api.example.com",
-            API_AUTH_TOKEN: "<your_bearer_token>",
+            AUTH_STORAGE_TYPE: "cookies",
+            AUTH_TOKEN_KEY: "auth_token",
+            AUTH_ORIGIN: "http://localhost:5173",
+            API_AUTH_TOKEN_TTL_SECONDS: 1800,
+            PROJECT_ROOT: "/absolute/path/to/another/root",
             ROUTES_FILE_PATH: "src/routes/paths.ts",
           },
         },
@@ -564,6 +572,18 @@ function serveHtml(res) {
              <li>
                <b>ROUTES_FILE_PATH</b> <span class="badge">Used by: browser.navigate (helper)</span>
                <div class="hint small">Optional path hint to your app's routes file to improve navigation descriptions.</div>
+             </li>
+             <li>
+               <b>PROJECT_ROOT</b> <span class="badge">Used by: internal (context/reference)</span>
+               <div class="hint small">Optional absolute path to your project root for reference in logs or helper features.</div>
+             </li>
+             <li>
+               <b>BROWSER_TOOLS_HOST</b> <span class="badge">Used by: internal (server discovery)</span>
+               <div class="hint small">Override for connector host used by tools (default <code>127.0.0.1</code>).</div>
+             </li>
+             <li>
+               <b>BROWSER_TOOLS_PORT</b> <span class="badge">Used by: internal (server discovery)</span>
+               <div class="hint small">Override for connector port used by tools (default <code>3025</code> with fallback scanning).</div>
              </li>
              <li>
                <b>SCREENSHOT_STORAGE_PATH</b> <span class="badge">Used by: browser.screenshot</span>

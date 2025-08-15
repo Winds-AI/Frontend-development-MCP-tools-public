@@ -276,7 +276,7 @@ Screenshot storage configuration
 
 - `SWAGGER_URL` (required): URL of your Swagger/OpenAPI JSON used by `api.searchEndpoints` and `api.listTags`.
 - `API_BASE_URL` (optional): Base URL used by `api.request`.
-- `API_AUTH_TOKEN` (optional): Used only when you set `includeAuthToken = true` in `api.request`.
+- (Removed) `API_AUTH_TOKEN`: Static tokens are no longer supported; tokens are retrieved dynamically from browser storage via the extension.
 - `PROJECT_ROOT` (optional): Absolute path to your project (used for context/reference).
 - `ROUTES_FILE_PATH` (optional): Shown in the `browser.navigate` description to guide route references.
 - Other optional keys that can be read from project config: `BROWSER_TOOLS_HOST`, `BROWSER_TOOLS_PORT`.

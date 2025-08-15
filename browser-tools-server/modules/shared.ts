@@ -301,7 +301,6 @@ export interface ProjectConfig {
   BROWSER_TOOLS_HOST?: string;
   BROWSER_TOOLS_PORT?: string;
   PROJECT_ROOT?: string;
-  API_AUTH_TOKEN?: string;
 }
 
 export interface Project {
@@ -335,7 +334,14 @@ function resolveProjectsJsonPath(): string {
   if (fs.existsSync(cwdPath)) return cwdPath;
 
   // Packaged fallback (current behavior)
-  return path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json");
+  return path.join(
+    __dirname,
+    "..",
+    "..",
+    "..",
+    "chrome-extension",
+    "projects.json"
+  );
 }
 
 export function loadProjectConfig(): ProjectsConfig | null {
