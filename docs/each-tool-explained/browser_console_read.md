@@ -1,4 +1,4 @@
-# inspectBrowserConsole Tool
+# browser.console.read Tool
 
 ## Overview
 
@@ -8,10 +8,10 @@ Reads browser console logs captured by the Chrome extension. Filter by level, ti
 
 ```typescript
 inspectBrowserConsole({
-  level?: "log" | "error" | "warn" | "info" | "debug" | "all",
-  limit?: number,
-  timeOffset?: number, // seconds; last N seconds
-  search?: string
+  level: "log" | "error" | "warn" | "info" | "debug" | "all",
+  limit: number,
+  timeOffset: number, // seconds; last N seconds
+  search: string,
 });
 ```
 
@@ -40,4 +40,3 @@ await inspectBrowserConsole({ search: "Unauthorized", limit: 20 });
 ## Notes
 
 - DevTools must be open for the active tab to capture console messages.
-

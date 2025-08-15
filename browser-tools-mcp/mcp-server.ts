@@ -210,7 +210,9 @@ function decodeJwtExpirationMs(token: string): number | undefined {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return undefined;
-    const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
+    const payload = JSON.parse(
+      Buffer.from(parts[1], "base64").toString("utf8")
+    );
     if (!payload || typeof payload.exp !== "number") return undefined;
     return payload.exp * 1000;
   } catch {
@@ -241,7 +243,9 @@ async function retrieveTokenViaExtension(): Promise<string | undefined> {
   });
 }
 
-async function resolveAuthToken(includeAuthToken?: boolean): Promise<string | undefined | { error: string }> {
+async function resolveAuthToken(
+  includeAuthToken?: boolean
+): Promise<string | undefined | { error: string }> {
   if (includeAuthToken !== true) return undefined;
 
   const projectName = getActiveProjectName() || "default-project";
@@ -254,11 +258,17 @@ async function resolveAuthToken(includeAuthToken?: boolean): Promise<string | un
   const storageType = getConfigValue("AUTH_STORAGE_TYPE");
   const tokenKey = getConfigValue("AUTH_TOKEN_KEY");
   if (!storageType || !tokenKey) {
-    return { error: "Auth token retrieval not configured. Set AUTH_STORAGE_TYPE, AUTH_TOKEN_KEY, and optional AUTH_ORIGIN in projects.json." };
+    return {
+      error:
+        "Auth token retrieval not configured. Set AUTH_STORAGE_TYPE, AUTH_TOKEN_KEY, and optional AUTH_ORIGIN in projects.json.",
+    };
   }
   const token = await retrieveTokenViaExtension();
   if (!token) {
-    return { error: "Failed to retrieve auth token from configured browser storage. Ensure the target app is open and DevTools extension connected." };
+    return {
+      error:
+        "Failed to retrieve auth token from configured browser storage. Ensure the target app is open and DevTools extension connected.",
+    };
   }
   const ttlSecondsRaw = getConfigValue("API_AUTH_TOKEN_TTL_SECONDS");
   let expiresAtMs: number | undefined;
@@ -270,13 +280,6 @@ async function resolveAuthToken(includeAuthToken?: boolean): Promise<string | un
   authTokenCacheByProject[projectName] = { token, expiresAtMs };
   return token;
 }
-
-// Allow disabling deprecated alias tools to reduce duplicates in clients like Cursor
-// Default: disabled (can re-enable with AFBT_DISABLE_ALIASES=0/false)
-const DISABLE_ALIASES = (() => {
-  const v = String(process.env.AFBT_DISABLE_ALIASES ?? "1").toLowerCase();
-  return v === "1" || v === "true";
-})();
 
 // Log active project on startup
 logActiveProject();
@@ -601,46 +604,19 @@ server.tool(
         "Relative window in seconds (e.g., 300 = last 5 minutes, max 86400)."
       ),
     orderBy: z
-      .enum(["timestamp", "url"]) 
+      .enum(["timestamp", "url"])
       .optional()
       .default("timestamp")
       .describe("Sort field"),
     orderDirection: z
-      .enum(["asc", "desc"]).optional().default("desc").describe("Sort direction"),
+      .enum(["asc", "desc"])
+      .optional()
+      .default("desc")
+      .describe("Sort direction"),
     limit: z.number().optional().default(20).describe("Max entries to return"),
   },
   handleInspectBrowserNetworkActivity
 );
-
-// Backward-compatible alias
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "inspectBrowserNetworkActivity",
-    "[DEPRECATED] Use 'browser.network.inspect'. Logs recent browser network requests (DevTools Network tab).",
-    {
-      urlFilter: z.string(),
-      details: z
-        .array(
-          z.enum([
-            "url",
-            "method",
-            "status",
-            "timestamp",
-            "requestHeaders",
-            "responseHeaders",
-            "requestBody",
-            "responseBody",
-          ])
-        )
-        .min(1),
-      timeOffset: z.number().optional(),
-      orderBy: z.enum(["timestamp", "url"]).optional().default("timestamp"),
-      orderDirection: z.enum(["asc", "desc"]).optional().default("desc"),
-      limit: z.number().optional().default(20),
-    },
-    handleInspectBrowserNetworkActivity
-  );
-}
 
 // Tool: interactWithPage (DOM-first with CDP fallback via extension)
 async function handleUiInteract(params: any) {
@@ -663,7 +639,10 @@ async function handleUiInteract(params: any) {
           },
         ];
         if (result.details) {
-          texts.push({ type: "text", text: JSON.stringify(result.details, null, 2) });
+          texts.push({
+            type: "text",
+            text: JSON.stringify(result.details, null, 2),
+          });
         }
         return { content: texts };
       } else {
@@ -671,17 +650,23 @@ async function handleUiInteract(params: any) {
           content: [
             {
               type: "text",
-              text: `❌ Action '${params.action}' failed: ${result.error || "Unknown error"}`,
+              text: `❌ Action '${params.action}' failed: ${
+                result.error || "Unknown error"
+              }`,
             },
           ],
           isError: true,
         } as any;
       }
     } catch (error: any) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
-          { type: "text", text: `Failed to perform interaction: ${errorMessage}` },
+          {
+            type: "text",
+            text: `Failed to perform interaction: ${errorMessage}`,
+          },
         ],
         isError: true,
       } as any;
@@ -689,104 +674,99 @@ async function handleUiInteract(params: any) {
   });
 }
 
-// New name
-server.tool(
-  "ui.interact",
-  "Interact with the active browser tab using semantic selectors (data-testid, role+name, label, placeholder, name, text, css, xpath). Supports actions: click, type, select, check/uncheck, keypress, hover, waitForSelector, scroll. Automatically scrolls into view and waits for visibility/enabled. Uses a CDP fallback in the extension when needed.",
-  {
-    action: z.enum(["click", "type", "select", "check", "uncheck", "keypress", "hover", "waitForSelector", "scroll"]),
-    target: z.object({
-      by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
-      value: z.string(),
-      exact: z.boolean().optional(),
-    }).describe("How to locate the element"),
-    scopeTarget: z
-      .object({
-        by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
-        value: z.string(),
-        exact: z.boolean().optional(),
-      })
-      .optional()
-      .describe("Optional container to scope the search (e.g., role=tablist)"),
-    value: z.string().optional().describe("Text/value to type/select/keypress when applicable"),
-    options: z.object({
-      timeoutMs: z.number().optional(),
-      waitForVisible: z.boolean().optional(),
-      waitForEnabled: z.boolean().optional(),
-      waitForNetworkIdleMs: z.number().optional(),
-      postActionScreenshot: z.boolean().optional(),
-      screenshotLabel: z.string().optional(),
-      fallbackToCdp: z.boolean().optional(),
-      frameSelector: z.string().optional(),
-      // scroll-specific
-      scrollX: z.number().optional(),
-      scrollY: z.number().optional(),
-      to: z.enum(["top", "bottom"]).optional(),
-      smooth: z.boolean().optional(),
-      // assertion helpers
-      assertTarget: z
-        .object({
-          by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
-          value: z.string(),
-          exact: z.boolean().optional(),
-        })
-        .optional(),
-      assertTimeoutMs: z.number().optional(),
-      assertUrlContains: z.string().optional(),
-      tabChangeWaitMs: z.number().optional(),
-    }).optional(),
-  },
-  handleUiInteract
-);
-
-// Backward-compatible alias
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "interactWithPage",
-    "[DEPRECATED] Use 'ui.interact'. Interact with the active browser tab using semantic selectors.",
-    {
-      action: z.enum(["click", "type", "select", "check", "uncheck", "keypress", "hover", "waitForSelector", "scroll"]),
-      target: z.object({
-        by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
-        value: z.string(),
-        exact: z.boolean().optional(),
-      }),
-      scopeTarget: z
-        .object({
-          by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
-          value: z.string(),
-          exact: z.boolean().optional(),
-        })
-        .optional(),
-      value: z.string().optional(),
-      options: z.object({
-        timeoutMs: z.number().optional(),
-        waitForVisible: z.boolean().optional(),
-        waitForEnabled: z.boolean().optional(),
-        waitForNetworkIdleMs: z.number().optional(),
-        postActionScreenshot: z.boolean().optional(),
-        screenshotLabel: z.string().optional(),
-        fallbackToCdp: z.boolean().optional(),
-        frameSelector: z.string().optional(),
-        scrollX: z.number().optional(),
-        scrollY: z.number().optional(),
-        to: z.enum(["top", "bottom"]).optional(),
-        smooth: z.boolean().optional(),
-        assertTarget: z
-          .object({
-            by: z.enum(["testid", "role", "label", "text", "placeholder", "name", "css", "xpath"]),
-            value: z.string(),
-            exact: z.boolean().optional(),
-          })
-          .optional(),
-        assertTimeoutMs: z.number().optional(),
-        assertUrlContains: z.string().optional(),
-        tabChangeWaitMs: z.number().optional(),
-      }).optional(),
-    },
-    handleUiInteract
-  );
-}
+// // New name
+// server.tool(
+//   "ui.interact",
+//   "Interact with the active browser tab using semantic selectors (data-testid, role+name, label, placeholder, name, text, css, xpath). Supports actions: click, type, select, check/uncheck, keypress, hover, waitForSelector, scroll. Automatically scrolls into view and waits for visibility/enabled. Uses a CDP fallback in the extension when needed.",
+//   {
+//     action: z.enum([
+//       "click",
+//       "type",
+//       "select",
+//       "check",
+//       "uncheck",
+//       "keypress",
+//       "hover",
+//       "waitForSelector",
+//       "scroll",
+//     ]),
+//     target: z
+//       .object({
+//         by: z.enum([
+//           "testid",
+//           "role",
+//           "label",
+//           "text",
+//           "placeholder",
+//           "name",
+//           "css",
+//           "xpath",
+//         ]),
+//         value: z.string(),
+//         exact: z.boolean().optional(),
+//       })
+//       .describe("How to locate the element"),
+//     scopeTarget: z
+//       .object({
+//         by: z.enum([
+//           "testid",
+//           "role",
+//           "label",
+//           "text",
+//           "placeholder",
+//           "name",
+//           "css",
+//           "xpath",
+//         ]),
+//         value: z.string(),
+//         exact: z.boolean().optional(),
+//       })
+//       .optional()
+//       .describe("Optional container to scope the search (e.g., role=tablist)"),
+//     value: z
+//       .string()
+//       .optional()
+//       .describe("Text/value to type/select/keypress when applicable"),
+//     options: z
+//       .object({
+//         timeoutMs: z.number().optional(),
+//         waitForVisible: z.boolean().optional(),
+//         waitForEnabled: z.boolean().optional(),
+//         waitForNetworkIdleMs: z.number().optional(),
+//         postActionScreenshot: z.boolean().optional(),
+//         screenshotLabel: z.string().optional(),
+//         fallbackToCdp: z.boolean().optional(),
+//         frameSelector: z.string().optional(),
+//         // scroll-specific
+//         scrollX: z.number().optional(),
+//         scrollY: z.number().optional(),
+//         to: z.enum(["top", "bottom"]).optional(),
+//         smooth: z.boolean().optional(),
+//         // assertion helpers
+//         assertTarget: z
+//           .object({
+//             by: z.enum([
+//               "testid",
+//               "role",
+//               "label",
+//               "text",
+//               "placeholder",
+//               "name",
+//               "css",
+//               "xpath",
+//             ]),
+//             value: z.string(),
+//             exact: z.boolean().optional(),
+//           })
+//           .optional(),
+//         assertTimeoutMs: z.number().optional(),
+//         assertUrlContains: z.string().optional(),
+//         tabChangeWaitMs: z.number().optional(),
+//       })
+//       .optional(),
+//   },
+//   handleUiInteract
+// );
 
 // =============================================
 // LIST API TAGS TOOL
@@ -796,9 +776,7 @@ async function handleListApiTags() {
   try {
     const swaggerSource = getConfigValue("SWAGGER_URL");
     if (!swaggerSource) {
-      throw new Error(
-        "SWAGGER_URL environment variable or config is not set"
-      );
+      throw new Error("SWAGGER_URL environment variable or config is not set");
     }
 
     const swaggerDoc = await loadSwaggerDoc(swaggerSource);
@@ -863,15 +841,6 @@ server.tool(
   handleListApiTags
 );
 
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "listApiTags",
-    "[DEPRECATED] Use 'api.listTags'. Lists API tags with operation counts.",
-    {},
-    handleListApiTags
-  );
-}
-
 async function handleCaptureBrowserScreenshot() {
   return await withServerConnection(async () => {
     try {
@@ -923,7 +892,8 @@ async function handleCaptureBrowserScreenshot() {
         } as any;
       }
     } catch (error: any) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return {
         content: [
           {
@@ -944,16 +914,6 @@ server.tool(
   { randomString: z.string().describe("any string (ignored)") },
   handleCaptureBrowserScreenshot
 );
-
-// Backward-compatible alias
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "captureBrowserScreenshot",
-    "[DEPRECATED] Use 'browser.screenshot'. Captures current browser tab.",
-    { randomString: z.string().describe("any random string") },
-    handleCaptureBrowserScreenshot
-  );
-}
 
 server.tool(
   "ui.inspectElement",
@@ -1057,18 +1017,6 @@ server.tool(
   }
 );
 
-// Backward-compatible alias
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "inspectSelectedElementCss",
-    "[DEPRECATED] Use 'ui.inspectElement'. Enhanced UI debugging for the selected element.",
-    {},
-    async () => {
-      return (await (server as any).executeTool?.("ui.inspectElement")) as any;
-    }
-  );
-}
-
 server.tool(
   "api.request",
   "Execute a live HTTP request to API_BASE_URL; optionally include an Authorization bearer token retrieved from configured browser storage. Use after 'api.searchEndpoints' or for known endpoints.",
@@ -1165,11 +1113,15 @@ server.tool(
 
       // Add Authorization header if auth token is provided
       if (includeAuthToken === true) {
-        const tokenString = typeof authTokenResolved === "string" ? authTokenResolved : undefined;
+        const tokenString =
+          typeof authTokenResolved === "string" ? authTokenResolved : undefined;
         if (!tokenString) {
           return {
             content: [
-              { type: "text", text: "Auth token requested but could not be resolved." },
+              {
+                type: "text",
+                text: "Auth token requested but could not be resolved.",
+              },
             ],
             isError: true,
           };
@@ -1264,27 +1216,6 @@ server.tool(
     }
   }
 );
-
-// Backward-compatible alias
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "fetchLiveApiResponse",
-    "[DEPRECATED] Use 'api.request'. Executes a live API call to a known endpoint.",
-    {
-      endpoint: z.string(),
-      method: z
-        .enum(["GET", "POST", "PUT", "PATCH", "DELETE"]) 
-        .optional()
-        .default("GET"),
-      requestBody: z.any().optional(),
-      queryParams: z.record(z.string()).optional(),
-      includeAuthToken: z.boolean().optional(),
-    },
-    async (params) => {
-      return (await (server as any).executeTool?.("api.request", params)) as any;
-    }
-  );
-}
 
 // Function to load Swagger documentation (either from URL or file)
 async function loadSwaggerDoc(swaggerSource: string): Promise<any> {
@@ -1581,7 +1512,10 @@ server.tool(
       .default(10)
       .describe("Maximum number of endpoints to return (default: 10)"),
     // Backward-compatibility alias for 'limit'
-    maxResults: z.number().optional().describe("[DEPRECATED] Use 'limit' instead."),
+    maxResults: z
+      .number()
+      .optional()
+      .describe("[DEPRECATED] Use 'limit' instead."),
   },
   async (params) => {
     try {
@@ -1589,14 +1523,20 @@ server.tool(
       const limit = (params as any).limit ?? (params as any).maxResults ?? 10;
 
       // Derive effective query/tag from deprecated searchTerms if needed
-      const terms: string[] | undefined = Array.isArray((params as any).searchTerms)
-        ? ((params as any).searchTerms as string[]).filter((t) => typeof t === "string" && t.trim().length > 0)
+      const terms: string[] | undefined = Array.isArray(
+        (params as any).searchTerms
+      )
+        ? ((params as any).searchTerms as string[]).filter(
+            (t) => typeof t === "string" && t.trim().length > 0
+          )
         : undefined;
       // If coming from deprecated searchTerms, build an OR-regex of escaped terms
       const effectiveQueryIsRegex = !query && !!terms && terms.length > 0;
-      const effectiveQuery = query ?? (terms && terms.length > 0
-        ? terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")
-        : undefined);
+      const effectiveQuery =
+        query ??
+        (terms && terms.length > 0
+          ? terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")
+          : undefined);
       const effectiveTag = tag;
       // Validate filters: require at least one of query or tag
       if (!effectiveQuery && !effectiveTag) {
@@ -1648,11 +1588,15 @@ server.tool(
       const result = {
         summary: {
           totalFound: endpoints.length,
-          filter: effectiveQuery && effectiveTag
-            ? { type: "mixed", value: `${effectiveQuery} (tag: ${effectiveTag})` }
-            : effectiveQuery
-            ? { type: "query", value: effectiveQuery }
-            : { type: "tag", value: effectiveTag },
+          filter:
+            effectiveQuery && effectiveTag
+              ? {
+                  type: "mixed",
+                  value: `${effectiveQuery} (tag: ${effectiveTag})`,
+                }
+              : effectiveQuery
+              ? { type: "query", value: effectiveQuery }
+              : { type: "tag", value: effectiveTag },
           methodFilter: method || "all",
         },
         endpoints,
@@ -1683,25 +1627,6 @@ server.tool(
     }
   }
 );
-
-// Backward-compatible alias
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "searchApiDocumentation",
-    "[DEPRECATED] Use 'api.searchEndpoints'. Simplified API documentation search.",
-    {
-      query: z.string().optional(),
-      tag: z.string().optional(),
-      searchTerms: z.array(z.string()).optional(),
-      method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]).optional(),
-      limit: z.number().optional().default(10),
-      maxResults: z.number().optional(),
-    },
-    async (params) => {
-      return (await (server as any).executeTool?.("api.searchEndpoints", params)) as any;
-    }
-  );
-}
 
 // Register navigate tool with static description (set once at startup)
 server.tool(
@@ -1789,26 +1714,6 @@ server.tool(
     });
   }
 );
-
-// Backward-compatible alias
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "navigateBrowserTab",
-    "[DEPRECATED] Use 'browser.navigate'. Navigates the active browser tab to a URL.",
-    {
-      url: z.string().describe(
-        `The URL to navigate to (must be a valid URL including protocol, e.g., 'https://example.com')`
-      ),
-    },
-    async (params) => {
-      return (await (server as any).executeTool?.("browser.navigate", params)) as any;
-    }
-  );
-}
-
-// Note: Dynamic tool updates don't work with most MCP clients (like Cursor/Kiro)
-// They only support basic tool listing, not listChanged notifications
-// So we set the description once at startup instead of trying to update it dynamically
 
 // Tool 7: inspectBrowserConsole
 server.tool(
@@ -1978,23 +1883,6 @@ server.tool(
     }
   }
 );
-
-// Backward-compatible alias
-if (!DISABLE_ALIASES) {
-  server.tool(
-    "inspectBrowserConsole",
-    "[DEPRECATED] Use 'browser.console.read'.",
-    {
-      level: z.enum(["log", "error", "warn", "info", "debug", "all"]).optional(),
-      limit: z.number().optional(),
-      timeOffset: z.number().optional(),
-      search: z.string().optional(),
-    },
-    async (params) => {
-      return (await (server as any).executeTool?.("browser.console.read", params)) as any;
-    }
-  );
-}
 
 (async () => {
   try {

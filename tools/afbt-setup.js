@@ -41,11 +41,18 @@ function ensureAfbtDir() {
 
 function resolveConnectorEntry() {
   // 1) Prefer embedded dist inside this installed package
-  const embedded = path.join(packageRoot, "browser-tools-server", "dist", "browser-connector.js");
+  const embedded = path.join(
+    packageRoot,
+    "browser-tools-server",
+    "dist",
+    "browser-connector.js"
+  );
   if (fs.existsSync(embedded)) return embedded;
   // 2) Try resolving from node_modules if the package is installed under a name
   try {
-    const nm = require.resolve("afbt/browser-tools-server/dist/browser-connector.js");
+    const nm = require.resolve(
+      "afbt/browser-tools-server/dist/browser-connector.js"
+    );
     return nm;
   } catch (_) {}
   // 3) Fallback to local working directory (dev) path
@@ -65,16 +72,24 @@ function ensureProjectsJsonExists() {
             SWAGGER_URL: "https://api.example.com/openapi.json",
             API_BASE_URL: "https://api.example.com",
             API_AUTH_TOKEN: "<your_bearer_token>",
-            ROUTES_FILE_PATH: "src/routes/paths.ts"
-          }
-        }
+            ROUTES_FILE_PATH: "src/routes/paths.ts",
+          },
+        },
+        "another-frontend": {
+          config: {
+            SWAGGER_URL: "https://api.example.com/openapi.json",
+            API_BASE_URL: "https://api.example.com",
+            API_AUTH_TOKEN: "<your_bearer_token>",
+            ROUTES_FILE_PATH: "src/routes/paths.ts",
+          },
+        },
       },
       defaultProject: "my-frontend",
       DEFAULT_SCREENSHOT_STORAGE_PATH: path.join(
         require("os").homedir(),
         "Downloads",
         "MCP_Screenshots"
-      )
+      ),
     };
     fs.writeFileSync(projectsJsonPath, JSON.stringify(skeleton, null, 2));
   }
@@ -89,7 +104,8 @@ function copyExtensionAssetsIfMissing() {
       const rootPkg = JSON.parse(
         fs.readFileSync(path.join(packageRoot, "package.json"), "utf8")
       );
-      if (rootPkg && typeof rootPkg.version === "string") pkgVersion = rootPkg.version;
+      if (rootPkg && typeof rootPkg.version === "string")
+        pkgVersion = rootPkg.version;
     } catch {}
 
     const versionMarker = path.join(afbtDir, "extension.version");
@@ -104,20 +120,29 @@ function copyExtensionAssetsIfMissing() {
     } catch {}
 
     // Copy when: extension missing, or packaged version differs from local recorded version
-    const needsCopy = (!fs.existsSync(manifestPath) || localVersion !== pkgVersion) && fs.existsSync(embeddedExtensionDir);
+    const needsCopy =
+      (!fs.existsSync(manifestPath) || localVersion !== pkgVersion) &&
+      fs.existsSync(embeddedExtensionDir);
 
     if (needsCopy) {
       // Backup existing extension if present
       if (fs.existsSync(extensionDir)) {
         try {
           const backupsDir = path.join(afbtDir, "extension-backups");
-          if (!fs.existsSync(backupsDir)) fs.mkdirSync(backupsDir, { recursive: true });
-          const backupPath = path.join(backupsDir, `chrome-extension-backup-${Date.now()}`);
+          if (!fs.existsSync(backupsDir))
+            fs.mkdirSync(backupsDir, { recursive: true });
+          const backupPath = path.join(
+            backupsDir,
+            `chrome-extension-backup-${Date.now()}`
+          );
           fs.cpSync(extensionDir, backupPath, { recursive: true });
           console.log("Backed up existing chrome-extension to:", backupPath);
           fs.rmSync(extensionDir, { recursive: true, force: true });
         } catch (e) {
-          console.warn("Warning: could not backup/remove existing chrome-extension:", e?.message || e);
+          console.warn(
+            "Warning: could not backup/remove existing chrome-extension:",
+            e?.message || e
+          );
         }
       }
 
@@ -143,14 +168,14 @@ function sendJson(res, obj, status = 200) {
   const body = JSON.stringify(obj);
   res.writeHead(status, {
     "Content-Type": "application/json",
-    "Content-Length": Buffer.byteLength(body)
+    "Content-Length": Buffer.byteLength(body),
   });
   res.end(body);
 }
 
 function serveHtml(res) {
-  const launchedByMain = process.env.AFBT_PARENT === 'main';
-    const html = `<!doctype html>
+  const launchedByMain = process.env.AFBT_PARENT === "main";
+  const html = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -204,14 +229,36 @@ function serveHtml(res) {
   </style>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
   <script>
-  const AFBT_LAUNCHED_BY_MAIN = ${launchedByMain ? 'true' : 'false'};
-  let activeTab = 'overview';
+  const AFBT_LAUNCHED_BY_MAIN = ${launchedByMain ? "true" : "false"};
+  let activeTab = 'configure';
   let DOCS_FILES = [];
+  const DEFAULT_PROJECTS_SKELETON = JSON.stringify({
+    projects: {
+      "my-frontend": {
+        config: {
+          SWAGGER_URL: "https://api.example.com/openapi.json",
+          API_BASE_URL: "https://api.example.com",
+          AUTH_STORAGE_TYPE: "localStorage",
+          AUTH_TOKEN_KEY: "access_token",
+          AUTH_ORIGIN: "http://localhost:5173",
+          API_AUTH_TOKEN_TTL_SECONDS: 3300
+        }
+      }
+    },
+    defaultProject: "my-frontend"
+  }, null, 2);
   async function loadConfig() {
-    const res = await fetch('/config');
-    const json = await res.json();
-    document.getElementById('projects').value = JSON.stringify(json, null, 2);
-    setStatus('Loaded current configuration.', 'success');
+    try {
+      const res = await fetch('/config');
+      if (!res.ok) throw new Error('Failed to load config');
+      const json = await res.json();
+      document.getElementById('projects').value = JSON.stringify(json, null, 2);
+      setStatus('Loaded current configuration.', 'success');
+    } catch {
+      const el = document.getElementById('projects');
+      if (el) el.value = DEFAULT_PROJECTS_SKELETON;
+      setStatus('No existing config found. Loaded starter template.', 'warn');
+    }
     await reloadEnv();
   }
   function setStatus(msg, cls) {
@@ -286,14 +333,7 @@ function serveHtml(res) {
     try { window.open('', '_self'); window.close(); } catch {}
     setTimeout(() => { try { window.location.replace('about:blank'); } catch {} }, 600);
   }
-  async function startConnector() {
-    await fetch('/server/start', { method: 'POST' });
-    await refreshInfo();
-  }
-  async function stopConnector() {
-    await fetch('/server/stop', { method: 'POST' });
-    await refreshInfo();
-  }
+  
   async function refreshInfo() {
     try {
       const res = await fetch('/server/info');
@@ -301,8 +341,6 @@ function serveHtml(res) {
       const el = document.getElementById('server-status');
       const linkHealth = document.getElementById('btn-open-health');
       const linkId = document.getElementById('btn-open-id');
-      const btnStart = document.getElementById('btn-start-conn');
-      const btnStop = document.getElementById('btn-stop-conn');
       const managedNote = document.getElementById('server-managed-note');
 
       if (info.port) {
@@ -310,34 +348,18 @@ function serveHtml(res) {
         linkId.dataset.href = 'http://127.0.0.1:' + info.port + '/.identity';
       }
 
-      if (AFBT_LAUNCHED_BY_MAIN) {
-        btnStart.style.display = 'none';
-        btnStop.style.display = 'none';
-      }
-
       if (info.running) {
         el.innerHTML = 'Running <span class="badge ok">PID ' + (info.pid || 'unknown') + '</span> <span class="badge">port ' + (info.port || '?') + '</span>';
-        if (!AFBT_LAUNCHED_BY_MAIN) {
-          btnStart.disabled = true;
-          if (info.startedByUi) {
-            btnStop.disabled = false;
-            managedNote.textContent = 'Managed by this setup UI (PID ' + info.pid + '). You can stop it here or close this UI to leave it running.';
-          } else {
-            btnStop.disabled = true;
-            managedNote.textContent = 'Managed externally. Stop it from your terminal; Start/Stop here are disabled.';
-          }
-        } else {
-          managedNote.textContent = 'Managed by main process (npx afbt-setup). Logs visible in your terminal.';
-        }
+        managedNote.textContent = AFBT_LAUNCHED_BY_MAIN
+          ? 'Managed by main process (npx).'
+          : (info.startedByUi
+              ? 'Managed by this setup UI (PID ' + info.pid + ').'
+              : 'Managed externally.');
       } else {
         el.textContent = AFBT_LAUNCHED_BY_MAIN ? 'Detecting...' : 'Stopped';
-        if (!AFBT_LAUNCHED_BY_MAIN) {
-          btnStart.disabled = false;
-          btnStop.disabled = true;
-          managedNote.textContent = 'Not running. You can start a background instance from here (logs will not appear in this UI).';
-        } else {
-          managedNote.textContent = 'This UI is auxiliary. Server is started by main process; please wait while it comes online.';
-        }
+        managedNote.textContent = AFBT_LAUNCHED_BY_MAIN
+          ? 'This UI is auxiliary. Server is started by main process; please wait while it comes online.'
+          : 'Not running.';
       }
     } catch {}
   }
@@ -415,8 +437,6 @@ function serveHtml(res) {
       const data = await res.json();
       const envText = document.getElementById('envText');
       if (envText) envText.value = data.content || '';
-      const cfgHint = document.querySelector('#config-guide .hint.small');
-      if (cfgHint) cfgHint.textContent = 'Path: ' + (data.path || '.env') + ' (auto-detected)';
       const envPathHint = document.getElementById('envPathHint');
       if (envPathHint) envPathHint.textContent = data.path || '.env';
     } catch { /* ignore */ }
@@ -428,14 +448,32 @@ function serveHtml(res) {
       const info = await (await fetch('/env')).json();
       const res = await fetch('/env', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content, path: info.path }) });
       if (!res.ok) throw new Error('Save .env failed');
-      setStatus('Saved .env successfully.', 'success');
+      const envStatus = document.getElementById('envStatus');
+      if (envStatus) {
+        envStatus.textContent = 'Saved .env successfully.';
+        envStatus.className = 'hint success';
+        try { clearTimeout(window.__afbtEnvStatusTimer); } catch {}
+        window.__afbtEnvStatusTimer = setTimeout(() => {
+          try { envStatus.textContent = ''; envStatus.className = 'hint'; } catch {}
+        }, 2500);
+      } else {
+        setStatus('Saved .env successfully.', 'success');
+      }
     } catch (e) {
-      setStatus('Failed to save .env: ' + e.message, 'error');
+      const envStatus = document.getElementById('envStatus');
+      if (envStatus) {
+        envStatus.textContent = 'Failed to save .env: ' + e.message;
+        envStatus.className = 'hint error';
+      } else {
+        setStatus('Failed to save .env: ' + e.message, 'error');
+      }
     }
   }
   window.addEventListener('DOMContentLoaded', async () => {
-    await loadConfig();
-    showTab('overview');
+    try { await loadConfig(); } catch {}
+    showTab('configure');
+    // Ensure active state in nav for first paint
+    try { document.getElementById('tab-configure').classList.add('active'); } catch {}
     // compute dynamic header/footer heights for perfect fit
     function adjustLayout() {
       const headerH = document.querySelector('header')?.offsetHeight || 64;
@@ -467,14 +505,11 @@ function serveHtml(res) {
   <header>
     <h1>Autonomous Frontend Browser Tools — Setup</h1>
     <nav>
-      <button id="tab-overview" onclick="showTab('overview')">Overview</button>
       <button id="tab-configure" onclick="showTab('configure')">Configure</button>
       <button id="tab-env" onclick="showTab('env')">Environment</button>
       <button id="tab-docs" onclick="showTab('docs')">Docs</button>
     </nav>
     <div class="top-actions">
-       <button id="btn-start-conn" class="secondary" onclick="startConnector()">Start Connector</button>
-      <button id="btn-stop-conn" class="secondary" onclick="stopConnector()">Stop Connector</button>
       <a id="btn-open-health" class="secondary" style="text-decoration:none; padding:9px 12px; border-radius:8px; background:#374151; color:#fff" href="javascript:void(0)" onclick="openHealth()">Open Health</a>
       <a id="btn-open-id" class="secondary" style="text-decoration:none; padding:9px 12px; border-radius:8px; background:#374151; color:#fff" href="javascript:void(0)" onclick="openIdentity()">Open Identity</a>
       <button id="btn-close-ui" class="secondary" onclick="finish()">Close</button>
@@ -500,55 +535,58 @@ function serveHtml(res) {
       <div class="split">
         <div class="left" id="config-guide">
            <h3 style="margin:4px 0 8px 0">Configuration</h3>
-           <div class="hint" style="margin:6px 0 12px 0">
-             To enable auth, provide:
-             <ul>
-               <li><b>AUTH_ORIGIN</b>: e.g. <code>http://localhost:5173</code></li>
-               <li><b>AUTH_STORAGE_TYPE</b>: <code>localStorage</code> | <code>sessionStorage</code> | <code>cookies</code></li>
-               <li><b>AUTH_TOKEN_KEY</b>: token key or cookie name</li>
-               <li><b>API_AUTH_TOKEN_TTL_SECONDS</b>: optional cache TTL; if JWT is used, <code>exp</code> is auto-respected</li>
-             </ul>
-             No fallback token is used.
+           <div class="hint">This file is local and intended to be ignored by git.</div>
+           <ul style="margin-top:12px; padding-left:18px; line-height:1.6">
+             <li>
+               <b>SWAGGER_URL</b> <span class="badge">Used by: api.searchEndpoints, api.listTags</span>
+               <div class="hint small">URL or file path to your OpenAPI/Swagger spec. Loaded by API docs tools for endpoint search and tag listing.</div>
+             </li>
+             <li>
+               <b>API_BASE_URL</b> <span class="badge">Used by: api.request</span>
+               <div class="hint small">Base URL for constructing live API requests.</div>
+             </li>
+             <li>
+               <b>AUTH_STORAGE_TYPE</b> <span class="badge">Used by: api.request (auth)</span>
+               <div class="hint small">Where the auth token is stored: <code>localStorage</code>, <code>sessionStorage</code>, or <code>cookies</code>.</div>
+             </li>
+             <li>
+               <b>AUTH_TOKEN_KEY</b> <span class="badge">Used by: api.request (auth)</span>
+               <div class="hint small">Key or cookie name from which the bearer token is read.</div>
+             </li>
+             <li>
+               <b>AUTH_ORIGIN</b> <span class="badge">Used by: api.request (cookies)</span>
+               <div class="hint small">Browser origin for reading cookies, e.g. <code>http://localhost:5173</code>.</div>
+             </li>
+             <li>
+               <b>API_AUTH_TOKEN_TTL_SECONDS</b> <span class="badge">Used by: api.request (auth cache)</span>
+               <div class="hint small">Optional TTL for token cache. If token is a JWT, its <code>exp</code> is respected automatically.</div>
+             </li>
+             <li>
+               <b>ROUTES_FILE_PATH</b> <span class="badge">Used by: browser.navigate (helper)</span>
+               <div class="hint small">Optional path hint to your app's routes file to improve navigation descriptions.</div>
+             </li>
+             <li>
+               <b>SCREENSHOT_STORAGE_PATH</b> <span class="badge">Used by: browser.screenshot</span>
+               <div class="hint small">Per-project directory for saving screenshots. If unset, falls back to <code>DEFAULT_SCREENSHOT_STORAGE_PATH</code>.</div>
+             </li>
+             <li>
+               <b>DEFAULT_SCREENSHOT_STORAGE_PATH</b> <span class="badge">Used by: browser.screenshot (fallback)</span>
+               <div class="hint small">Top-level default base directory for screenshots across projects.</div>
+             </li>
+             <li>
+               <b>defaultProject</b> <span class="badge">Used by: all tools (project selection)</span>
+               <div class="hint small">Fallback active project when not set via environment.</div>
+             </li>
+           </ul>
+           <div class="hint small" style="margin-top:8px">
+             Embedding provider keys (<code>OPENAI_API_KEY</code>, <code>GEMINI_API_KEY</code>) are set in the Environment tab, not in this JSON.
            </div>
-          <div class="hint">This file is local and intended to be ignored by git.</div>
-          <ul style="margin-top:10px; padding-left:18px; line-height:1.5">
-            <li><b>SWAGGER_URL</b>: Required for <code>api.searchEndpoints</code> and <code>api.listTags</code>.</li>
-            <li><b>API_BASE_URL</b>: Required for <code>api.request</code>.</li>
-            <li><b>AUTH_STORAGE_TYPE</b>: Required for auth. One of <code>localStorage</code>, <code>sessionStorage</code>, or <code>cookies</code>.</li>
-            <li><b>AUTH_TOKEN_KEY</b>: Required for auth. The key/name of the token in the chosen storage (or cookie name).</li>
-            <li><b>AUTH_ORIGIN</b>: Required for cookies, optional for storage. Example: <code>http://localhost:5173</code>.</li>
-            <li><b>API_AUTH_TOKEN_TTL_SECONDS</b>: Optional TTL for token cache. If omitted and token is a JWT, its <code>exp</code> is used.</li>
-            <li><b>ROUTES_FILE_PATH</b>: Optional; referenced in <code>browser.navigate</code> description.</li>
-            <li><b>DEFAULT_SCREENSHOT_STORAGE_PATH</b>: Optional; base folder for screenshots.</li>
-            <li><b>Embedding keys</b>: set via env only — <code>OPENAI_API_KEY</code> or <code>GEMINI_API_KEY</code> (do not store in JSON).</li>
-          </ul>
-          <div class="hint small" style="margin-top:6px">
-            For auth, there is no fallback token. Ensure your app is open at the provided origin and DevTools with the BrowserTools extension is connected.
-          </div>
-          <div class="hint small" style="margin-top:8px">
-            Tip: Set <code>defaultProject</code> to the project you work with most. You can keep multiple projects side‑by‑side here.
-          </div>
+           <div class="hint small" style="margin-top:8px">
+             Tip: Set <code>defaultProject</code> to the project you work with most. You can keep multiple projects side‑by‑side here.
+           </div>
         </div>
         <div class="right" id="config-editor-pane">
-          <p style="margin-top:0">Edit your per-project configuration below.</p>
-          <div class="hint" style="margin:8px 0 12px 0">
-            Minimum auth config example:
-            <pre><code>{
-  "projects": {
-    "my-frontend": {
-      "config": {
-        "SWAGGER_URL": "https://api.example.com/openapi.json",
-        "API_BASE_URL": "https://api.example.com",
-        "AUTH_STORAGE_TYPE": "localStorage",
-        "AUTH_TOKEN_KEY": "access_token",
-        "AUTH_ORIGIN": "http://localhost:5173",
-        "API_AUTH_TOKEN_TTL_SECONDS": 3300
-      }
-    }
-  },
-  "defaultProject": "my-frontend"
-}</code></pre>
-          </div>
+          <p style="margin-top:0">Edit your per-project configuration below. And then close the ui using the close button in header and don't directly close the tab.</p>
           <textarea id="projects" spellcheck="false" class="config-textarea" style="height: calc(100% - 96px)"></textarea>
               <div class="actions">
             <button id="btn-save-config" onclick="saveConfig()">Save</button>
@@ -567,8 +605,14 @@ function serveHtml(res) {
       <div class="split">
         <div class="left" id="env-guide">
           <h3 style="margin:4px 0 8px 0">Environment (.env)</h3>
-          <div class="hint">Keys used by the connector. These are loaded automatically on start.</div>
-          <div class="hint small" style="margin-top:8px">Path detected below reflects where the server will read .env from.</div>
+          <div class="hint" style="margin-top:8px">
+            Embedding provider API keys configured here are used to build and query the semantic index that powers <code>api.searchEndpoints</code> and other API documentation search features. Set one:
+            <ul>
+              <li><b>OPENAI_API_KEY</b> (+ optional <code>OPENAI_EMBED_MODEL</code>)</li>
+              <li><b>GEMINI_API_KEY</b> (+ optional <code>GEMINI_EMBED_MODEL</code>)</li>
+            </ul>
+            If you change provider/model, you may need to reindex from the DevTools panel.
+          </div>
           <div class="hint" style="margin-top:8px">Common keys:
             <ul>
               <li><b>OPENAI_API_KEY</b> or <b>GEMINI_API_KEY</b> (embedding provider)</li>
@@ -582,6 +626,7 @@ function serveHtml(res) {
             <button onclick="saveEnv()">Save .env</button>
             <button class="secondary" onclick="reloadEnv()">Reload .env</button>
           </div>
+          <div id="envStatus" class="hint"></div>
           <div class="hint small">Path: <span id="envPathHint">.env</span></div>
         </div>
       </div>
@@ -608,7 +653,7 @@ function serveHtml(res) {
   const body = Buffer.from(html);
   res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
-    "Content-Length": body.length
+    "Content-Length": body.length,
   });
   res.end(body);
 }
@@ -623,8 +668,13 @@ function startUiServer() {
         return serveHtml(res);
       }
       if (req.method === "GET" && req.url === "/config") {
-        const json = JSON.parse(fs.readFileSync(projectsJsonPath, "utf8"));
-        return sendJson(res, json);
+        try {
+          ensureProjectsJsonExists();
+          const json = JSON.parse(fs.readFileSync(projectsJsonPath, "utf8"));
+          return sendJson(res, json);
+        } catch (e) {
+          return sendJson(res, { error: e.message }, 500);
+        }
       }
       if (req.method === "GET" && req.url === "/env") {
         const template = [
@@ -642,7 +692,10 @@ function startUiServer() {
           selectedPath = serverEnvPath;
         }
         let content = template;
-        try { if (fs.existsSync(selectedPath)) content = fs.readFileSync(selectedPath, "utf8"); } catch {}
+        try {
+          if (fs.existsSync(selectedPath))
+            content = fs.readFileSync(selectedPath, "utf8");
+        } catch {}
         return sendJson(res, { content, path: selectedPath });
       }
       if (req.method === "POST" && req.url === "/env") {
@@ -655,12 +708,17 @@ function startUiServer() {
             try {
               const parsed = JSON.parse(data || "{}");
               text = typeof parsed.content === "string" ? parsed.content : "";
-              if (parsed.path && typeof parsed.path === "string") targetPath = parsed.path;
+              if (parsed.path && typeof parsed.path === "string")
+                targetPath = parsed.path;
             } catch {
               text = data || ""; // accept raw text
             }
             // If neither file exists, prefer top-level; else write to whichever path was used to load
-            if (!fs.existsSync(targetPath) && fs.existsSync(serverEnvPath) && !fs.existsSync(envPath)) {
+            if (
+              !fs.existsSync(targetPath) &&
+              fs.existsSync(serverEnvPath) &&
+              !fs.existsSync(envPath)
+            ) {
               targetPath = serverEnvPath;
             }
             fs.writeFileSync(targetPath, text);
@@ -680,6 +738,20 @@ function startUiServer() {
             // Minimal validation
             if (!parsed || typeof parsed !== "object")
               throw new Error("Invalid JSON body");
+            // Align with client-side validation: require 'projects' object and optional 'defaultProject' as string
+            if (!parsed.projects || typeof parsed.projects !== "object") {
+              throw new Error("Missing required 'projects' object");
+            }
+            if (
+              parsed.defaultProject !== undefined &&
+              typeof parsed.defaultProject !== "string"
+            ) {
+              throw new Error("'defaultProject' must be a string if provided");
+            }
+            // Ensure target directory exists
+            if (!fs.existsSync(extensionDir)) {
+              fs.mkdirSync(extensionDir, { recursive: true });
+            }
             fs.writeFileSync(projectsJsonPath, JSON.stringify(parsed, null, 2));
             return sendJson(res, { status: "ok" });
           } catch (e) {
@@ -743,7 +815,12 @@ function startUiServer() {
       if (chromeLauncher) {
         await chromeLauncher.launch({ startingUrl: url });
       } else {
-        const cmd = process.platform === "darwin" ? `open ${url}` : process.platform === "win32" ? `start ${url}` : `xdg-open ${url}`;
+        const cmd =
+          process.platform === "darwin"
+            ? `open ${url}`
+            : process.platform === "win32"
+            ? `start ${url}`
+            : `xdg-open ${url}`;
         exec(cmd, () => {});
       }
     } catch (e) {
@@ -774,11 +851,15 @@ async function compileServerIfNeeded() {
   try {
     await new Promise((resolve, reject) => {
       const p = exec(`npx -y tsc -p ${JSON.stringify(serverDir)}`);
-      p.on("exit", (code) => (code === 0 ? resolve() : reject(new Error("tsc failed"))));
+      p.on("exit", (code) =>
+        code === 0 ? resolve() : reject(new Error("tsc failed"))
+      );
     });
   } catch (e) {
     if (!fs.existsSync(distEntry)) {
-      throw new Error("Server build missing. Please run 'pnpm build:server' once.");
+      throw new Error(
+        "Server build missing. Please run 'pnpm build:server' once."
+      );
     }
   }
 }
@@ -796,12 +877,16 @@ async function startConnectorChild() {
   ensureAfbtDir();
   let existingPid = null;
   if (fs.existsSync(pidPath)) {
-    try { existingPid = parseInt(fs.readFileSync(pidPath, "utf8"), 10); } catch {}
+    try {
+      existingPid = parseInt(fs.readFileSync(pidPath, "utf8"), 10);
+    } catch {}
   }
   if (existingPid && isRunning(existingPid)) {
     return false; // already running
   }
-  try { if (existingPid && !isRunning(existingPid)) fs.unlinkSync(pidPath); } catch {}
+  try {
+    if (existingPid && !isRunning(existingPid)) fs.unlinkSync(pidPath);
+  } catch {}
   await compileServerIfNeeded();
   const entry = resolveConnectorEntry();
   const child = spawn(process.execPath, [entry], {
@@ -819,18 +904,26 @@ async function stopConnectorChild() {
   if (!fs.existsSync(pidPath)) return false;
   const pid = parseInt(fs.readFileSync(pidPath, "utf8"), 10);
   if (!pid || !isRunning(pid)) {
-    try { fs.unlinkSync(pidPath); } catch {}
+    try {
+      fs.unlinkSync(pidPath);
+    } catch {}
     return false;
   }
-  try { process.kill(pid); } catch {}
-  try { fs.unlinkSync(pidPath); } catch {}
+  try {
+    process.kill(pid);
+  } catch {}
+  try {
+    fs.unlinkSync(pidPath);
+  } catch {}
   return true;
 }
 
 async function findConnectorPort() {
   for (let p = 3025; p <= 3035; p++) {
     try {
-      const resp = await fetch(`http://127.0.0.1:${p}/.identity`, { signal: AbortSignal.timeout(500) });
+      const resp = await fetch(`http://127.0.0.1:${p}/.identity`, {
+        signal: AbortSignal.timeout(500),
+      });
       if (resp.ok) {
         const j = await resp.json();
         if (j && j.signature === "mcp-browser-connector-24x7") return p;
@@ -843,7 +936,9 @@ async function findConnectorPort() {
 async function getConnectorInfo() {
   let pid = null;
   if (fs.existsSync(pidPath)) {
-    try { pid = parseInt(fs.readFileSync(pidPath, "utf8"), 10); } catch {}
+    try {
+      pid = parseInt(fs.readFileSync(pidPath, "utf8"), 10);
+    } catch {}
   }
   const pidRunning = !!pid && isRunning(pid);
   const port = await findConnectorPort();
@@ -870,9 +965,11 @@ function listDocs() {
   }
   // Add README/docs from current working directory (if present)
   if (fs.existsSync(path.join(repoRoot, "README.md"))) out.push("README.md");
-  if (fs.existsSync(path.join(repoRoot, "docs"))) walk(path.join(repoRoot, "docs"));
+  if (fs.existsSync(path.join(repoRoot, "docs")))
+    walk(path.join(repoRoot, "docs"));
   // Also include packaged docs as absolute paths (namespaced under pkg/ for clarity)
-  if (fs.existsSync(embeddedReadme)) out.push(path.relative(repoRoot, embeddedReadme));
+  if (fs.existsSync(embeddedReadme))
+    out.push(path.relative(repoRoot, embeddedReadme));
   if (fs.existsSync(embeddedDocsDir)) {
     const stack = [embeddedDocsDir];
     while (stack.length) {
@@ -897,7 +994,8 @@ function resolveDocPathSafe(rel) {
   const isAllowed = allowed.some((root) => full.startsWith(root));
   if (!isAllowed) throw new Error("Invalid path");
   if (!fs.existsSync(full)) throw new Error("Not found");
-  if (!full.toLowerCase().endsWith(".md")) throw new Error("Only .md files allowed");
+  if (!full.toLowerCase().endsWith(".md"))
+    throw new Error("Only .md files allowed");
   return full;
 }
 
@@ -907,7 +1005,12 @@ function resolveDocPathSafe(rel) {
 
 async function runMain() {
   // 1) Spawn the UI as a child (temporary process)
-  const env = { ...process.env, AFBT_ROLE: "ui", AFBT_SETUP_PORT: String(PORT), AFBT_PARENT: "main" };
+  const env = {
+    ...process.env,
+    AFBT_ROLE: "ui",
+    AFBT_SETUP_PORT: String(PORT),
+    AFBT_PARENT: "main",
+  };
   const uiChild = spawn(process.execPath, [__filename], {
     cwd: repoRoot,
     env,
@@ -922,7 +1025,12 @@ async function runMain() {
     stdio: "inherit",
   });
   serverProc.on("exit", async () => {
-    try { await fetch(`http://127.0.0.1:${PORT}/shutdown`, { method: "POST", signal: AbortSignal.timeout(500) }); } catch {}
+    try {
+      await fetch(`http://127.0.0.1:${PORT}/shutdown`, {
+        method: "POST",
+        signal: AbortSignal.timeout(500),
+      });
+    } catch {}
     process.exit(0);
   });
 }
@@ -935,5 +1043,3 @@ if (process.env.AFBT_ROLE === "ui") {
     process.exit(1);
   });
 }
-
-

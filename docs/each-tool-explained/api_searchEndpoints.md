@@ -1,8 +1,8 @@
-# Tool: searchApiDocumentation
+# Tool: api.searchEndpoints
 
 ## What does this tool do?
 
-`searchApiDocumentation` performs a semantic search over your API spec (Swagger/OpenAPI) using vector embeddings. It returns the minimal fields required for integration: `method`, `path`, minimal `request`/`response` type hints extracted from Swagger, and `requiresAuth` derived from OpenAPI `security` (operation-level first, then top-level).
+`api.searchEndpoints` performs a semantic search over your API spec (Swagger/OpenAPI) using vector embeddings. It returns the minimal fields required for integration: `method`, `path`, minimal `request`/`response` type hints extracted from Swagger, and `requiresAuth` derived from OpenAPI `security` (operation-level first, then top-level).
 
 ---
 
@@ -17,12 +17,12 @@
 
 ## Parameters
 
-| Name   | Type   | Required | Description |
-| ------ | ------ | -------- | ----------- |
+| Name   | Type   | Required | Description                                                      |
+| ------ | ------ | -------- | ---------------------------------------------------------------- |
 | query  | string |          | Free-text semantic query (provide either query or tag, not both) |
-| tag    | string |          | Tag to bias retrieval (exclusive with query) |
-| method | string |          | HTTP method filter (GET, POST, PUT, PATCH, DELETE) |
-| limit  | number |          | Maximum number of endpoints to return (default: 10) |
+| tag    | string |          | Tag to bias retrieval (exclusive with query)                     |
+| method | string |          | HTTP method filter (GET, POST, PUT, PATCH, DELETE)               |
+| limit  | number |          | Maximum number of endpoints to return (default: 10)              |
 
 ---
 
@@ -34,7 +34,11 @@
     "method": "GET",
     "path": "/v1/users",
     "request": { "contentType": "application/json", "schemaType": "object" },
-    "response": { "status": "200", "contentType": "application/json", "schemaType": "#/components/schemas/UserList" },
+    "response": {
+      "status": "200",
+      "contentType": "application/json",
+      "schemaType": "#/components/schemas/UserList"
+    },
     "requiresAuth": true
   }
 ]
@@ -48,9 +52,9 @@ We provide minimal hints only. For detailed schemas/examples, use your Swagger s
 
 ---
 
-## Integration with fetchLiveApiResponse
+## Integration with api.request
 
-Use `fetchLiveApiResponse` for endpoints where you need exact payload/response shapes beyond minimal hints. When `requiresAuth` is true, call it with `{ includeAuthToken: true }` so the token is appended automatically.
+Use `api.request` for endpoints where you need exact payload/response shapes beyond minimal hints. When `requiresAuth` is true, call it with `{ includeAuthToken: true }` so the token is appended automatically.
 
 ---
 
@@ -82,7 +86,6 @@ Use `fetchLiveApiResponse` for endpoints where you need exact payload/response s
 }
 ```
 
-
 ---
 
 ## Error Handling
@@ -103,6 +106,6 @@ Use `fetchLiveApiResponse` for endpoints where you need exact payload/response s
 
 ## Summary
 
-- __Semantic-only__ API search over your Swagger.
-- __Minimal output__ tailored for quick integration: method, path, request/response hints.
-- __Provider-aware__ backend with batching, backoff, and logs; reindex when changing models.
+- **Semantic-only** API search over your Swagger.
+- **Minimal output** tailored for quick integration: method, path, request/response hints.
+- **Provider-aware** backend with batching, backoff, and logs; reindex when changing models.

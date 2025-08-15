@@ -1,8 +1,8 @@
-# captureBrowserScreenshot Tool
+# browser.screenshot Tool
 
 ## Overview
 
-The `captureBrowserScreenshot` tool captures the current browser tab and saves it as a PNG file with intelligent organization. It always returns the base64 image data and the saved file path.
+The `browser.screenshot` tool captures the current browser tab and saves it as a PNG file with intelligent organization. It always returns the base64 image data and the saved file path.
 
 **Primary Use Cases:**
 
@@ -14,12 +14,13 @@ The `captureBrowserScreenshot` tool captures the current browser tab and saves i
 ## Tool Signature
 
 ```typescript
-captureBrowserScreenshot({
-  randomString: string // any string; required by MCP schema
+browser.screenshot({
+  randomString: string, // any string; required by MCP schema
 });
 ```
 
 Parameters:
+
 - randomString: string (required) — arbitrary string to satisfy the MCP schema; not used by the server.
 
 ## File Organization System
@@ -77,7 +78,7 @@ The tool returns a text block with project/category info and an image payload wi
 ### Basic Screenshot
 
 ```typescript
-await captureBrowserScreenshot({ randomString: "ok" });
+await browser.screenshot({ randomString: "ok" });
 ```
 
 Custom filenames are not currently supported via the MCP tool. Filenames are generated from the URL.
@@ -166,13 +167,13 @@ The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultPr
 
 ```typescript
 // 1. Capture screenshot
-await captureBrowserScreenshot({ randomString: "before" });
+await browser.screenshot({ randomString: "before" });
 
 // 2. Make UI changes
 // ... code changes ...
 
 // 3. Capture after screenshot
-await captureBrowserScreenshot({ randomString: "after" });
+await browser.screenshot({ randomString: "after" });
 
 // 4. Compare visually or programmatically
 ```
@@ -181,8 +182,8 @@ await captureBrowserScreenshot({ randomString: "after" });
 
 ```typescript
 // Capture screenshots for documentation (filenames are auto-generated)
-await captureBrowserScreenshot({ randomString: "step-1-login" });
-await captureBrowserScreenshot({ randomString: "step-2-dashboard" });
+await browser.screenshot({ randomString: "step-1-login" });
+await browser.screenshot({ randomString: "step-2-dashboard" });
 ```
 
 ## Best Practices
@@ -197,17 +198,17 @@ await captureBrowserScreenshot({ randomString: "step-2-dashboard" });
 
 ### **Autonomous AI Debugging Pattern**
 
-The most effective pattern for AI-driven UI debugging combines `captureBrowserScreenshot` with the enhanced `inspectSelectedElementCss` tool:
+The most effective pattern for AI-driven UI debugging combines `browser.screenshot` with the enhanced `ui.inspectElement` tool:
 
 ```typescript
 // 1. Capture initial state
-await captureBrowserScreenshot({ randomString: "initial" });
+await browser.screenshot({ randomString: "initial" });
 
 // 2. AI analyzes screenshot and identifies issues
 // (Human or AI selects problematic element in DevTools)
 
 // 3. Get comprehensive debugging context
-const elementContext = await inspectSelectedElementCss();
+const elementContext = await ui.inspectElement();
 
 // 4. AI receives:
 // - Computed CSS styles
@@ -218,7 +219,7 @@ const elementContext = await inspectSelectedElementCss();
 // - Material-UI context (if applicable)
 
 // 5. Apply fixes and verify
-await captureBrowserScreenshot({ randomString: "after" }); // Compare before/after
+await browser.screenshot({ randomString: "after" }); // Compare before/after
 ```
 
 ### **What the Enhanced Element Inspection Provides**
@@ -257,13 +258,13 @@ When you select an element and call `inspectSelectedElementCss`, you get:
 
 ```typescript
 // AI sees layout issue in screenshot
-await captureBrowserScreenshot({ randomString: "issue" });
+await browser.screenshot({ randomString: "issue" });
 
 // AI instructs: "Select the misaligned button element"
 // Human selects element in DevTools Elements panel
 
 // AI gets comprehensive context
-const debug = await inspectSelectedElementCss();
+const debug = await ui.inspectElement();
 
 // AI receives formatted output like:
 /*
@@ -287,15 +288,15 @@ This enhanced workflow reduces debugging from **4-5 tool calls** down to **2 too
 
 **Old Pattern** (5 calls):
 
-1. `captureBrowserScreenshot`
-2. `inspectSelectedElementCss` (basic info)
+1. `browser.screenshot`
+2. `ui.inspectElement` (basic info)
 3. Additional CSS property queries
 4. Parent/child context queries
 5. Manual accessibility checks
 
 **New Pattern** (2 calls):
 
-1. `captureBrowserScreenshot`
-2. `inspectSelectedElementCss` (comprehensive context)
+1. `browser.screenshot`
+2. `ui.inspectElement` (comprehensive context)
 
 This enables **autonomous AI debugging sessions** lasting 2+ hours without manual intervention, aligning with the core mission of the browser tools ecosystem.

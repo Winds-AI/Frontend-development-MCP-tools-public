@@ -158,20 +158,21 @@ Real-time connection status at `/connection-health`:
 
 ## 🧰 Tools Quick Reference
 
-| Tool | What it does | When to use | Key params | Preconditions |
-| --- | --- | --- | --- | --- |
-| `searchApiDocumentation` | Semantic search over Swagger/OpenAPI. Returns minimal endpoint info (method, path, simple param/request/response hints) and `requiresAuth` from OpenAPI security. | Finding endpoints and basic shapes before coding. | `query?`, `tag?`, `method?`, `limit?` | Embedding index built for the active project; `SWAGGER_URL` configured. |
-| `listApiTags` | Lists all tags with operation counts. | Get a domain overview; seed further API searches. | none | `SWAGGER_URL` configured. |
-| `fetchLiveApiResponse` | Makes a real HTTP request to `API_BASE_URL`; optionally includes `Authorization: Bearer <token>`. Token source: dynamic via browser storage. | Validate exact responses; verify auth/headers; confirm behavior. | `endpoint`, `method?`, `requestBody?`, `queryParams?`, `includeAuthToken?` | `API_BASE_URL` set; if `includeAuthToken: true` then configure `AUTH_STORAGE_TYPE` + `AUTH_TOKEN_KEY` (and optional `AUTH_ORIGIN`). |
-| `captureBrowserScreenshot` | Captures current tab, saves to a structured path, and returns the image. | UI analysis, visual verification, before/after loops. | `randomString` (dummy, required by MCP schema) | Extension connected; DevTools open. |
-| `inspectSelectedElementCss` | Enhanced element context: computed styles, layout relations, issue detection, accessibility hints. | Rapid UI debugging after selecting an element in DevTools. | none | DevTools open and an element selected. |
-| `inspectBrowserNetworkActivity` | Recent network requests with filters (URL substring, fields, time window, sort, limit). | Debug HTTP failures, payloads, and sequences (DevTools‑like). | `urlFilter`, `details[]`, `timeOffset?`, `orderBy?`, `orderDirection?`, `limit?` | Extension connected; trigger the requests first. |
-| `inspectBrowserConsole` | Filtered console messages with stats and formatted output. | Surface JS errors/warnings/logs quickly. | `level?`, `limit?`, `timeOffset?`, `search?` | Extension connected; DevTools open. |
-| `navigateBrowserTab` | Navigates the active tab to a URL. | Multi‑step flows; move to pages before taking screenshots or interacting. | `url` | Extension connected; optional `ROUTES_FILE_PATH` referenced in description. |
-| `interactWithPage` | DOM interactions via semantic selectors (data‑testid, role+name, label, placeholder, name, text, css, xpath) with intelligent waits and CDP fallback. | Automate clicks/typing/selecting; assert visibility/enabled; optional post‑action screenshot. | `action`, `target`, `scopeTarget?`, `value?`, `options?` | Extension connected; DevTools open recommended. |
+| Tool                      | What it does                                                                                                                                                      | When to use                                                                                   | Key params                                                                       | Preconditions                                                                                                                       |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `api.searchEndpoints`     | Semantic search over Swagger/OpenAPI. Returns minimal endpoint info (method, path, simple param/request/response hints) and `requiresAuth` from OpenAPI security. | Finding endpoints and basic shapes before coding.                                             | `query?`, `tag?`, `method?`, `limit?`                                            | Embedding index built for the active project; `SWAGGER_URL` configured.                                                             |
+| `api.listTags`            | Lists all tags with operation counts.                                                                                                                             | Get a domain overview; seed further API searches.                                             | none                                                                             | `SWAGGER_URL` configured.                                                                                                           |
+| `api.request`             | Makes a real HTTP request to `API_BASE_URL`; optionally includes `Authorization: Bearer <token>`. Token source: dynamic via browser storage.                      | Validate exact responses; verify auth/headers; confirm behavior.                              | `endpoint`, `method?`, `requestBody?`, `queryParams?`, `includeAuthToken?`       | `API_BASE_URL` set; if `includeAuthToken: true` then configure `AUTH_STORAGE_TYPE` + `AUTH_TOKEN_KEY` (and optional `AUTH_ORIGIN`). |
+| `browser.screenshot`      | Captures current tab, saves to a structured path, and returns the image.                                                                                          | UI analysis, visual verification, before/after loops.                                         | `randomString` (dummy, required by MCP schema)                                   | Extension connected; DevTools open.                                                                                                 |
+| `ui.inspectElement`       | Enhanced element context: computed styles, layout relations, issue detection, accessibility hints.                                                                | Rapid UI debugging after selecting an element in DevTools.                                    | none                                                                             | DevTools open and an element selected.                                                                                              |
+| `browser.network.inspect` | Recent network requests with filters (URL substring, fields, time window, sort, limit).                                                                           | Debug HTTP failures, payloads, and sequences (DevTools‑like).                                 | `urlFilter`, `details[]`, `timeOffset?`, `orderBy?`, `orderDirection?`, `limit?` | Extension connected; trigger the requests first.                                                                                    |
+| `browser.console.read`    | Filtered console messages with stats and formatted output.                                                                                                        | Surface JS errors/warnings/logs quickly.                                                      | `level?`, `limit?`, `timeOffset?`, `search?`                                     | Extension connected; DevTools open.                                                                                                 |
+| `browser.navigate`        | Navigates the active tab to a URL.                                                                                                                                | Multi‑step flows; move to pages before taking screenshots or interacting.                     | `url`                                                                            | Extension connected; optional `ROUTES_FILE_PATH` referenced in description.                                                         |
+| `ui.interact`             | DOM interactions via semantic selectors (data‑testid, role+name, label, placeholder, name, text, css, xpath) with intelligent waits and CDP fallback.             | Automate clicks/typing/selecting; assert visibility/enabled; optional post‑action screenshot. | `action`, `target`, `scopeTarget?`, `value?`, `options?`                         | Extension connected; DevTools open recommended.                                                                                     |
 
 Notes:
-- Prefer `inspectBrowserNetworkActivity` for network errors; console tool does not capture HTTP failures.
+
+- Prefer `browser.network.inspect` for network errors; console tool does not capture HTTP failures.
 - Some MCP clients cache tool descriptions; dynamic updates are not always reflected live.
 
 ---
@@ -179,16 +180,19 @@ Notes:
 ## 🔁 Common Workflows
 
 - API integration
-  1) `searchApiDocumentation` → 2) `fetchLiveApiResponse` → 3) implement/types → 4) iterate.
+
+  1. `api.searchEndpoints` → 2) `api.request` → 3) implement/types → 4) iterate.
 
 - UI debugging loop
-  1) `captureBrowserScreenshot` → 2) select element in DevTools → 3) `inspectSelectedElementCss` → 4) fix → 5) screenshot again.
+
+  1. `browser.screenshot` → 2) select element in DevTools → 3) `ui.inspectElement` → 4) fix → 5) screenshot again.
 
 - Navigation + checks
-  1) `navigateBrowserTab` → 2) `captureBrowserScreenshot` → 3) `inspectBrowserNetworkActivity`/`inspectBrowserConsole`.
+
+  1. `browser.navigate` → 2) `browser.screenshot` → 3) `browser.network.inspect`/`browser.console.read`.
 
 - Automated UI interaction
-  1) `navigateBrowserTab` → 2) `interactWithPage` (perform click/type/etc.) → 3) optional `captureBrowserScreenshot` → 4) verify via `inspectBrowserNetworkActivity`.
+  1. `browser.navigate` → 2) `ui.interact` (perform click/type/etc.) → 3) optional `browser.screenshot` → 4) verify via `browser.network.inspect`.
 
 ---
 
@@ -219,4 +223,4 @@ Embedding provider keys (env only, not in projects.json): `OPENAI_API_KEY`, `GEM
 
 - Keep DevTools open on the inspected tab for console, network, selected element, and screenshots.
 - Trigger real user actions before inspecting network activity to ensure logs exist.
-- When docs lack detailed schemas, pair `searchApiDocumentation` with `fetchLiveApiResponse` to get exact shapes.
+- When docs lack detailed schemas, pair `api.searchEndpoints` with `api.request` to get exact shapes.

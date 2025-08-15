@@ -53,7 +53,7 @@ File example:
       "config": {
         "SWAGGER_URL": "https://api.example.com/openapi.json",
         "API_BASE_URL": "https://api.example.com",
-        "AUTH_STORAGE_TYPE": "localStorage", 
+        "AUTH_STORAGE_TYPE": "localStorage",
         "AUTH_TOKEN_KEY": "<token_key_in_storage>",
         "AUTH_ORIGIN": "https://app.example.com",
         "API_AUTH_TOKEN_TTL_SECONDS": 3300,
@@ -101,6 +101,7 @@ npm run start
 ```
 
 Notes:
+
 - The server auto-selects an available port starting at 3025 (range 3025–3035).
 - Health and identity endpoints: `/.identity`, `/connection-health`.
 
@@ -117,9 +118,7 @@ Example `.cursor/mcp.json`:
   "mcpServers": {
     "browser-tools-frontend-dev": {
       "command": "node",
-      "args": [
-        "/absolute/path/to/browser-tools-mcp/dist/mcp-server.js"
-      ],
+      "args": ["/absolute/path/to/browser-tools-mcp/dist/mcp-server.js"],
       "env": {
         "ACTIVE_PROJECT": "my-frontend"
       }
@@ -129,6 +128,7 @@ Example `.cursor/mcp.json`:
 ```
 
 Notes:
+
 - Most settings (SWAGGER_URL, API_BASE_URL, AUTH_STORAGE_TYPE/AUTH_TOKEN_KEY/AUTH_ORIGIN or API_AUTH_TOKEN, BROWSER_TOOLS_HOST/PORT, ROUTES_FILE_PATH) should live in `chrome-extension/projects.json`.
 - Embedding provider keys MUST remain environment variables (do not put in projects.json):
   - `OPENAI_API_KEY` (and optional `OPENAI_EMBED_MODEL`)
@@ -146,6 +146,7 @@ Notes:
    - `POST /api/embed/reindex` with `{ project }`
 
 Notes:
+
 - Index is per-project in `.vectra/<project>`. Changing embedding provider/model requires reindex.
 - Server logs show progress/backoff during reindex.
 
@@ -272,27 +273,32 @@ Screenshot storage configuration
 ```
 
 ### Fields (per project `config`)
-- `SWAGGER_URL` (required): URL of your Swagger/OpenAPI JSON used by searchApiDocumentation and listApiTags.
-- `API_BASE_URL` (optional): Base URL used by `fetchLiveApiResponse`.
-- `API_AUTH_TOKEN` (optional): Used only when you set `includeAuthToken = true` in `fetchLiveApiResponse`.
+
+- `SWAGGER_URL` (required): URL of your Swagger/OpenAPI JSON used by `api.searchEndpoints` and `api.listTags`.
+- `API_BASE_URL` (optional): Base URL used by `api.request`.
+- `API_AUTH_TOKEN` (optional): Used only when you set `includeAuthToken = true` in `api.request`.
 - `PROJECT_ROOT` (optional): Absolute path to your project (used for context/reference).
-- `ROUTES_FILE_PATH` (optional): Shown in the `navigateBrowserTab` description to guide route references.
+- `ROUTES_FILE_PATH` (optional): Shown in the `browser.navigate` description to guide route references.
 - Other optional keys that can be read from project config: `BROWSER_TOOLS_HOST`, `BROWSER_TOOLS_PORT`.
 
 Notes:
+
 - Embedding API keys must NOT be placed in `projects.json`. Use environment variables (`OPENAI_API_KEY`, `GEMINI_API_KEY`) as shown earlier.
 
 ### Active project resolution
+
 - Preferred per-request header (internal): `X-ACTIVE-PROJECT`
 - MCP/IDE env: `ACTIVE_PROJECT`
 - Fallback: `defaultProject` in `projects.json`
 
 ### Screenshot storage precedence
+
 - `projects.json: DEFAULT_SCREENSHOT_STORAGE_PATH` (global, recommended)
 - `SCREENSHOT_STORAGE_PATH` env (fallback)
 - Default: `~/Downloads/MCP_Screenshots`
 
 After creating or updating `chrome-extension/projects.json`:
+
 - Reload the Chrome extension (chrome://extensions → reload)
 - Restart the server if running, or it will pick up on next start
 - If you changed `SWAGGER_URL`, reindex from the DevTools panel if needed

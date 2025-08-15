@@ -1,4 +1,4 @@
-# inspectBrowserNetworkActivity Tool
+# browser.network.inspect Tool
 
 ## Overview
 
@@ -10,13 +10,19 @@ Logs recent browser network requests (similar to DevTools → Network) captured 
 inspectBrowserNetworkActivity({
   urlFilter: string,
   details: Array<
-    "url" | "method" | "status" | "timestamp" |
-    "requestHeaders" | "responseHeaders" | "requestBody" | "responseBody"
+    | "url"
+    | "method"
+    | "status"
+    | "timestamp"
+    | "requestHeaders"
+    | "responseHeaders"
+    | "requestBody"
+    | "responseBody"
   >,
-  timeOffset?: number, // seconds (e.g., 300 = last 5 minutes)
-  orderBy?: "timestamp" | "url",
-  orderDirection?: "asc" | "desc",
-  limit?: number // default 20
+  timeOffset: number, // seconds (e.g., 300 = last 5 minutes)
+  orderBy: "timestamp" | "url",
+  orderDirection: "asc" | "desc",
+  limit: number, // default 20
 });
 ```
 
@@ -58,4 +64,3 @@ await inspectBrowserNetworkActivity({
 
 - Ensure the Chrome extension is connected and DevTools is open.
 - Trigger the relevant API calls in the browser before running the tool.
-

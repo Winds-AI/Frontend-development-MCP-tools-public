@@ -1,4 +1,4 @@
-# fetchLiveApiResponse Tool
+# api.request Tool
 
 ## Overview
 
@@ -7,12 +7,12 @@ Executes a live HTTP request to your API using `API_BASE_URL`. Optionally attach
 ## Tool Signature
 
 ```typescript
-fetchLiveApiResponse({
-  endpoint: string,             // e.g. "/v1/users"
-  method?: "GET"|"POST"|"PUT"|"PATCH"|"DELETE",
-  requestBody?: any,            // JSON-serializable body for non-GET
-  queryParams?: Record<string, string>,
-  includeAuthToken?: boolean    // uses dynamic retrieval when configured
+api.request({
+  endpoint: string, // e.g. "/v1/users"
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  requestBody: any, // JSON-serializable body for non-GET
+  queryParams: Record<string, string>,
+  includeAuthToken: boolean, // uses dynamic retrieval when configured
 });
 ```
 
@@ -35,7 +35,7 @@ Returns a JSON text payload including:
 
 ```typescript
 // GET with auth and query params
-await fetchLiveApiResponse({
+await api.request({
   endpoint: "/v1/users",
   method: "GET",
   queryParams: { page: "1" },
@@ -43,15 +43,14 @@ await fetchLiveApiResponse({
 });
 
 // POST without auth
-await fetchLiveApiResponse({
+await api.request({
   endpoint: "/v1/users",
   method: "POST",
-  requestBody: { name: "Jane" }
+  requestBody: { name: "Jane" },
 });
 ```
 
 ## Tips
 
-- Use `searchApiDocumentation` first to find the right path and request shape
-- If docs lack response schemas, validate with `fetchLiveApiResponse`
-
+- Use `api.searchEndpoints` first to find the right path and request shape
+- If docs lack response schemas, validate with `api.request`

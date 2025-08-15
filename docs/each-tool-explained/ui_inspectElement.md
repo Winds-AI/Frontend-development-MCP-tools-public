@@ -1,4 +1,4 @@
-# inspectSelectedElementCss Tool
+# ui.inspectElement Tool
 
 ## Overview
 
@@ -7,7 +7,7 @@ Retrieves comprehensive debugging information for the element currently selected
 ## Tool Signature
 
 ```typescript
-inspectSelectedElementCss();
+ui.inspectElement();
 ```
 
 No parameters.
@@ -42,13 +42,12 @@ Element: BUTTON#save.primary
 
 ## Workflow
 
-1) Take a screenshot with `captureBrowserScreenshot({ randomString: "any" })` (optional)
-2) Select the problematic element in DevTools
-3) Run `inspectSelectedElementCss()` and apply fixes based on suggestions
-4) Re-screenshot to verify
+1. Take a screenshot with `browser.screenshot({ randomString: "any" })` (optional)
+2. Select the problematic element in DevTools
+3. Run `ui.inspectElement()` and apply fixes based on suggestions
+4. Re-screenshot to verify
 
 ## Prerequisites
 
 - Chrome extension installed and connected
 - DevTools open, element selected in Elements panel
-

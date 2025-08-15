@@ -1,8 +1,8 @@
-# navigateBrowserTab Tool
+# browser.navigate Tool
 
 ## Overview
 
-The `navigateBrowserTab` tool navigates the current active browser tab to a new URL. It provides programmatic control over browser navigation for automated testing, navigation flows, and redirecting to specific pages.
+The `browser.navigate` tool navigates the current active browser tab to a new URL. It provides programmatic control over browser navigation for automated testing, navigation flows, and redirecting to specific pages.
 
 **Primary Use Cases:**
 
@@ -15,10 +15,11 @@ The `navigateBrowserTab` tool navigates the current active browser tab to a new 
 ## Tool Signature
 
 ```typescript
-navigateBrowserTab({
+browser.navigate({
   url: string, // The URL to navigate to (required)
 });
 ```
+
 Note: The tool description is augmented at startup to reference your routes file if `ROUTES_FILE_PATH` is set in the environment or project config.
 
 ## Parameters
@@ -68,7 +69,7 @@ Note: The tool description is augmented at startup to reference your routes file
 
 ```typescript
 // Navigate to a simple website
-await navigateBrowserTab({
+await browser.navigate({
   url: "https://google.com",
 });
 ```
@@ -77,7 +78,7 @@ await navigateBrowserTab({
 
 ```typescript
 // Navigate to a local development server
-await navigateBrowserTab({
+await browser.navigate({
   url: "http://localhost:3000/dashboard",
 });
 ```
@@ -86,7 +87,7 @@ await navigateBrowserTab({
 
 ```typescript
 // Navigate to an API documentation page
-await navigateBrowserTab({
+await browser.navigate({
   url: "https://api.example.com/docs",
 });
 ```
@@ -161,14 +162,14 @@ await navigateBrowserTab({ url: "https://production.example.com" });
 
 ```typescript
 try {
-  await navigateBrowserTab({ url: "https://example.com" });
+  await browser.navigate({ url: "https://example.com" });
 } catch (error) {
   // Handle navigation errors
   console.error("Navigation failed:", error);
 
   // Retry with different URL or wait and retry
   await new Promise((resolve) => setTimeout(resolve, 1000));
-  await navigateBrowserTab({ url: "https://fallback.example.com" });
+  await browser.navigate({ url: "https://fallback.example.com" });
 }
 ```
 
@@ -253,7 +254,7 @@ Always provide complete URLs with protocol:
 
 ```typescript
 // ✅ Good
-await navigateBrowserTab({ url: "https://example.com" });
+await browser.navigate({ url: "https://example.com" });
 
 // ❌ Bad
 await navigateBrowserTab({ url: "example.com" });
@@ -264,7 +265,7 @@ await navigateBrowserTab({ url: "example.com" });
 Implement proper error handling for navigation failures:
 
 ```typescript
-const result = await navigateBrowserTab({ url: "https://example.com" });
+const result = await browser.navigate({ url: "https://example.com" });
 if (result.isError) {
   // Handle navigation error
   console.error("Navigation failed:", result.content[0].text);
@@ -277,13 +278,13 @@ Consider page load times when chaining navigation calls:
 
 ```typescript
 // Navigate to first page
-await navigateBrowserTab({ url: "https://example.com/login" });
+await browser.navigate({ url: "https://example.com/login" });
 
 // Wait for page to load before next navigation
 await new Promise((resolve) => setTimeout(resolve, 2000));
 
 // Navigate to next page
-await navigateBrowserTab({ url: "https://example.com/dashboard" });
+await browser.navigate({ url: "https://example.com/dashboard" });
 ```
 
 ### 4. Environment-Specific URLs
@@ -292,7 +293,7 @@ Use environment variables for different environments:
 
 ```typescript
 const baseUrl = process.env.APP_URL || "http://localhost:3000";
-await navigateBrowserTab({ url: `${baseUrl}/dashboard` });
+await browser.navigate({ url: `${baseUrl}/dashboard` });
 ```
 
 ## Integration with Other Tools
@@ -301,16 +302,16 @@ await navigateBrowserTab({ url: `${baseUrl}/dashboard` });
 
 ```typescript
 // Navigate to page and capture screenshot
-await navigateBrowserTab({ url: "https://example.com/dashboard" });
-await captureBrowserScreenshot({ randomString: "dashboard-page" });
+await browser.navigate({ url: "https://example.com/dashboard" });
+await browser.screenshot({ randomString: "dashboard-page" });
 ```
 
 ### Combined with Network Inspection
 
 ```typescript
 // Navigate to page and inspect network entity
-await navigateBrowserTab({ url: "https://api.example.com/users" });
-await inspectBrowserNetworkActivity({
+await browser.navigate({ url: "https://api.example.com/users" });
+await browser.network.inspect({
   urlFilter: "users",
   details: ["url", "method", "status"],
 });

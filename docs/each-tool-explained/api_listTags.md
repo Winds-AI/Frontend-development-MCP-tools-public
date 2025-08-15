@@ -1,8 +1,8 @@
-# Tool: listApiTags
+# Tool: api.listTags
 
 ## What does this tool do?
 
-`listApiTags` scans the configured Swagger/OpenAPI document and returns a list of all tags with a count of how many operations (endpoints) are associated with each tag.
+`api.listTags` scans the configured Swagger/OpenAPI document and returns a list of all tags with a count of how many operations (endpoints) are associated with each tag.
 
 ---
 
@@ -43,7 +43,7 @@ This tool takes no parameters.
 ## Example Use Cases
 
 - Quickly understand domain grouping of APIs before deeper exploration.
-- Pair with `searchApiDocumentation` using the returned tag:
+- Pair with `api.searchEndpoints` using the returned tag:
 
 ```json
 {
