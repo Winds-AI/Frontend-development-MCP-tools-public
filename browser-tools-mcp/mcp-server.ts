@@ -36,36 +36,19 @@ interface ProjectsConfig {
 // Load project configuration
 function loadProjectConfig(): ProjectsConfig | null {
   try {
-    const possiblePaths = [
-      path.join(__dirname, "..", "chrome-extension", "projects.json"),
-      path.join(__dirname, "..", "..", "chrome-extension", "projects.json"),
-      path.join(
-        __dirname,
-        "..",
-        "..",
-        "..",
-        "chrome-extension",
-        "projects.json"
-      ),
-      path.resolve(process.cwd(), "chrome-extension", "projects.json"),
-    ];
-
-    for (const configPath of possiblePaths) {
-      console.log(`[DEBUG] Trying to load projects.json from: ${configPath}`);
-      if (fs.existsSync(configPath)) {
-        const configData = fs.readFileSync(configPath, "utf8");
-        console.log(
-          `[DEBUG] Successfully loaded projects.json from: ${configPath}`
-        );
-        return JSON.parse(configData);
-      }
+    const rootPath = path.resolve(process.cwd(), "projects.json");
+    if (!fs.existsSync(rootPath)) {
+      console.error(
+        "projects.json not found at project root. Open the Setup UI to create and save it."
+      );
+      return null;
     }
-
-    console.log(`[DEBUG] projects.json not found in any of the tried paths`);
+    const configData = fs.readFileSync(rootPath, "utf8");
+    return JSON.parse(configData);
   } catch (error) {
     console.error("Error loading projects config:", error);
+    return null;
   }
-  return null;
 }
 
 // Get configuration value with fallback priority:

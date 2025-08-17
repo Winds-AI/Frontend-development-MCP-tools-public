@@ -327,21 +327,13 @@ let hasLoggedProjectsConfig: boolean = false;
  * 3) Packaged fallback relative to this module (node_modules/...)
  */
 function resolveProjectsJsonPath(): string {
-  const envPath = process.env.AFBT_PROJECTS_JSON;
-  if (envPath && fs.existsSync(envPath)) return envPath;
-
-  const cwdPath = path.join(process.cwd(), "chrome-extension", "projects.json");
-  if (fs.existsSync(cwdPath)) return cwdPath;
-
-  // Packaged fallback (current behavior)
-  return path.join(
-    __dirname,
-    "..",
-    "..",
-    "..",
-    "chrome-extension",
-    "projects.json"
-  );
+  const rootPath = path.join(process.cwd(), "projects.json");
+  if (!fs.existsSync(rootPath)) {
+    throw new Error(
+      "projects.json not found at project root. Open the Setup UI to create and save it."
+    );
+  }
+  return rootPath;
 }
 
 export function loadProjectConfig(): ProjectsConfig | null {

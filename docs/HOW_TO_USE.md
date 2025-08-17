@@ -31,9 +31,10 @@ Use `searchApiDocumentation` to identify endpoints and request/response shapes. 
    The tool:
 
    - Builds the full URL using `API_BASE_URL`
- - If `includeAuthToken` is true, token is retrieved dynamically from browser storage via extension using `AUTH_STORAGE_TYPE` (`localStorage`|`sessionStorage`|`cookies`), `AUTH_TOKEN_KEY`, and optional `AUTH_ORIGIN`. Token is cached per project; expiration inferred from `API_AUTH_TOKEN_TTL_SECONDS` or JWT `exp`.
- - Tip: use `requiresAuth` from `searchApiDocumentation` results to decide whether to set `includeAuthToken`.
-   - Returns structured response details (status, headers, timing) and parsed data
+
+- If `includeAuthToken` is true, token is retrieved dynamically from browser storage via extension using `AUTH_STORAGE_TYPE` (`localStorage`|`sessionStorage`|`cookies`), `AUTH_TOKEN_KEY`, and optional `AUTH_ORIGIN`. Token is cached per project; expiration inferred from `API_AUTH_TOKEN_TTL_SECONDS` or JWT `exp`.
+- Tip: use `requiresAuth` from `searchApiDocumentation` results to decide whether to set `includeAuthToken`.
+  - Returns structured response details (status, headers, timing) and parsed data
 
 2. **Development & Integration**
    Based on real API responses, the agent can:
@@ -58,6 +59,7 @@ Use `searchApiDocumentation` to identify endpoints and request/response shapes. 
 - Use `navigateBrowserTab` for multi-step workflows
 - Combine with `captureBrowserScreenshot` for visual checks
 - Example:
+
   ```
   1. navigateBrowserTab({ url: "https://app.example.com/login" })
   2. captureBrowserScreenshot({ randomString: "any" })
@@ -65,7 +67,7 @@ Use `searchApiDocumentation` to identify endpoints and request/response shapes. 
   4. captureBrowserScreenshot({ randomString: "any" })
   ```
 
-- For environment/config setup, see `docs/SETUP_GUIDE.md`. For architecture and features, see `docs/PROJECT_OVERVIEW.md`.
+- For environment/config setup, see `docs/SETUP_GUIDE.md` (root `projects.json`, `browser-tools-server/.env`, Setup UI tabs). For architecture and features, see `docs/PROJECT_OVERVIEW.md`.
 
 ### End-to-end Example (API + UI)
 

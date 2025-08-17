@@ -111,7 +111,7 @@ flowchart TB
 - **Role**: Browser integration layer
 - **Function**: Real-time data capture, screenshot execution, DevTools integration
 - **Key Features**: Fast reconnection, exponential backoff, streamlined discovery
-- **UI**: DevTools panel with connection monitoring and manual controls
+- **UI**: DevTools panel with connection monitoring and manual controls (embedding management moved to Setup UI)
 
 ---
 
@@ -145,13 +145,13 @@ Real-time connection status at `/connection-health`:
 
 - Chrome extension installed and DevTools open on the inspected tab
 - Browser Tools Server running and discoverable (defaults to port 3025)
-- Project configuration in `chrome-extension/projects.json` (see cheat sheet below)
+- Project configuration in root `projects.json` and env in `browser-tools-server/.env`
 
 ---
 
 ## 🧭 Multi‑Project Selection
 
-- Resolution order: request header `X-ACTIVE-PROJECT` → `ACTIVE_PROJECT` env (MCP) → `defaultProject` in `chrome-extension/projects.json`.
+- Resolution order: request header `X-ACTIVE-PROJECT` → `ACTIVE_PROJECT` env (MCP) → `defaultProject` in root `projects.json`.
 - Each project has its own embedding index at `.vectra/<project>` and API doc source.
 
 ---

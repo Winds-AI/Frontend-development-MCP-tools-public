@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /*
   Autonomous Frontend Browser Tools — Setup (afbt-setup)
-  - Minimal local web UI to create/update chrome-extension/projects.json
+  - Minimal local web UI to edit/save projects.json at project root and .env in browser-tools-server/
   - Opens in Chrome automatically when possible
   - Exits when user clicks "Finish & Close"
 */
@@ -24,7 +24,8 @@ const PORT = process.env.AFBT_SETUP_PORT
 const repoRoot = process.cwd();
 const packageRoot = path.resolve(__dirname, "..");
 const extensionDir = path.join(repoRoot, "chrome-extension");
-const projectsJsonPath = path.join(extensionDir, "projects.json");
+// Root-level projects.json (single source of truth)
+const projectsJsonPath = path.join(repoRoot, "projects.json");
 const serverDir = path.join(repoRoot, "browser-tools-server");
 const distEntry = path.join(serverDir, "dist", "browser-connector.js");
 const afbtDir = path.join(repoRoot, ".afbt");
@@ -59,48 +60,9 @@ function resolveConnectorEntry() {
   return distEntry;
 }
 
+// No server-side skeleton creation anymore; UI shows a template client-side
 function ensureProjectsJsonExists() {
-  if (!fs.existsSync(extensionDir)) {
-    fs.mkdirSync(extensionDir, { recursive: true });
-  }
-  if (!fs.existsSync(projectsJsonPath)) {
-    // Create a mock template for first-time users; real values will be added via the UI.
-    const skeleton = {
-      projects: {
-        "my-frontend": {
-          config: {
-            SWAGGER_URL: "https://api.example.com/openapi.json",
-            API_BASE_URL: "https://api.example.com",
-            AUTH_STORAGE_TYPE: "localStorage",
-            AUTH_TOKEN_KEY: "access_token",
-            AUTH_ORIGIN: "http://localhost:5173",
-            API_AUTH_TOKEN_TTL_SECONDS: 3300,
-            PROJECT_ROOT: "/absolute/path/to/project/root",
-            ROUTES_FILE_PATH: "src/routes/paths.ts",
-          },
-        },
-        "another-frontend": {
-          config: {
-            SWAGGER_URL: "https://api.example.com/openapi.json",
-            API_BASE_URL: "https://api.example.com",
-            AUTH_STORAGE_TYPE: "cookies",
-            AUTH_TOKEN_KEY: "auth_token",
-            AUTH_ORIGIN: "http://localhost:5173",
-            API_AUTH_TOKEN_TTL_SECONDS: 1800,
-            PROJECT_ROOT: "/absolute/path/to/another/root",
-            ROUTES_FILE_PATH: "src/routes/paths.ts",
-          },
-        },
-      },
-      defaultProject: "my-frontend",
-      DEFAULT_SCREENSHOT_STORAGE_PATH: path.join(
-        require("os").homedir(),
-        "Downloads",
-        "MCP_Screenshots"
-      ),
-    };
-    fs.writeFileSync(projectsJsonPath, JSON.stringify(skeleton, null, 2));
-  }
+  // Intentionally no-op; existence is optional until user saves from UI
 }
 
 function copyExtensionAssetsIfMissing() {
@@ -127,45 +89,37 @@ function copyExtensionAssetsIfMissing() {
       }
     } catch {}
 
-    // Copy when: extension missing, or packaged version differs from local recorded version
+    // Detect local dev: if embedded extension dir is same as extensionDir, skip copying entirely
+    const isLocalDev =
+      path.resolve(embeddedExtensionDir) === path.resolve(extensionDir);
+
+    // Copy when: (not local dev) and (extension missing, or packaged version differs)
     const needsCopy =
+      !isLocalDev &&
       (!fs.existsSync(manifestPath) || localVersion !== pkgVersion) &&
       fs.existsSync(embeddedExtensionDir);
 
     if (needsCopy) {
-      // Backup existing extension if present
-      if (fs.existsSync(extensionDir)) {
-        try {
-          const backupsDir = path.join(afbtDir, "extension-backups");
-          if (!fs.existsSync(backupsDir))
-            fs.mkdirSync(backupsDir, { recursive: true });
-          const backupPath = path.join(
-            backupsDir,
-            `chrome-extension-backup-${Date.now()}`
-          );
-          fs.cpSync(extensionDir, backupPath, { recursive: true });
-          console.log("Backed up existing chrome-extension to:", backupPath);
-          fs.rmSync(extensionDir, { recursive: true, force: true });
-        } catch (e) {
-          console.warn(
-            "Warning: could not backup/remove existing chrome-extension:",
-            e?.message || e
-          );
-        }
-      }
-
-      fs.cpSync(embeddedExtensionDir, extensionDir, { recursive: true });
-      console.log("Copied chrome-extension assets to:", extensionDir);
+      // Overlay copy, skipping projects.json; no backups
+      fs.cpSync(embeddedExtensionDir, extensionDir, {
+        recursive: true,
+        filter: (src) => !src.endsWith(path.sep + "projects.json"),
+      });
+      console.log("Updated chrome-extension assets at:", extensionDir);
       try {
         if (!fs.existsSync(afbtDir)) fs.mkdirSync(afbtDir, { recursive: true });
         fs.writeFileSync(versionMarker, String(pkgVersion || "0.0.0"));
       } catch {}
     } else {
-      console.log(
-        "Chrome extension assets up-to-date (package=%s, local=%s). Skipping copy.",
-        pkgVersion,
-        localVersion || "unknown"
-      );
+      if (isLocalDev) {
+        console.log("Local dev mode: skipping extension copy.");
+      } else {
+        console.log(
+          "Chrome extension assets up-to-date (package=%s, local=%s). Skipping copy.",
+          pkgVersion,
+          localVersion || "unknown"
+        );
+      }
     }
   } catch (e) {
     console.warn("Could not copy chrome-extension assets:", e?.message || e);
@@ -240,21 +194,7 @@ function serveHtml(res) {
   const AFBT_LAUNCHED_BY_MAIN = ${launchedByMain ? "true" : "false"};
   let activeTab = 'configure';
   let DOCS_FILES = [];
-  const DEFAULT_PROJECTS_SKELETON = JSON.stringify({
-    projects: {
-      "my-frontend": {
-        config: {
-          SWAGGER_URL: "https://api.example.com/openapi.json",
-          API_BASE_URL: "https://api.example.com",
-          AUTH_STORAGE_TYPE: "localStorage",
-          AUTH_TOKEN_KEY: "access_token",
-          AUTH_ORIGIN: "http://localhost:5173",
-          API_AUTH_TOKEN_TTL_SECONDS: 3300
-        }
-      }
-    },
-    defaultProject: "my-frontend"
-  }, null, 2);
+  let __serverInfoCache = null;
   async function loadConfig() {
     try {
       const res = await fetch('/config');
@@ -264,8 +204,8 @@ function serveHtml(res) {
       setStatus('Loaded current configuration.', 'success');
     } catch {
       const el = document.getElementById('projects');
-      if (el) el.value = DEFAULT_PROJECTS_SKELETON;
-      setStatus('No existing config found. Loaded starter template.', 'warn');
+      if (el) el.value = '';
+      setStatus('No projects.json found. Open the Examples tab to copy a template, then paste here and Save.', 'warn');
     }
     await reloadEnv();
   }
@@ -286,6 +226,112 @@ function serveHtml(res) {
     if (tab === 'docs') loadDocs();
     if (tab === 'overview') refreshInfo();
     if (tab === 'env') reloadEnv();
+    if (tab === 'embed') loadEmbeddingsUi();
+  }
+  async function getServerBaseUrl() {
+    if (!__serverInfoCache) {
+      try {
+        const res = await fetch('/server/info');
+        __serverInfoCache = await res.json();
+      } catch {}
+    }
+    const p = __serverInfoCache && __serverInfoCache.port;
+    return p ? 'http://127.0.0.1:' + p : null;
+  }
+  function getProjectsFromEditor() {
+    try {
+      const txt = document.getElementById('projects')?.value || '{}';
+      const j = JSON.parse(txt);
+      return Object.keys(j.projects || {});
+    } catch { return []; }
+  }
+  async function loadEmbeddingsUi() {
+    try {
+      const listEl = document.getElementById('embed-projects-list-ui');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+      const projects = getProjectsFromEditor();
+      const base = await getServerBaseUrl();
+      projects.forEach((name) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid #2a2a2a;';
+        const left = document.createElement('div');
+        left.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+        const title = document.createElement('div');
+        title.textContent = name;
+        title.style.fontWeight = '600';
+        const status = document.createElement('div');
+        status.id = 'embed-status-ui-' + name;
+        status.textContent = base ? 'Checking...' : 'Server not detected';
+        status.style.fontSize = '12px';
+        status.style.color = '#ccc';
+        left.appendChild(title);
+        left.appendChild(status);
+        const actions = document.createElement('div');
+        const refreshBtn = document.createElement('button');
+        refreshBtn.className = 'action-button';
+        refreshBtn.textContent = 'Refresh';
+        refreshBtn.onclick = () => refreshProjectStatusUi(name);
+        const reindexBtn = document.createElement('button');
+        reindexBtn.className = 'action-button';
+        reindexBtn.textContent = 'Reindex';
+        reindexBtn.onclick = () => reindexProjectUi(name, reindexBtn);
+        actions.appendChild(refreshBtn);
+        actions.appendChild(reindexBtn);
+        row.appendChild(left);
+        row.appendChild(actions);
+        listEl.appendChild(row);
+        if (base) refreshProjectStatusUi(name);
+      });
+    } catch {}
+  }
+  async function refreshProjectStatusUi(project) {
+    const base = await getServerBaseUrl();
+    const el = document.getElementById('embed-status-ui-' + project);
+    if (!base) { if (el) el.textContent = 'Server not detected'; return; }
+    try {
+      if (el) el.textContent = 'Checking...';
+      const resp = await fetch(base + '/api/embed/status?project=' + encodeURIComponent(project));
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (data && data.exists && data.meta) {
+        const m = data.meta;
+        const built = m.builtAt ? new Date(m.builtAt).toLocaleString() : 'unknown';
+        if (el) el.textContent = 'Built: ' + built + ' • Vectors: ' + m.vectorCount + ' • Model: ' + m.model;
+      } else {
+        if (el) el.textContent = 'Index not built. Click Reindex.';
+      }
+    } catch (e) {
+      if (el) el.textContent = 'Status check failed: ' + (e.message || e);
+    }
+  }
+  async function reindexProjectUi(project, buttonEl) {
+    const base = await getServerBaseUrl();
+    const el = document.getElementById('embed-status-ui-' + project);
+    if (!base) { if (el) el.textContent = 'Server not detected'; return; }
+    const original = buttonEl ? buttonEl.textContent : null;
+    if (buttonEl) { buttonEl.disabled = true; buttonEl.textContent = 'Rebuilding...'; }
+    if (el) el.textContent = 'Rebuilding...';
+    try {
+      const resp = await fetch(base + '/api/embed/reindex', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project })
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      if (data && data.meta) {
+        const m = data.meta;
+        const built = m.builtAt ? new Date(m.builtAt).toLocaleString() : 'unknown';
+        if (el) el.textContent = 'Completed • Built: ' + built + ' • Vectors: ' + m.vectorCount + ' • Model: ' + m.model;
+      } else {
+        if (el) el.textContent = 'Rebuild complete, but no metadata returned';
+      }
+    } catch (e) {
+      if (el) el.textContent = 'Rebuild failed: ' + (e.message || e);
+    } finally {
+      if (buttonEl) { buttonEl.disabled = false; buttonEl.textContent = original || 'Reindex'; }
+    }
   }
   function validateProjectsJson(text) {
     try {
@@ -407,6 +453,16 @@ function serveHtml(res) {
     renderDocsList('');
     listEl.dataset.loaded = '1';
   }
+  function copyFromElement(id) {
+    try {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const text = el.innerText || el.textContent || '';
+      navigator.clipboard.writeText(text);
+      setStatus('Copied to clipboard.', 'success');
+      setTimeout(() => setStatus('', ''), 1200);
+    } catch (e) { setStatus('Copy failed: ' + (e.message || e), 'error'); }
+  }
   function renderDocsList(query) {
     const listEl = document.getElementById('docs-items');
     const q = (query || '').toLowerCase();
@@ -515,6 +571,8 @@ function serveHtml(res) {
     <nav>
       <button id="tab-configure" onclick="showTab('configure')">Configure</button>
       <button id="tab-env" onclick="showTab('env')">Environment</button>
+      <button id="tab-examples" onclick="showTab('examples')">Examples</button>
+      <button id="tab-embed" onclick="showTab('embed')">Embeddings</button>
       <button id="tab-docs" onclick="showTab('docs')">Docs</button>
     </nav>
     <div class="top-actions">
@@ -614,7 +672,7 @@ function serveHtml(res) {
             <button onclick="finish()">Finish & Close</button>
           </div>
           <div id="status" class="hint"></div>
-          <div class="hint">Path: chrome-extension/projects.json</div>
+          <div class="hint">Path: projects.json (project root)</div>
           <div class="hint" style="margin-top:12px">
             Run this UI directly with <code>pnpm run setup:ui</code> or implicitly via <code>pnpm run setup</code> (which also builds and starts the server).
           </div>
@@ -631,7 +689,7 @@ function serveHtml(res) {
               <li><b>OPENAI_API_KEY</b> (+ optional <code>OPENAI_EMBED_MODEL</code>)</li>
               <li><b>GEMINI_API_KEY</b> (+ optional <code>GEMINI_EMBED_MODEL</code>)</li>
             </ul>
-            If you change provider/model, you may need to reindex from the DevTools panel.
+            If you change provider/model, reindex from the Embeddings tab.
           </div>
           <div class="hint" style="margin-top:8px">Common keys:
             <ul>
@@ -648,6 +706,72 @@ function serveHtml(res) {
           </div>
           <div id="envStatus" class="hint"></div>
           <div class="hint small">Path: <span id="envPathHint">.env</span></div>
+        </div>
+      </div>
+    </section>
+    <section id="section-examples" class="section" style="display:none">
+      <div class="split">
+        <div class="left">
+          <h3 style="margin:4px 0 8px 0">Reference Examples</h3>
+          <div class="hint">Use these as a guide when editing your config in the Configure/Environment tabs.</div>
+        </div>
+        <div class="right">
+          <h4 style="margin-top:0">projects.json example (two projects)</h4>
+          <pre id="example-projects-json" style="white-space: pre; user-select:text;">
+{
+  "projects": {
+    "my-frontend": {
+      "config": {
+        "SWAGGER_URL": "https://api.example.com/openapi.json",
+        "API_BASE_URL": "https://api.example.com",
+        "AUTH_STORAGE_TYPE": "localStorage",
+        "AUTH_TOKEN_KEY": "access_token",
+        "AUTH_ORIGIN": "http://localhost:5173",
+        "API_AUTH_TOKEN_TTL_SECONDS": 3300
+      }
+    },
+    "another-frontend": {
+      "config": {
+        "SWAGGER_URL": "https://staging.example.com/openapi.json",
+        "API_BASE_URL": "https://staging.example.com",
+        "AUTH_STORAGE_TYPE": "cookies",
+        "AUTH_TOKEN_KEY": "auth_token",
+        "AUTH_ORIGIN": "https://staging.example.com",
+        "API_AUTH_TOKEN_TTL_SECONDS": 1800
+      }
+    }
+  },
+  "defaultProject": "my-frontend",
+  "DEFAULT_SCREENSHOT_STORAGE_PATH": "/absolute/path/to/screenshots/root"
+}
+          </pre>
+          <div class="actions"><button onclick="copyFromElement('example-projects-json')">Copy projects.json example</button></div>
+
+          <h4>.env example</h4>
+          <pre id="example-env" style="white-space: pre; user-select:text;">
+# Embedding provider keys (choose one)
+OPENAI_API_KEY=
+# OPENAI_EMBED_MODEL=text-embedding-3-large
+# or
+GEMINI_API_KEY=
+# GEMINI_EMBED_MODEL=text-embedding-004
+
+# Optional logging
+LOG_LEVEL=info
+          </pre>
+          <div class="actions"><button onclick="copyFromElement('example-env')">Copy .env example</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="section-embed" class="section" style="display:none">
+      <div class="split">
+        <div class="left" id="embed-guide">
+          <h3 style="margin:4px 0 8px 0">Embeddings</h3>
+          <div class="hint small">Status and reindex are per project. The server must be running.</div>
+        </div>
+        <div class="right">
+          <div id="embed-projects-list-ui"></div>
         </div>
       </div>
     </section>
@@ -689,7 +813,6 @@ function startUiServer() {
       }
       if (req.method === "GET" && req.url === "/config") {
         try {
-          ensureProjectsJsonExists();
           const json = JSON.parse(fs.readFileSync(projectsJsonPath, "utf8"));
           return sendJson(res, json);
         } catch (e) {
@@ -707,10 +830,8 @@ function startUiServer() {
           "# Optional: override connector defaults",
           "# LOG_LEVEL=info",
         ].join("\n");
-        let selectedPath = envPath;
-        if (!fs.existsSync(envPath) && fs.existsSync(serverEnvPath)) {
-          selectedPath = serverEnvPath;
-        }
+        // Always prefer browser-tools-server/.env per new spec
+        let selectedPath = serverEnvPath;
         let content = template;
         try {
           if (fs.existsSync(selectedPath))
@@ -724,23 +845,17 @@ function startUiServer() {
         req.on("end", () => {
           try {
             let text = "";
-            let targetPath = envPath;
+            // Always write to browser-tools-server/.env per new spec
+            let targetPath = serverEnvPath;
             try {
               const parsed = JSON.parse(data || "{}");
               text = typeof parsed.content === "string" ? parsed.content : "";
-              if (parsed.path && typeof parsed.path === "string")
-                targetPath = parsed.path;
             } catch {
               text = data || ""; // accept raw text
             }
-            // If neither file exists, prefer top-level; else write to whichever path was used to load
-            if (
-              !fs.existsSync(targetPath) &&
-              fs.existsSync(serverEnvPath) &&
-              !fs.existsSync(envPath)
-            ) {
-              targetPath = serverEnvPath;
-            }
+            // Ensure parent dir exists
+            const dir = path.dirname(targetPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             fs.writeFileSync(targetPath, text);
             return sendJson(res, { status: "ok" });
           } catch (e) {
@@ -767,10 +882,6 @@ function startUiServer() {
               typeof parsed.defaultProject !== "string"
             ) {
               throw new Error("'defaultProject' must be a string if provided");
-            }
-            // Ensure target directory exists
-            if (!fs.existsSync(extensionDir)) {
-              fs.mkdirSync(extensionDir, { recursive: true });
             }
             fs.writeFileSync(projectsJsonPath, JSON.stringify(parsed, null, 2));
             return sendJson(res, { status: "ok" });
