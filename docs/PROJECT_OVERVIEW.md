@@ -202,7 +202,7 @@ Notes:
   - `SWAGGER_URL` (required for API search/tag tools)
   - `API_BASE_URL` (required for live API calls)
   - `AUTH_STORAGE_TYPE` + `AUTH_TOKEN_KEY` (and optional `AUTH_ORIGIN`) for dynamic auth
-  - `requiresAuth` in search results indicates whether to set includeAuthToken
+  - `API_AUTH_TOKEN_TTL_SECONDS` (optional token cache TTL)
   - `ROUTES_FILE_PATH` (optional; referenced in navigation tool description)
   - Optional: `BROWSER_TOOLS_HOST`, `BROWSER_TOOLS_PORT`
 - Global: `DEFAULT_SCREENSHOT_STORAGE_PATH` (base screenshot directory)

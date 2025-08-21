@@ -39,7 +39,7 @@ pnpm run setup
 
 - `projects.json` (single source of truth): stored at project root.
   - Required fields per project (examples shown in UI Examples tab):
-    - `SWAGGER_URL`, `API_BASE_URL`, `AUTH_STORAGE_TYPE`, `AUTH_TOKEN_KEY`, optional `AUTH_ORIGIN`, optional `API_AUTH_TOKEN_TTL_SECONDS`.
+    - `SWAGGER_URL`, `API_BASE_URL`, `AUTH_STORAGE_TYPE`, `AUTH_TOKEN_KEY`, optional `AUTH_ORIGIN`, optional `API_AUTH_TOKEN_TTL_SECONDS`, optional `ROUTES_FILE_PATH`.
   - Optional global: `DEFAULT_SCREENSHOT_STORAGE_PATH`.
 - `.env`: stored at `browser-tools-server/.env`.
   - Embedding provider keys: `OPENAI_API_KEY` (and optional `OPENAI_EMBED_MODEL`) or `GEMINI_API_KEY` (and optional `GEMINI_EMBED_MODEL`).

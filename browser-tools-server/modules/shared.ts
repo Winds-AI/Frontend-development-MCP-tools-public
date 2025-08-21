@@ -300,7 +300,7 @@ export interface ProjectConfig {
   SCREENSHOT_STORAGE_PATH?: string;
   BROWSER_TOOLS_HOST?: string;
   BROWSER_TOOLS_PORT?: string;
-  PROJECT_ROOT?: string;
+  ROUTES_FILE_PATH?: string;
 }
 
 export interface Project {
