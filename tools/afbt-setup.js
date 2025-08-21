@@ -5,6 +5,16 @@
   - Opens in Chrome automatically when possible
   - Exits when user clicks "Finish & Close"
 */
+// Enforce Node.js runtime requirement early (undici File/Blob/FormData require Node >= 20)
+try {
+  const major = Number((process.versions.node || "0").split(".")[0]);
+  if (!Number.isNaN(major) && major < 20) {
+    console.error(
+      `\n@winds-ai/autonomous-frontend-browser-tools requires Node.js >= 20.\nDetected ${process.version}.\n\nPlease upgrade Node and re-run, for example:\n  - nvm install 20 && nvm use 20\n  - or install Node 20/22 LTS from nodejs.org\n\nThen run: npx @winds-ai/autonomous-frontend-browser-tools\n`
+    );
+    process.exit(1);
+  }
+} catch (_) {}
 
 const http = require("http");
 const fs = require("fs");
