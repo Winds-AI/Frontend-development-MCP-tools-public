@@ -196,7 +196,7 @@ Notes:
 
 ---
 
-## 🗂️ Configuration Cheat Sheet (`chrome-extension/projects.json`)
+## 🗂️ Configuration Cheat Sheet (`projects.json` at project root)
 
 - Per‑project `config`:
   - `SWAGGER_URL` (required for API search/tag tools)

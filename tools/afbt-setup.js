@@ -29,11 +29,9 @@ const projectsJsonPath = path.join(repoRoot, "projects.json");
 const serverDir = path.join(repoRoot, "browser-tools-server");
 const distEntry = path.join(serverDir, "dist", "browser-connector.js");
 const afbtDir = path.join(repoRoot, ".afbt");
-const pidPath = path.join(afbtDir, "connector.pid");
 const embeddedExtensionDir = path.join(packageRoot, "chrome-extension");
 const embeddedDocsDir = path.join(packageRoot, "docs");
 const embeddedReadme = path.join(packageRoot, "README.md");
-const envPath = path.join(repoRoot, ".env");
 const serverEnvPath = path.join(serverDir, ".env");
 
 function ensureAfbtDir() {
@@ -49,14 +47,7 @@ function resolveConnectorEntry() {
     "browser-connector.js"
   );
   if (fs.existsSync(embedded)) return embedded;
-  // 2) Try resolving from node_modules if the package is installed under a name
-  try {
-    const nm = require.resolve(
-      "afbt/browser-tools-server/dist/browser-connector.js"
-    );
-    return nm;
-  } catch (_) {}
-  // 3) Fallback to local working directory (dev) path
+  // 2) Fallback to local working directory (dev) path
   return distEntry;
 }
 
@@ -100,11 +91,10 @@ function copyExtensionAssetsIfMissing() {
       fs.existsSync(embeddedExtensionDir);
 
     if (needsCopy) {
-      // Overlay copy, skipping projects.json; no backups
-      fs.cpSync(embeddedExtensionDir, extensionDir, {
-        recursive: true,
-        filter: (src) => !src.endsWith(path.sep + "projects.json"),
-      });
+      // Replace extension assets (no backups). Ensure any old content is overwritten.
+      fs.cpSync(embeddedExtensionDir, extensionDir, { recursive: true });
+      // Ensure no projects.json remains in chrome-extension (config now lives at project root)
+      try { fs.unlinkSync(path.join(extensionDir, "projects.json")); } catch {}
       console.log("Updated chrome-extension assets at:", extensionDir);
       try {
         if (!fs.existsSync(afbtDir)) fs.mkdirSync(afbtDir, { recursive: true });
@@ -404,16 +394,10 @@ function serveHtml(res) {
 
       if (info.running) {
         el.innerHTML = 'Running <span class="badge ok">PID ' + (info.pid || 'unknown') + '</span> <span class="badge">port ' + (info.port || '?') + '</span>';
-        managedNote.textContent = AFBT_LAUNCHED_BY_MAIN
-          ? 'Managed by main process (npx).'
-          : (info.startedByUi
-              ? 'Managed by this setup UI (PID ' + info.pid + ').'
-              : 'Managed externally.');
+        managedNote.textContent = 'Managed externally or by main process.';
       } else {
         el.textContent = AFBT_LAUNCHED_BY_MAIN ? 'Detecting...' : 'Stopped';
-        managedNote.textContent = AFBT_LAUNCHED_BY_MAIN
-          ? 'This UI is auxiliary. Server is started by main process; please wait while it comes online.'
-          : 'Not running.';
+        managedNote.textContent = 'Not running.';
       }
     } catch {}
   }
@@ -891,18 +875,7 @@ function startUiServer() {
         });
         return;
       }
-      if (req.method === "POST" && req.url === "/server/start") {
-        startConnectorChild()
-          .then((started) => sendJson(res, { started }))
-          .catch((e) => sendJson(res, { error: e.message }, 500));
-        return;
-      }
-      if (req.method === "POST" && req.url === "/server/stop") {
-        stopConnectorChild()
-          .then((stopped) => sendJson(res, { stopped }))
-          .catch((e) => sendJson(res, { error: e.message }, 500));
-        return;
-      }
+      // Removed /server/start and /server/stop endpoints
       if (req.method === "GET" && req.url === "/server/info") {
         getConnectorInfo().then((info) => sendJson(res, info));
         return;
@@ -964,16 +937,6 @@ function startUiServer() {
 // Connector child process utils
 // =============================
 
-function isRunning(pid) {
-  if (!pid) return false;
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
 async function compileServerIfNeeded() {
   // Prefer resolved dependency entry; if present, nothing to build
   const entry = resolveConnectorEntry();
@@ -1005,19 +968,6 @@ function resolveEnvCwdForEntry(entry) {
 }
 
 async function startConnectorChild() {
-  ensureAfbtDir();
-  let existingPid = null;
-  if (fs.existsSync(pidPath)) {
-    try {
-      existingPid = parseInt(fs.readFileSync(pidPath, "utf8"), 10);
-    } catch {}
-  }
-  if (existingPid && isRunning(existingPid)) {
-    return false; // already running
-  }
-  try {
-    if (existingPid && !isRunning(existingPid)) fs.unlinkSync(pidPath);
-  } catch {}
   await compileServerIfNeeded();
   const entry = resolveConnectorEntry();
   const child = spawn(process.execPath, [entry], {
@@ -1027,26 +977,11 @@ async function startConnectorChild() {
     windowsHide: true,
   });
   child.unref();
-  fs.writeFileSync(pidPath, String(child.pid));
   return true;
 }
 
 async function stopConnectorChild() {
-  if (!fs.existsSync(pidPath)) return false;
-  const pid = parseInt(fs.readFileSync(pidPath, "utf8"), 10);
-  if (!pid || !isRunning(pid)) {
-    try {
-      fs.unlinkSync(pidPath);
-    } catch {}
-    return false;
-  }
-  try {
-    process.kill(pid);
-  } catch {}
-  try {
-    fs.unlinkSync(pidPath);
-  } catch {}
-  return true;
+  return false;
 }
 
 async function findConnectorPort() {
@@ -1065,17 +1000,9 @@ async function findConnectorPort() {
 }
 
 async function getConnectorInfo() {
-  let pid = null;
-  if (fs.existsSync(pidPath)) {
-    try {
-      pid = parseInt(fs.readFileSync(pidPath, "utf8"), 10);
-    } catch {}
-  }
-  const pidRunning = !!pid && isRunning(pid);
   const port = await findConnectorPort();
   const running = port !== null; // running if identity is reachable
-  const startedByUi = running && pidRunning;
-  return { running, pid: startedByUi ? pid : null, port, startedByUi };
+  return { running, pid: null, port, startedByUi: false };
 }
 
 function listDocs() {

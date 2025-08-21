@@ -26,12 +26,12 @@ Requires Node ≥ 20. Verify with `node -v`.
 
 - The Browser Connector runs in your terminal (logs remain there)
 - A Setup UI opens at `http://127.0.0.1:5055`
-- Configure `chrome-extension/projects.json` and `.env` (left column → Environment)
+- Configure `projects.json` at the project root and `.env` in `browser-tools-server/.env` via the Setup UI
 - Click "Save" then "Close" — the UI stops; the connector keeps running
 
 2) Load the Chrome extension (manual once)
 
-- Open `chrome://extensions` → Enable Developer mode → "Load unpacked" → select `chrome-extension/` (the folder is auto-copied on first run)
+- Open `chrome://extensions` → Enable Developer mode → "Load unpacked" → select `chrome-extension/` (npx overlays the packaged folder on updates; click Reload after updates)
 
 3) Configure your MCP client (Cursor example)
 
@@ -51,13 +51,13 @@ Requires Node ≥ 20. Verify with `node -v`.
 
 ### Environment variables
 
-- Preferred: set in `.env` from the Setup UI (Configure tab) or in your shell
+- Preferred: set in `.env` from the Setup UI (Environment tab) or in your shell
 - Keys/models supported:
   - `OPENAI_API_KEY` (+ optional `OPENAI_EMBED_MODEL`)
   - `GEMINI_API_KEY` (+ optional `GEMINI_EMBED_MODEL`)
 
 Notes:
-- `.env` and `chrome-extension/projects.json` are local-only; they are excluded from npm publish
+- `.env` (in `browser-tools-server/.env`) and root-level `projects.json` are local-only and excluded from npm publish
 - Health shows disconnected until DevTools is open on the inspected tab
 
 ## Motivation
