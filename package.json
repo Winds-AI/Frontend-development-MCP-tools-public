@@ -20,7 +20,7 @@
     "gemini"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "setup": "node setup.js",

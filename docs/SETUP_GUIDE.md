@@ -8,6 +8,13 @@
 npx @winds-ai/autonomous-frontend-browser-tools
 ```
 
+#### System requirements
+
+- Node.js 20+ (or 22 LTS) is required. On Node 18, the npx launcher fails with `ReferenceError: File is not defined` because the global `File` Web API is missing.
+- Chrome browser (for the DevTools extension).
+
+#### Setup steps
+
 - Connector starts; Setup UI opens at `http://127.0.0.1:5055`.
 - Load the Chrome extension once: `chrome://extensions` → Developer Mode → Load unpacked → select `chrome-extension/`.
 - In Setup UI:
@@ -16,6 +23,8 @@ npx @winds-ai/autonomous-frontend-browser-tools
   - Environment tab: paste/edit your `.env` (saved to `browser-tools-server/.env`).
   - Embeddings tab: check status / Reindex per project.
 - After updates via npx, click Reload on the extension in `chrome://extensions`.
+- Ensure `node -v` reports ≥ 20.x before running the command.
+- Click Save, then Close (UI stops; connector keeps running)
 
 ### 2) Local development
 
@@ -23,7 +32,7 @@ npx @winds-ai/autonomous-frontend-browser-tools
 pnpm run setup
 ```
 
-- Uses repo’s `chrome-extension/` as-is (no copy).
+- Uses repo's `chrome-extension/` as-is (no copy).
 - Opens the same Setup UI (Examples, Configure, Environment, Embeddings).
 
 ## 📁 Configuration
@@ -47,7 +56,7 @@ pnpm run setup
 
 - Identity: `GET /.identity` returns signature and version
 - Health: `GET /connection-health` shows heartbeat and connection details
-- If tools don’t respond, verify:
+- If tools don't respond, verify:
   - Server is running and extension is loaded (DevTools open on the tab)
   - Extension reloaded after npx updates
 

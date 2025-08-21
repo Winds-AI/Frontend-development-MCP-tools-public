@@ -103,6 +103,13 @@ The server will start after these instructions. The extension is required for fu
 
 // Main setup function
 async function main() {
+  const [major] = process.versions.node.split(".").map(Number);
+  if (Number.isFinite(major) && major < 20) {
+    log.error(
+      `Node ${process.versions.node} detected. Node 20+ is required. Please upgrade Node (e.g., via nvm: nvm install 20 && nvm use 20).`
+    );
+    process.exit(1);
+  }
   // Check for pnpm
   if (!(await checkPnpm())) {
     process.exit(1);

@@ -9,6 +9,11 @@
 - For understandig how each tool works `each-tool-explained` directory (Work In Progress).
 - For a single, skimmable overview and quick-reference of tools and workflows, see `docs/PROJECT_OVERVIEW.md`.
 
+## Prerequisites
+
+- Node.js 20+ (or 22 LTS) is required. Node 18 lacks the global `File` Web API used by `undici`, which will cause `ReferenceError: File is not defined` when launching via npx.
+- Recommended: pnpm (the setup script will install it if missing).
+
 ## Quickstart (npx)
 
 1) Start the connector + setup UI
@@ -16,6 +21,8 @@
 ```bash
 npx @winds-ai/autonomous-frontend-browser-tools
 ```
+
+Requires Node ≥ 20. Verify with `node -v`.
 
 - The Browser Connector runs in your terminal (logs remain there)
 - A Setup UI opens at `http://127.0.0.1:5055`
