@@ -1,0 +1,104 @@
+---
+alwaysApply: true
+---
+## MCP Tools — Behavior, Inputs, and Business Logic
+
+Use this as a quick reference for how tools work and where their logic lives. For end-user docs, also see:
+- [HOW_TO_USE.md](mdc:docs/HOW_TO_USE.md)
+- [each-tool-explained/](mdc:docs/each-tool-explained)
+- [PROJECT_OVERVIEW.md](mdc:docs/PROJECT_OVERVIEW.md)
+
+### Project configuration and scoping
+- Config source: [projects.json](mdc:chrome-extension/projects.json) with per-project `config`.
+- Env resolution: [shared.ts](mdc:browser-tools-server/modules/shared.ts) → `getConfigValue`, `getActiveProjectName`.
+- Active project selection order: header `X-ACTIVE-PROJECT` → `process.env.ACTIVE_PROJECT` → `defaultProject` in `projects.json`.
+- Per-project storage: indices in `.vectra/<project>` and cached Swagger per project.
+
+### api.searchEndpoints
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts) → server endpoint `/api/embed/search` → [semantic-index.ts](mdc:browser-tools-server/modules/semantic-index.ts)
+- Input: `{ query?: string, tag?: string, method?: 'GET'|'POST'|'PUT'|'PATCH'|'DELETE', limit?: number }`
+- Behavior: Semantic recall over Swagger (path, summary, tags) with method/tag filtering; minimal request/response hints are hydrated from Swagger.
+- Output: `[{ method, path, parameters?, requestBody?, successResponse? }]`
+- Project scoping: Uses header `X-ACTIVE-PROJECT` (or `active-project`) forwarded by MCP. Falls back to server env/default.
+- Notes: Server logs include query embedding timing.
+
+### api.listTags
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts)
+- Behavior: Loads Swagger for the active project and returns tag counts.
+- Project scoping: Resolved on MCP side via env `ACTIVE_PROJECT` or `defaultProject` from `projects.json`.
+
+### api.request
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts)
+- Input: `{ endpoint: string, method?: 'GET'|'POST'|'PUT'|'PATCH'|'DELETE', requestBody?: any, queryParams?: Record<string,string>, includeAuthToken?: boolean }`
+- Behavior: Builds URL from `API_BASE_URL`; if `includeAuthToken` is true, retrieves a token via the browser extension (`/retrieve-auth-token`), validates/caches it per project (TTL from `API_AUTH_TOKEN_TTL_SECONDS` or JWT exp), and adds `Authorization: Bearer <token>`.
+- Output: `{ data, details: { status, headers, timing, url, method } }`.
+- Project scoping: Config resolution on MCP side via env/config of the active project.
+
+### browser.screenshot
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts) (tool) → server [browser-connector.ts](mdc:browser-tools-server/browser-connector.ts) → [screenshot-service.ts](mdc:browser-tools-server/screenshot-service.ts)
+- Behavior: Extension captures screenshot via WS; server saves via service; returns image data and path context.
+- Project scoping: MCP includes project name; server uses project storage path from config.
+
+### browser.console.read / browser.network.inspect / ui.inspectElement
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts)
+- Behavior: Reads console logs and network activity from the server with rich filters. `ui.inspectElement` returns structured debug info for the element currently selected in DevTools Elements panel.
+
+### browser.navigate
+- Where: [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts) → server `/navigate-tab`
+- Behavior: Sends navigation over WS to the extension; returns success/failure.
+
+### Embeddings and indexing
+- Provider: OpenAI or Gemini; auto-selects by keys in env. Model can be overridden by env.
+- Index path: `.vectra/<project>/index` (created if missing).
+- Status + rebuild: `/api/embed/status`, `/api/embed/reindex`.
+- Source: [semantic-index.ts](mdc:browser-tools-server/modules/semantic-index.ts)
+
+### Logging
+- Global logger installed in [browser-connector.ts](mdc:browser-tools-server/browser-connector.ts) via [logger.ts](mdc:browser-tools-server/modules/logger.ts).
+- Tags: `[search]`, `[embed]`, `[index]`, `[info]`, `[warn]`, `[error]` (subtle colors).
+- Control noise with `LOG_LEVEL=error|warn|info|debug`.
+
+
+### Rubric-driven workflow (assistant enforcement)
+- Readiness:
+  - Create atomic tasks with the todo tool and keep only one `in_progress`.
+  - Discover scope using semantic search over the repo and exact-string search for symbols.
+  - Read relevant files before editing to verify context.
+- Design:
+  - Outline approach, data flow, and edge cases; prefer guard clauses and shallow control flow.
+  - If risk or ambiguity remains, pause and request inputs; do not proceed.
+- Implementation:
+  - Make edits via code-edit tools only; keep diffs minimal and localized.
+  - Follow code style: explicit names, early returns, avoid deep nesting, no silent catches.
+- External libraries:
+  - Resolve library ID and fetch official docs; if unresolved, fall back to a web search.
+  - Align API usage to docs and cite versions when relevant.
+- Quality gates:
+  - After edits, run lints on changed files and fix all issues before continuing.
+  - Validate error paths, empty/loading states, and input validation for public functions.
+- Cleanup:
+  - Replace old logic fully; search for dead references and remove unused imports/code.
+  - Update localized docs/comments near the changes.
+- Documentation & rules:
+  - Update relevant rule files in `.cursor/rules/` and user-facing docs in `docs/` to reflect new behavior, tool names, configs, and flows.
+  - Ensure cross-file consistency (names, endpoints, headers) and remove superseded instructions.
+- Review & traceability:
+  - Summarize intent, approach, impacted files, and risks; link key lines when explaining.
+  - Maintain a concise status update before and after tool batches.
+- Definition of Done:
+  - All todos complete; changed files lint-clean; build/tests green where applicable.
+  - Docs and `.cursor/rules/*` updated and consistent with code; old guidance removed.
+- Fail-stop:
+  - If any gate fails (missing info, failing lints/tests, unclear API), stop and request what is needed.
+
+### Tool quick-map for the rubric
+- **Scoping & discovery**: codebase semantic search; exact-string grep; targeted file reads.
+- **Docs**: resolve library ID → fetch docs; fallback to a web search.
+- **Editing**: apply focused edits only; avoid unrelated reformatting.
+- **Quality**: run lints on edited files; fix before proceeding.
+- **Cleanup**: repo-wide grep for unused references; remove code/imports safely.
+
+### Notes on active project resolution
+- `api.searchEndpoints` uses request header `X-ACTIVE-PROJECT` (or `active-project`).
+- Other tools (e.g., `api.request`, `api.listTags`, `browser.*`, `ui.*`) resolve project-specific config on the MCP side via `getConfigValue`/`getActiveProjectName` (env first, then `projects.json`).
+

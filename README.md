@@ -1,4 +1,4 @@
-# Autonomous Frontend Browser Tools (AFBT)
+# Frontend Development Tools (AFBT)
 
 **🚀 Optimized for Autonomous AI-Powered Frontend Development Workflows**
 
