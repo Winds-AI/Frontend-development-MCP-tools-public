@@ -66,4 +66,12 @@ pnpm run setup
 - `.env` is always read/written in `browser-tools-server/.env`.
 - npx overlays the packaged extension into `chrome-extension/` (skips `projects.json`, no backups). Local dev `pnpm run setup` skips copying entirely.
 
+### Embedding index model/provider mismatch
+
+If you change the embedding provider or model (e.g., switch between OpenAI and Gemini, or change model IDs), the existing semantic index may not match. Symptoms include an error like “Index settings mismatch” or empty/poor results.
+
+Fix:
+- Open the Setup UI → Embeddings tab → Reindex for the active project.
+- Ensure the correct embedding API key is present in `browser-tools-server/.env`.
+
 **Happy autonomous frontend development!**

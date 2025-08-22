@@ -28,6 +28,7 @@ Requires Node ≥ 20. Verify with `node -v`.
 - A Setup UI opens at `http://127.0.0.1:5055`
 - Configure `projects.json` at the project root and `.env` in `browser-tools-server/.env` via the Setup UI
 - Click "Save" then "Close" — the UI stops; the connector keeps running
+- For the canonical step-by-step, see `docs/SETUP_GUIDE.md` (this README is a concise overview only).
 
 2) Load the Chrome extension (manual once)
 
@@ -49,6 +50,12 @@ Requires Node ≥ 20. Verify with `node -v`.
 
 4) Open DevTools on your target tab (extension panel) and use tools
 
+### Active Project gotchas
+
+- `api.searchEndpoints` uses header `X-ACTIVE-PROJECT` (set by the MCP layer automatically). If results look wrong, verify the active project.
+- Other tools resolve the active project via `ACTIVE_PROJECT` env or `defaultProject` in `projects.json`.
+- When switching between projects/IDEs, set `ACTIVE_PROJECT` per IDE instance.
+
 ### Environment variables
 
 - Preferred: set in `.env` from the Setup UI (Environment tab) or in your shell
@@ -59,6 +66,13 @@ Requires Node ≥ 20. Verify with `node -v`.
 Notes:
 - `.env` (in `browser-tools-server/.env`) and root-level `projects.json` are local-only and excluded from npm publish
 - Health shows disconnected until DevTools is open on the inspected tab
+
+### Troubleshooting (quick)
+
+- Extension must be loaded and DevTools open on the tab.
+- Server discovery scans ports 3025–3035; override with `BROWSER_TOOLS_PORT` if needed.
+- If `api.request` with `includeAuthToken: true` fails, ensure `AUTH_STORAGE_TYPE`, `AUTH_TOKEN_KEY`, and optional `AUTH_ORIGIN` are set.
+- If API search returns an embedding mismatch error, reindex via the Setup UI (Embeddings tab).
 
 ## Motivation
 

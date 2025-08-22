@@ -1,6 +1,6 @@
 # Browser Tools MCP Extension - Complete Project Overview
 
-**🚀 Version 1.2.0 - Autonomous AI-Powered Frontend Development Platform**
+**🚀 Version: current — Autonomous AI-Powered Frontend Development Platform**
 
 - Contents:
   - Executive Summary
@@ -174,6 +174,10 @@ Notes:
 
 - Prefer `browser.network.inspect` for network errors; console tool does not capture HTTP failures.
 - Some MCP clients cache tool descriptions; dynamic updates are not always reflected live.
+
+Planned/disabled:
+
+- The `ui.interact` tool is planned but disabled in the current build. It appears in references for future workflows and may be enabled in a later release.
 
 ---
 

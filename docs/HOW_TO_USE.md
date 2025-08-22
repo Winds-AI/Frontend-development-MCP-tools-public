@@ -1,13 +1,13 @@
 # List of All Tools
 
-1. [`searchApiDocumentation`](./each-tool-explained/searchApiDocumentation.md)
-2. [`fetchLiveApiResponse`](./each-tool-explained/fetchLiveApiResponse.md)
-3. [`captureBrowserScreenshot`](./each-tool-explained/captureBrowserScreenshot.md)
-4. [`inspectSelectedElementCss`](./each-tool-explained/inspectSelectedElementCss.md)
-5. [`inspectBrowserNetworkActivity`](./each-tool-explained/inspectBrowserNetworkActivity.md)
-6. [`navigateBrowserTab`](./each-tool-explained/navigateBrowserTab.md)
-7. [`listApiTags`](./each-tool-explained/listApiTags.md)
-8. [`inspectBrowserConsole`](./each-tool-explained/inspectBrowserConsole.md)
+1. [`api.searchEndpoints`](./each-tool-explained/api_searchEndpoints.md)
+2. [`api.request`](./each-tool-explained/api_request.md)
+3. [`browser.screenshot`](./each-tool-explained/browser_screenshot.md)
+4. [`ui.inspectElement`](./each-tool-explained/ui_inspectElement.md)
+5. [`browser.network.inspect`](./each-tool-explained/browser_network_inspect.md)
+6. [`browser.navigate`](./each-tool-explained/browser_navigate.md)
+7. [`api.listTags`](./each-tool-explained/api_listTags.md)
+8. [`browser.console.read`](./each-tool-explained/browser_console_read.md)
 
 # How to Use Browser Tools MCP
 
@@ -17,63 +17,59 @@ To use these tools at their 100% potential you need to understand how all of the
 
 ### **Workflow 1: API Integration**
 
-Use `searchApiDocumentation` to identify endpoints and request/response shapes. Then use `fetchLiveApiResponse` to validate the real response.
+Use `api.searchEndpoints` to identify endpoints and minimal request/response hints. Then use `api.request` to validate the real response.
 
-1. **Live API Test**: Call `fetchLiveApiResponse` with an endpoint and method.
+1. **Live API Test**
 
    ```
-   Tool: fetchLiveApiResponse
+   Tool: api.request
    - endpoint: "/api/users"
    - method: "GET"
-   - includeAuthToken: true // uses dynamic token retrieval when AUTH_STORAGE_TYPE + AUTH_TOKEN_KEY are configured
+   - includeAuthToken: true // dynamic token retrieval when AUTH_STORAGE_TYPE + AUTH_TOKEN_KEY (+ optional AUTH_ORIGIN) are configured
    ```
 
-   The tool:
-
-   - Builds the full URL using `API_BASE_URL`
-
-- If `includeAuthToken` is true, token is retrieved dynamically from browser storage via extension using `AUTH_STORAGE_TYPE` (`localStorage`|`sessionStorage`|`cookies`), `AUTH_TOKEN_KEY`, and optional `AUTH_ORIGIN`. Token is cached per project; expiration inferred from `API_AUTH_TOKEN_TTL_SECONDS` or JWT `exp`.
-- Tip: use `requiresAuth` from `searchApiDocumentation` results to decide whether to set `includeAuthToken`.
-  - Returns structured response details (status, headers, timing) and parsed data
+   - Builds URL using `API_BASE_URL`
+   - If `includeAuthToken` is true, retrieves a token via the extension and caches it per project (TTL from `API_AUTH_TOKEN_TTL_SECONDS` or JWT exp)
+   - Returns structured details (status, headers, timing) and parsed data
 
 2. **Development & Integration**
-   Based on real API responses, the agent can:
-
    - Define accurate TypeScript interfaces
    - Use your project’s helpers/hooks
    - Create components with proper data handling
 
 ### **Workflow 2: UI Development & Debugging**
 
-- Use `captureBrowserScreenshot` for UI analysis (requires a dummy `randomString` param; always returns image)
-- Use `inspectSelectedElementCss` for CSS/layout context of the DevTools-selected element
-- Use `inspectBrowserNetworkActivity` to inspect recent API calls
-- Use `inspectBrowserConsole` to capture JS errors/warnings/logs with filters
+- Use `browser.screenshot` for UI analysis (requires a dummy `randomString` param; always returns image)
+- Use `ui.inspectElement` for CSS/layout context of the DevTools-selected element
+- Use `browser.network.inspect` to inspect recent API calls
+- Use `browser.console.read` to capture JS errors/warnings/logs with filters
 
 ### **Workflow 3: Recursive UI Improvements**
 
-- Loop `captureBrowserScreenshot({ randomString: "anything" })` → analyze → apply edits → repeat
+- Loop `browser.screenshot({ randomString: "anything" })` → analyze → apply edits → repeat
 
 ### **Workflow 4: Automated Testing & Navigation**
 
-- Use `navigateBrowserTab` for multi-step workflows
-- Combine with `captureBrowserScreenshot` for visual checks
+- Use `browser.navigate` for multi-step workflows
+- Combine with `browser.screenshot` for visual checks
 - Example:
 
   ```
-  1. navigateBrowserTab({ url: "https://app.example.com/login" })
-  2. captureBrowserScreenshot({ randomString: "any" })
-  3. navigateBrowserTab({ url: "https://app.example.com/dashboard" })
-  4. captureBrowserScreenshot({ randomString: "any" })
+  1. browser.navigate({ url: "https://app.example.com/login" })
+  2. browser.screenshot({ randomString: "any" })
+  3. browser.navigate({ url: "https://app.example.com/dashboard" })
+  4. browser.screenshot({ randomString: "any" })
   ```
 
 - For environment/config setup, see `docs/SETUP_GUIDE.md` (root `projects.json`, `browser-tools-server/.env`, Setup UI tabs). For architecture and features, see `docs/PROJECT_OVERVIEW.md`.
 
 ### End-to-end Example (API + UI)
 
-1. Search docs: [`searchApiDocumentation`](./each-tool-explained/searchApiDocumentation.md) for "users" endpoints
-2. Validate live response: [`fetchLiveApiResponse`](./each-tool-explained/fetchLiveApiResponse.md) with includeAuthToken if needed
-3. Open page: [`navigateBrowserTab`](./each-tool-explained/navigateBrowserTab.md) to your feature URL
-4. Visual check: [`captureBrowserScreenshot`](./each-tool-explained/captureBrowserScreenshot.md) with `{ randomString: "any" }`
-5. Inspect failures: [`inspectBrowserNetworkActivity`](./each-tool-explained/inspectBrowserNetworkActivity.md) and [`inspectBrowserConsole`](./each-tool-explained/inspectBrowserConsole.md)
-6. Debug CSS: [`inspectSelectedElementCss`](./each-tool-explained/inspectSelectedElementCss.md)
+1. Search docs: [`api.searchEndpoints`](./each-tool-explained/api_searchEndpoints.md) for "users" endpoints
+2. Validate live response: [`api.request`](./each-tool-explained/api_request.md) with `includeAuthToken` if needed
+3. Open page: [`browser.navigate`](./each-tool-explained/browser_navigate.md) to your feature URL
+4. Visual check: [`browser.screenshot`](./each-tool-explained/browser_screenshot.md) with `{ randomString: "any" }`
+5. Inspect failures: [`browser.network.inspect`](./each-tool-explained/browser_network_inspect.md) and [`browser.console.read`](./each-tool-explained/browser_console_read.md)
+6. Debug CSS: [`ui.inspectElement`](./each-tool-explained/ui_inspectElement.md)
+
+Note: `ui.interact` is planned but disabled in the current build.
