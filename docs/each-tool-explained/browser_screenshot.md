@@ -151,7 +151,7 @@ The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultPr
 ### Common Errors
 
 - **"Chrome extension not connected"**: Extension not installed or not connected
-- **"Screenshot timeout"**: Extension didn't respond within 15 seconds
+- **"Screenshot timeout"**: Extension didn't respond within 30 seconds
 - **"Failed to save screenshot"**: File system permission issues
 
 ### Troubleshooting
@@ -160,6 +160,14 @@ The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultPr
 2. Check browser connector server is running
 3. Verify file system permissions for screenshot directory
 4. Check WebSocket connection between extension and server
+
+### Connection health gating (reliability)
+
+The server now verifies connection health before attempting a capture:
+
+- Validates the WebSocket is OPEN and the last heartbeat is within the allowed window
+- Sends a quick heartbeat probe and waits briefly for a `heartbeat-response` to ensure the socket isn't mid-reconnect
+- If not healthy, returns `503` with an actionable message rather than waiting the full timeout
 
 ## Integration with Other Tools
 
