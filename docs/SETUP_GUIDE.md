@@ -1,32 +1,6 @@
 **Note:** Keep Chrome DevTools (F12) open on your target tab when using browser/UI tools.
 
-## 🚀 Quick Setup
-
-### 1) Run with npx (recommended)
-
-```bash
-npx @winds-ai/autonomous-frontend-browser-tools
-```
-
-#### System requirements
-
-- Node.js 20+ (or 22 LTS) is required. On Node 18, the npx launcher fails with `ReferenceError: File is not defined` because the global `File` Web API is missing.
-- Chrome browser (for the DevTools extension).
-
-#### Setup steps
-
-- Connector starts; Setup UI opens at `http://127.0.0.1:5055`.
-- Load the Chrome extension once: `chrome://extensions` → Developer Mode → Load unpacked → select `chrome-extension/`.
-- In Setup UI:
-  - Examples tab: view sample `projects.json` and `.env` content.
-  - Configure tab: paste/edit your `projects.json` (saved to project root).
-  - Environment tab: paste/edit your `.env` (saved to `browser-tools-server/.env`).
-  - Embeddings tab: check status / Reindex per project.
-- After updates via npx, click Reload on the extension in `chrome://extensions`.
-- Ensure `node -v` reports ≥ 20.x before running the command.
-- Click Save, then Close (UI stops; connector keeps running)
-
-### 2) Local development
+### Local development by cloning the actual repo
 
 ```bash
 pnpm run setup

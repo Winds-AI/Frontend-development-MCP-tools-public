@@ -17,7 +17,8 @@ To use these tools at their 100% potential you need to understand how all of the
 
 ### **Workflow 1: API Integration**
 
-Use `api.searchEndpoints` to identify endpoints and minimal request/response hints. Then use `api.request` to validate the real response.
+tell agent to use `api.searchEndpoints` to identify endpoints required for specific feature and then use `api.request` to validate the real responses and use those to do api integration with error handling and user feedback handling.
+Tip: most models will halucinate the user feedback toast every time and will not use the toast setup you have done so always mention the refrence of where to find this for accurate api integration.
 
 1. **Live API Test**
 
@@ -46,7 +47,7 @@ Use `api.searchEndpoints` to identify endpoints and minimal request/response hin
 
 ### **Workflow 3: Recursive UI Improvements**
 
-- Loop `browser.screenshot({ randomString: "anything" })` → analyze → apply edits → repeat
+- Loop `browser.screenshot({ randomString: "anything" })` → analyze → apply edits → repeat along with `browser.console.read` to capture JS errors/warnings/logs with filters. 
 
 ### **Workflow 4: Automated Testing & Navigation**
 

@@ -1,6 +1,4 @@
-# Browser Tools MCP Extension - Complete Project Overview
-
-**🚀 Version: current — Autonomous AI-Powered Frontend Development Platform**
+**🚀 Autonomous AI-Powered Frontend Development Platform**
 
 - Contents:
   - Executive Summary
@@ -10,11 +8,11 @@
 
 ## 📋 Executive Summary
 
-The Browser Tools MCP Extension is a comprehensive solution designed for **autonomous AI-powered frontend development workflows**. This system provides AI agents with reliable access to browser state, real-time debugging information, and seamless screenshot capabilities through enhanced WebSocket connections optimized for extended development sessions.
+This is a comprehensive solution designed for **autonomous AI-powered frontend development workflows**. This system provides AI agents the reliable access to browser state, real-time debugging information, and seamless screenshot capabilities through enhanced WebSocket connections optimized for extended development sessions.
 
 ### 🎯 Project Mission
 
-Enable AI development tools to work autonomously for hours without manual intervention by providing:
+Enable AI development tools to work autonomously for minutes without manual intervention by providing:
 
 - **Stable browser integration** with intelligent connection recovery
 - **Real-time context capture** (logs, network requests, screenshots)
@@ -87,9 +85,6 @@ flowchart TB
     style WB fill:#ffe,stroke:#333,stroke-width:1px
     style PS fill:#ffe,stroke:#333,stroke-width:1px
     style ER fill:#ffe,stroke:#333,stroke-width:1px
-
-
-
 ```
 
 #### 1. **MCP Server** (`browser-tools-mcp/`)
@@ -145,7 +140,7 @@ Real-time connection status at `/connection-health`:
 
 - Chrome extension installed and DevTools open on the inspected tab
 - Browser Tools Server running and discoverable (defaults to port 3025)
-- Project configuration in root `projects.json` and env in `browser-tools-server/.env`
+- Project configuration in root `projects.json` and env in `.env`
 
 ---
 
@@ -197,22 +192,7 @@ Planned/disabled:
 
 - Automated UI interaction
   1. `browser.navigate` → 2) `ui.interact` (perform click/type/etc.) → 3) optional `browser.screenshot` → 4) verify via `browser.network.inspect`.
-
----
-
-## 🗂️ Configuration Cheat Sheet (`projects.json` at project root)
-
-- Per‑project `config`:
-  - `SWAGGER_URL` (required for API search/tag tools)
-  - `API_BASE_URL` (required for live API calls)
-  - `AUTH_STORAGE_TYPE` + `AUTH_TOKEN_KEY` (and optional `AUTH_ORIGIN`) for dynamic auth
-  - `API_AUTH_TOKEN_TTL_SECONDS` (optional token cache TTL)
-  - `ROUTES_FILE_PATH` (optional; referenced in navigation tool description)
-  - Optional: `BROWSER_TOOLS_HOST`, `BROWSER_TOOLS_PORT`
-- Global: `DEFAULT_SCREENSHOT_STORAGE_PATH` (base screenshot directory)
-
-Embedding provider keys (env only, not in projects.json): `OPENAI_API_KEY`, `GEMINI_API_KEY` (+ optional model vars). Reindex from DevTools panel after provider/model changes.
-
+  
 ---
 
 ## 🧑‍⚕️ Health & Troubleshooting
