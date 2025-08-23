@@ -1,0 +1,170 @@
+I'll quickly scan the screenshot tool code and the Chrome extension pieces, and in parallel look up how the Pesticide extension outlines elements so we can design an agent-focused approach.
+
+[5 tools called]
+
+I'll read where DOM actions are implemented and how the screenshot WebSocket message is handled in the extension, to identify precise injection points for an outline overlay.
+
+[2 tools called]
+
+I'll grab small, relevant code snippets to cite the current screenshot trigger and DOM injection capability, then present the research rubric.
+
+[2 tools called]
+
+I'm going to look for where the extension handles the "take-screenshot" WebSocket message to confirm the injection point before capture.
+
+[2 tools called]
+
+I scanned the screenshot flow end-to-end and located where we can inject an overlay before capture. I also confirmed we already have a safe DOM action injection path we can reuse.
+
+```123:131:chrome-extension/devtools.js
+} else if (message.type === "take-screenshot") {
+  // ... activate tab, focus window ...
+  chrome.tabs.captureVisibleTab(
+    targetWindow.id,
+    { format: "png" },
+    (dataUrl) => {
+      // send base64 back via WebSocket
+    }
+  );
+}
+```
+
+```105:116:chrome-extension/background.js
+if (message.type === "PERFORM_DOM_ACTION" && message.tabId && message.payload) {
+  chrome.scripting.executeScript(
+    { target: { tabId }, world: "MAIN", func: performDomAction, args: [payload] },
+    (results) => { /* returns injected result */ }
+  );
+  return true;
+}
+```
+
+```1227:1231:browser-tools-server/browser-connector.ts
+// Send screenshot request to extension
+const message = JSON.stringify({
+  type: "take-screenshot",
+  requestId: requestId,
+});
+```
+
+### Research rubric and plan
+
+- **Goal**
+  - Validate and design an agent-oriented “outline components” mode for `browser.screenshot` that overlays Pesticide-like boundaries on elements before capture, to improve autonomous UI analysis.
+
+- **Key questions**
+  - **How Pesticide works**: Which CSS/JS techniques are used (global `*` outline rules vs per-depth colors, margin/padding visualization), performance implications, and CSP considerations.
+  - **Best injection point**: Should we inject styles via `chrome.scripting.insertCSS` or execute a DOM function to add/remove a style element? What’s safest across sites?
+  - **Agent-centric UX**: What extra signals help an agent (clickable emphasis, depth colors, labels)? Should we also return a lightweight DOM map alongside the image?
+  - **API shape**: What parameter(s) and defaults should the tool expose? How do we propagate them MCP → server → extension?
+  - **Reliability**: How to ensure overlay is added, captured, and removed atomically with retries and timeouts?
+
+### Background research (external)
+
+- **Pesticide (original)**: Understand CSS approach, outline-by-depth strategy, and toggles.  
+  - GitHub: [Pesticide by mrmrs](https://github.com/mrmrs/pesticide)
+- **Minimal variants**: Inspect simpler approaches and trade-offs.  
+  - GitHub: [Simple Pesticide](https://github.com/shadmansaleh/Simple-Pesticide)
+- **Techniques to review**
+  - Global cascade: `* { outline: 1px solid ... }`, depth-based color rules, margin/padding hints via `box-shadow`.
+  - Performance: Throttle to visible/size-threshold elements when using JS overlay; consider `insertCSS` vs script traversal.
+  - CSP: `insertCSS` generally bypasses inline-style CSP; fallback to injected `<style id="afbt-overlay">`.
+
+### Code baseline and insertion points
+
+- **MCP tool**: Add new parameter(s) to `browser.screenshot` schema and forward to server.
+- **Server**: Accept flags in `/capture-screenshot`, forward over WS, or orchestrate a pre-capture DOM action then trigger capture.
+- **Extension**
+  - WS handler in `devtools.js` captures the tab. We can preface with a DOM action message to background to toggle overlay on, wait, capture, then toggle off.
+  - Background already supports `PERFORM_DOM_ACTION` with `performDomAction(...)`, which we can extend to add/remove an overlay `<style>` or overlay nodes.
+- **Cleanup**: Ensure overlay removal even on error/timeout.
+
+### Design options (with trade-offs)
+
+- **A) CSS-only outline (Pesticide-like)**
+  - Inject `<style id="afbt-pesticide">` with depth-colored rules or a simple universal outline.
+  - Pros: Simple, fast, low DOM churn.
+  - Cons: No filtering by size/visibility; noisy on complex pages; less control over labels.
+
+- **B) JS overlay boxes**
+  - Compute bounding rects for eligible elements and append absolutely-positioned overlay boxes in a single container with `pointer-events: none`.
+  - Pros: Filter by size/visibility, label overlays, distinct palettes by depth/clickable.
+  - Cons: Heavier at large DOM sizes; more code; must remove carefully.
+
+- **C) Hybrid**
+  - Default to CSS-only; optionally enable “rich overlay” for clickable/labels on top elements only (cap to N).
+
+Recommendation: Ship CSS-only first; add optional hybrid “rich” mode in a follow-up.
+
+### Agent-centric features to consider
+
+- **Clickable emphasis**: Distinct color or thicker border for interactive elements.
+- **Depth palette**: Color by DOM depth for quick mental segmentation.
+- **Labels (optional)**: Lightweight tag/class labels for top-N big boxes to avoid clutter.
+- **Min element size**: Suppress tiny elements to reduce noise (hybrid mode).
+- **Sidecar metadata (optional)**: Return a compact DOM map (bounding boxes + role/label for top elements) alongside the image for programmatic reasoning.
+
+### Proposed API (MCP tool) additions
+
+- **outlineMode**: 'none' | 'pesticide' | 'rich' (default 'none')
+- **minSize**: number (px, applies to 'rich')
+- **highlightClickable**: boolean
+- **labelMode**: 'none' | 'tag' | 'tag.class' (applies to 'rich')
+- **colorScheme**: 'depth' | 'uniform'
+- **includeDomMap**: boolean (sidecar metadata; optional follow-up)
+
+Propagation: MCP `browser.screenshot` → server `/capture-screenshot` → extension WS or pre-step `PERFORM_DOM_ACTION`.
+
+### Prototype tasks
+
+- **P1 (Spike, ≤1 day)**
+  - Implement a DOM action that toggles a basic Pesticide-like style.
+  - Orchestrate in `devtools.js`: overlay on → 150–300 ms settle → capture → overlay off.
+  - Add MCP/server plumbing for `outlineMode='pesticide'` only.
+- **P2 (Options)**
+  - Add clickable emphasis and depth coloring.
+  - Add 'rich' mode with overlay container and size threshold; cap to N elements.
+- **P3 (Optional)**
+  - Sidecar DOM map: top-N elements’ rects, role/name, clickability.
+
+### Validation
+
+- **Functional**: Overlay visible in image; removed after capture; no interaction breakage.
+- **Performance**: ≤300 ms overhead on typical pages; no crashes on heavy DOMs; fallback if injection blocked.
+- **Reliability**: Always cleans up on success/failure; timeouts revert overlay.
+
+### Risks and mitigations
+
+- **CSP injection issues**: Prefer `insertCSS`; fallback to `<style>`; last resort: proceed without overlay and warn.
+- **Noise/clutter**: Provide defaults that are helpful (thin borders, muted colors); allow agent to request 'rich' selectively.
+- **Large DOM cost**: Cap elements in 'rich' mode; CSS-only as default is cheap.
+
+### Minimal PoC injection (for research & spike)
+
+```javascript
+(() => {
+  const STYLE_ID = 'afbt-outline-style';
+  const existing = document.getElementById(STYLE_ID);
+  if (existing) { existing.remove(); return { enabled: false }; }
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent = `
+    /* Simple outline; tune colors later */
+    * { outline: 1px solid rgba(0,0,0,0.25) !important; outline-offset: -1px !important; }
+  `;
+  document.documentElement.appendChild(style);
+  return { enabled: true };
+})();
+```
+
+### Milestones
+
+- **M0**: Decide default: `outlineMode='pesticide'` behind a flag.
+- **M1**: PoC integrated end-to-end; docs updated; basic perf validated.
+- **M2**: Clickable emphasis, depth palette.
+- **M3**: Rich mode + optional DOM map.
+
+Next steps: I can draft the schema for the new parameters and outline the injection function’s shape for `performDomAction`, then propose the minimal edits across MCP → server → extension.
+
+- I found the exact places to hook pre-capture overlay and reuse the existing DOM injection path.
+- I outlined a concise, phased plan, proposed API parameters, and included a PoC injection snippet for research.
