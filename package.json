@@ -6,7 +6,7 @@
   "homepage": "https://github.com/Winds-AI/Frontend-development-MCP-tools-public",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Winds-AI/Frontend-development-MCP-tools-public.git"
+    "url": "git+https://github.com/Winds-AI/Frontend-development-MCP-tools-public.git"
   },
   "keywords": [
     "mcp",
@@ -37,9 +37,9 @@
     "prepublishOnly": "pnpm build"
   },
   "bin": {
-    "@winds-ai/autonomous-frontend-browser-tools": "tools/afbt-entry.js",
     "afbt-setup": "tools/afbt-setup.js",
-    "afbt-mcp": "browser-tools-mcp/dist/mcp-server.js"
+    "afbt-mcp": "browser-tools-mcp/dist/mcp-server.js",
+    "autonomous-frontend-browser-tools": "tools/afbt-entry.js"
   },
   "files": [
     "tools/afbt-setup.js",
