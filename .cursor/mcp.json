@@ -1,13 +1,13 @@
 {
-    "mcpServers": {
-      "frontend-browser-tools-mcp": {
-        "command": "node",
-        "args": [
-          "/home/meet/Desktop/MCP/Frontend-development-MCP-tools-public/browser-tools-mcp/dist/mcp-server.js"
-        ],
-        "env": {
-          "ACTIVE_PROJECT": "afbt-frontend"
-        }
+  "mcpServers": {
+    "frontend-browser-tools-mcp": {
+      "command": "node",
+      "args": [
+        "C:/Users/meetd/OneDrive/Desktop/Frontend-development-MCP-tools-public/browser-tools-mcp/dist/mcp-server.js"
+      ],
+      "env": {
+        "ACTIVE_PROJECT": "setup-ui"
       }
     }
   }
+}

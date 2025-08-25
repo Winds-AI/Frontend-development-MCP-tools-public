@@ -697,7 +697,20 @@ async function handleCaptureBrowserScreenshot() {
                 const responseContent = [
                     {
                         type: "text",
-                        text: `📁 Project: ${result.projectDirectory || "default-project"}\n📌 Now Analyze the UI Layout and it's structure properly given the task at hand, then continue`,
+                        text: `📁 Project: ${result.projectDirectory || "default-project"}
+🖼️ Screenshot captured.
+
+You MUST immediately run this Screenshot-First Visual Audit (no code reading yet):
+1) Page scope: identify page type (e.g., home/list, detail, form, modal, dashboard) and current theme (light/dark/auto).
+2) Component map (top→bottom, left→right): briefly label all visible elements (header/nav, hero/banner, filters/search, list/table/cards, forms/fields, tabs/accordion, modals/drawers, alerts/toasts/banners, CTAs, footer, FAB/bottom nav).
+3) Data display breakdown (for lists/cards/tables): summarize primary text, supporting text, labels/tags/badges, key metadata/KPIs, and any imagery/media; note alignment, density, and spacing.
+4) Contrast & legibility: flag low-contrast text, unclear disabled states, faint borders/dividers, or overlays that reduce readability; specify area and suspected cause.
+5) Layout & responsiveness: note grid/columns, gutters/padding, alignment/misalignment, sticky/fixed regions, scroll/overscroll, occlusions, and any breakpoint issues visible at this size.
+6) Interaction & states: call out visible hover/focus/active/selected styles, affordances on interactive elements, and presence/absence of loading/empty/error/success states where relevant.
+7) Issues → targeted UI changes: propose concise fixes with file/component pointers and exact edits (tokens, classes, props, theme variables, ARIA/semantics), each with acceptance criteria that can be visually verified in the next screenshot.
+8) Plan your next two screenshots (e.g., open a detail row, switch a tab, submit a form, or test a smaller viewport). Use ui.interact with postActionScreenshot:true to capture them.
+
+Return a short audit summary, the issues, the actionable fix list, and the next-screenshot plan.`,
                     },
                 ];
                 responseContent.push({
@@ -736,7 +749,17 @@ async function handleCaptureBrowserScreenshot() {
     });
 }
 // New name
-server.tool("browser.screenshot", "Capture current browser tab; saves to structured path and returns image. Requires extension connection with DevTools open.", { randomString: z.string().describe("any string (ignored)") }, handleCaptureBrowserScreenshot);
+server.tool("browser.screenshot", `Capture the current browser tab and return an image. Requires extension connection with DevTools open.
+
+Screenshot-First Visual Audit (run after every capture):
+1) Page scope (type + theme).
+2) Component map (top→bottom, left→right).
+3) Data display breakdown (primary/supporting text, labels/tags, metadata/KPIs, imagery/media, alignment/spacing).
+4) Contrast & legibility (text/background contrast, disabled states, borders/dividers, overlays).
+5) Layout & responsiveness (grid/columns, gutters/padding, alignment, sticky/fixed, scroll/overscroll, occlusions, breakpoints).
+6) Interaction & states (hover/focus/active/selected, affordances, loading/empty/error/success).
+7) Targeted fixes with file/component pointers and precise edits (tokens, classes, props, theme variables, ARIA/semantics) plus acceptance criteria.
+8) Plan two follow-up screenshots; capture via ui.interact with postActionScreenshot:true.`, { randomString: z.string().describe("any string (ignored)") }, handleCaptureBrowserScreenshot);
 server.tool("ui.inspectElement", `**Enhanced UI Debugging Context Tool** - Gets comprehensive debugging information for the element selected in browser DevTools. 
 
 **Prerequisite**: DevTools open, element selected in Elements panel.
