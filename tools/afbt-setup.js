@@ -1,5 +1,6 @@
 const { execSync, spawn, exec } = require("child_process");
-const { join, resolve } = require("path");
+const path = require("path");
+const { join, resolve } = path;
 const fs = require("fs");
 const http = require("http");
 
@@ -2272,11 +2273,11 @@ async function compileServerIfNeeded() {
 
 function resolveEnvCwdForEntry(entry) {
   // If entry is in node_modules (packaged), use the user's current working dir (repoRoot)
-  if (entry.includes(`${join.sep}node_modules${join.sep}`)) return repoRoot;
+  if (entry.includes(`${path.sep}node_modules${path.sep}`)) return repoRoot;
   // If local repo structure exists, prefer serverDir so existing browser-tools-server/.env is respected
   if (fs.existsSync(serverDir)) return serverDir;
   // Fallback to entry directory
-  return join.dirname(entry);
+  return path.dirname(entry);
 }
 
 async function startConnectorChild() {
