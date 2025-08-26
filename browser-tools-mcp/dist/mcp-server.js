@@ -6,12 +6,23 @@ import { z } from "zod";
 // Load project configuration
 function loadProjectConfig() {
     try {
-        const rootPath = path.resolve(process.cwd(), "projects.json");
-        if (!fs.existsSync(rootPath)) {
-            console.error("projects.json not found at project root. Open the Setup UI to create and save it.");
+        const candidates = [];
+        if (process.env.AFBT_PROJECTS_JSON) {
+            candidates.push(path.resolve(process.env.AFBT_PROJECTS_JSON));
+        }
+        candidates.push(path.resolve(process.cwd(), "projects.json"));
+        try {
+            const home = require("os").homedir?.() || process.env.HOME;
+            if (home)
+                candidates.push(path.resolve(home, ".afbt", "projects.json"));
+        }
+        catch { }
+        const chosen = candidates.find((p) => fs.existsSync(p));
+        if (!chosen) {
+            console.error(`projects.json not found. Checked: ${candidates.join(", ")}. Set AFBT_PROJECTS_JSON or open the Setup UI to create and save it.`);
             return null;
         }
-        const configData = fs.readFileSync(rootPath, "utf8");
+        const configData = fs.readFileSync(chosen, "utf8");
         return JSON.parse(configData);
     }
     catch (error) {

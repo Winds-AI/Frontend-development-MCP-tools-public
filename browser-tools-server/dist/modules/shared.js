@@ -219,11 +219,22 @@ let hasLoggedProjectsConfig = false;
  * 3) Packaged fallback relative to this module (node_modules/...)
  */
 function resolveProjectsJsonPath() {
-    const rootPath = path.join(process.cwd(), "projects.json");
-    if (!fs.existsSync(rootPath)) {
-        throw new Error("projects.json not found at project root. Open the Setup UI to create and save it.");
+    const candidates = [];
+    if (process.env.AFBT_PROJECTS_JSON) {
+        candidates.push(path.resolve(process.env.AFBT_PROJECTS_JSON));
     }
-    return rootPath;
+    candidates.push(path.join(process.cwd(), "projects.json"));
+    try {
+        const home = os.homedir();
+        if (home)
+            candidates.push(path.resolve(home, ".afbt", "projects.json"));
+    }
+    catch { }
+    const chosen = candidates.find((p) => fs.existsSync(p));
+    if (!chosen) {
+        throw new Error(`projects.json not found. Checked: ${candidates.join(", ")}. Set AFBT_PROJECTS_JSON or use the Setup UI.`);
+    }
+    return chosen;
 }
 export function loadProjectConfig() {
     try {
