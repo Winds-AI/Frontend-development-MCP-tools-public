@@ -2,12 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import { z } from "zod";
-
-// Helper constants for ES module scope
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Project configuration management
 interface ProjectConfig {
