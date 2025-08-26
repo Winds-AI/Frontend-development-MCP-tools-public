@@ -44,11 +44,19 @@ Requires Node ≥ 20. Verify with `node -v`.
     "autonomous-frontend-browser-tools": {
       "command": "npx",
       "args": ["-y", "@winds-ai/autonomous-frontend-browser-tools"],
-      "env": { "ACTIVE_PROJECT": "my-frontend" }
+      "env": {
+        "ACTIVE_PROJECT": "my-frontend",
+        "AFBT_PROJECTS_JSON": "/absolute/path/to/projects.json",
+        "BROWSER_TOOLS_PORT": "3025"
+      }
     }
   }
 }
 ```
+
+Notes:
+- The single entry auto-detects mode: non-interactive (MCP) vs interactive (Setup UI). You can force with `mcp`/`setup` subcommands.
+- Node 20 is used automatically when the system Node is older.
 
 4) Open DevTools on your target tab (localhost:3000 or any other port) and start using tools
 

@@ -31,14 +31,24 @@ interface ProjectsConfig {
 // Load project configuration
 function loadProjectConfig(): ProjectsConfig | null {
   try {
-    const rootPath = path.resolve(process.cwd(), "projects.json");
-    if (!fs.existsSync(rootPath)) {
+    const candidates: string[] = [];
+    if (process.env.AFBT_PROJECTS_JSON) {
+      candidates.push(path.resolve(process.env.AFBT_PROJECTS_JSON));
+    }
+    candidates.push(path.resolve(process.cwd(), "projects.json"));
+    try {
+      const home = require("os").homedir?.() || process.env.HOME;
+      if (home) candidates.push(path.resolve(home, ".afbt", "projects.json"));
+    } catch {}
+
+    const chosen = candidates.find((p) => fs.existsSync(p));
+    if (!chosen) {
       console.error(
-        "projects.json not found at project root. Open the Setup UI to create and save it."
+        `projects.json not found. Checked: ${candidates.join(", ")}. Set AFBT_PROJECTS_JSON or open the Setup UI to create and save it.`
       );
       return null;
     }
-    const configData = fs.readFileSync(rootPath, "utf8");
+    const configData = fs.readFileSync(chosen, "utf8");
     return JSON.parse(configData);
   } catch (error) {
     console.error("Error loading projects config:", error);

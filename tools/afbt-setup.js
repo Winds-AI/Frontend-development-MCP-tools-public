@@ -17,7 +17,9 @@ const repoRoot = process.cwd();
 const packageRoot = resolve(__dirname, "..");
 const extensionDir = join(repoRoot, "chrome-extension");
 // Root-level projects.json (single source of truth)
-const projectsJsonPath = join(repoRoot, "projects.json");
+const projectsJsonPath = process.env.AFBT_PROJECTS_JSON
+  ? resolve(process.env.AFBT_PROJECTS_JSON)
+  : join(repoRoot, "projects.json");
 const serverDir = join(repoRoot, "browser-tools-server");
 const distEntry = join(serverDir, "dist", "browser-connector.js");
 const afbtDir = join(repoRoot, ".afbt");
