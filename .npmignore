@@ -4,6 +4,6 @@
 
 # Local caches/artifacts that shouldn't ship (defensive)
 .vectra/
-MCP_Screenshots/
-Downloads/MCP_Screenshots/
+AFBT_Screenshots/
+Downloads/AFBT_Screenshots/
 

@@ -65,7 +65,7 @@ flowchart TB
     SS -. Storage Path + Data .-> MCP
     LG -. Truncated Logs .-> MCP
     NS -- Authenticated Calls --> API(("Target APIs"))
-     SS -- Project Structure --> IMG["Image Storage<br>Downloads/MCP_Screenshots"]
+     SS -- Project Structure --> IMG["Image Storage<br>Downloads/AFBT_Screenshots"]
     BTS -- Status Report --> HC["Health Monitor<br>connection-health"]
     MCP -.-> PS
     CE -.-> WB
@@ -148,6 +148,18 @@ Real-time connection status at `/connection-health`:
 
 - Resolution order: request header `X-ACTIVE-PROJECT` → `ACTIVE_PROJECT` env (MCP) → `defaultProject` in root `projects.json`.
 - Each project has its own embedding index at `.vectra/<project>` and API doc source.
+
+### projects.json resolution
+
+The server resolves `projects.json` across common launch modes to avoid "projects.json not found" during reindex:
+
+- Env override: `AFBT_PROJECTS_JSON` (absolute path)
+- CWD: `./projects.json` (when started from repo root)
+- Parent of CWD: `../projects.json` (when started inside `browser-tools-server/`)
+- Module-relative repo root (local dev): `browser-tools-server/../../projects.json`
+- Home fallback: `~/.afbt/projects.json`
+
+This guarantees embeddings reindex works via both `pnpm run setup` and `npx afbt-setup`/direct server runs.
 
 ---
 

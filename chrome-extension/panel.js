@@ -941,6 +941,7 @@ refreshAllProjectStatuses();
 
 // Screenshot capture functionality
 captureScreenshotButton.addEventListener("click", () => {
+  console.log("Capture button clicked!");
   captureScreenshotButton.textContent = "Capturing...";
 
   // Send message to background script to capture screenshot
@@ -952,7 +953,10 @@ captureScreenshotButton.addEventListener("click", () => {
     },
     (response) => {
       console.log("Screenshot capture response:", response);
-      if (!response) {
+      if (chrome.runtime.lastError) {
+        captureScreenshotButton.textContent = "Failed to capture!";
+        console.error("Screenshot capture failed: Runtime error:", chrome.runtime.lastError);
+      } else if (!response) {
         captureScreenshotButton.textContent = "Failed to capture!";
         console.error("Screenshot capture failed: No response received");
       } else if (!response.success) {
@@ -961,6 +965,11 @@ captureScreenshotButton.addEventListener("click", () => {
       } else {
         captureScreenshotButton.textContent = `Captured: ${response.title}`;
         console.log("Screenshot captured successfully:", response.path);
+        // Add info level log to browser connector
+        logInfoToBrowserConnector("Screenshot captured successfully", {
+          path: response.path,
+          title: response.title
+        });
       }
       setTimeout(() => {
         captureScreenshotButton.textContent = "Capture Screenshot";
@@ -968,6 +977,45 @@ captureScreenshotButton.addEventListener("click", () => {
     }
   );
 });
+
+// Function to log info level messages to browser connector
+function logInfoToBrowserConnector(message, data = {}) {
+  const logData = {
+    type: "info-log",
+    message: message,
+    data: data,
+    timestamp: Date.now(),
+  };
+  
+  // Get current settings
+  chrome.storage.local.get(["browserConnectorSettings"], (result) => {
+    const settings = result.browserConnectorSettings || {
+      serverHost: "localhost",
+      serverPort: 3025,
+    };
+    
+    const serverUrl = `http://${settings.serverHost}:${settings.serverPort}/extension-log`;
+    console.log(`Sending info log to ${serverUrl}:`, logData);
+    
+    fetch(serverUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: logData }),
+    })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
+      }
+      return response.json();
+    })
+    .then((data) => {
+      console.log("Info log sent successfully:", data);
+    })
+    .catch((error) => {
+      console.error("Error sending info log:", error);
+    });
+  });
+}
 
 // Add wipe logs functionality
 const wipeLogsButton = document.getElementById("wipe-logs");

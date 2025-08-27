@@ -223,7 +223,18 @@ function resolveProjectsJsonPath() {
     if (process.env.AFBT_PROJECTS_JSON) {
         candidates.push(path.resolve(process.env.AFBT_PROJECTS_JSON));
     }
+    // 1) Current working directory (works when server is started from repo root)
     candidates.push(path.join(process.cwd(), "projects.json"));
+    // 2) Parent of CWD (works when server CWD is browser-tools-server/)
+    try {
+        candidates.push(path.resolve(process.cwd(), "..", "projects.json"));
+    }
+    catch { }
+    // 3) Module-relative repo root (dev/local builds)
+    try {
+        candidates.push(path.resolve(__dirname, "..", "..", "projects.json"));
+    }
+    catch { }
     try {
         const home = os.homedir();
         if (home)

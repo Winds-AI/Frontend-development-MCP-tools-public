@@ -300,6 +300,9 @@ async function sendToBrowserConnector(logData) {
       );
       console.log("Message size after:", processedData.message.length);
     }
+  } else if (logData.type === "info-log") {
+    console.log("Processing info log message");
+    // Info logs don't need special processing, just send them as-is
   }
 
   // Add settings to the request

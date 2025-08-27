@@ -321,6 +321,51 @@ app.post("/extension-log", (req, res) => {
   res.json({ status: "ok" });
 });
 
+// Endpoint for the extension to POST screenshot data
+app.post("/screenshot", async (req, res) => {
+  try {
+    const { data, path, url } = req.body;
+    
+    if (!data) {
+      res.status(400).json({ error: "No screenshot data provided" });
+      return;
+    }
+
+    // Get the screenshot service instance
+    const screenshotService = ScreenshotService.getInstance();
+    
+    // Get project configuration
+    const projectScreenshotPath = getScreenshotStoragePath();
+    const projectName = getActiveProjectName();
+    
+    // Build screenshot configuration
+    const config = {
+      baseDirectory: projectScreenshotPath || path,
+      projectName: projectName,
+      returnImageData: false, // We don't need to return the image data back to the extension
+    };
+
+    // Save the screenshot using the service
+    const result = await screenshotService.saveScreenshot(data, url, config);
+
+    // Uniform info log for screenshots from both DevTools and MCP tool flows
+    logInfo(
+      `Screenshot saved to ${result.filePath} (projectDir=${result.projectDirectory}, category=${result.urlCategory})`
+    );
+    
+    res.json({
+      success: true,
+      path: result.filePath,
+      filename: result.filename,
+    });
+  } catch (error: any) {
+    console.error("Error saving screenshot:", error);
+    res.status(500).json({ 
+      error: error.message || "Failed to save screenshot" 
+    });
+  }
+});
+
 // Update GET endpoints to use the new function
 app.get("/console-logs", (req, res) => {
   // Processing is handled by truncateLogsWithCurrentSettings

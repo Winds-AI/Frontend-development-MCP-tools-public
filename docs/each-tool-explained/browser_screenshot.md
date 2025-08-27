@@ -31,7 +31,7 @@ The tool uses a sophisticated directory structure for organizing screenshots:
 
 1. **Project config** `DEFAULT_SCREENSHOT_STORAGE_PATH` in `chrome-extension/projects.json`
 2. **Environment variable** `SCREENSHOT_STORAGE_PATH`
-3. **Default**: `~/Downloads/MCP_Screenshots`
+3. **Default**: `~/Downloads/AFBT_Screenshots`
 
 ### Project Directory
 
@@ -93,12 +93,12 @@ The tool always returns image data for analysis.
 
 **URL**: `http://localhost:3000/dashboard`
 **Git Repo**: `my-project`
-**Result**: `~/Downloads/MCP_Screenshots/my-project/dashboard/2024-01-15T10-30-45-123Z_dashboard.png`
+**Result**: `~/Downloads/AFBT_Screenshots/my-project/dashboard/2024-01-15T10-30-45-123Z_dashboard.png`
 
 ### Staging Environment
 
 **URL**: `https://staging.example.com/admin/users`
-**Result**: `~/Downloads/MCP_Screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
+**Result**: `~/Downloads/AFBT_Screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
 
 ### Active Project Folder
 
@@ -106,7 +106,7 @@ The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultPr
 
 **URL**: `http://localhost:8080/api/auth/login`
 **ACTIVE_PROJECT**: `auth-service`
-**Result**: `~/Downloads/MCP_Screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
+**Result**: `~/Downloads/AFBT_Screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
 
 ## Technical Architecture
 
