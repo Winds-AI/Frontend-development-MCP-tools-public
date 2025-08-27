@@ -1,6 +1,6 @@
 {
   "name": "@winds-ai/autonomous-frontend-browser-tools",
-  "version": "1.4.14",
+  "version": "1.4.15",
   "description": "Autonomous Frontend Browser Tools — npx setup UI, connector server, Chrome extension, MCP server bin",
   "license": "MIT",
   "homepage": "https://github.com/Winds-AI/Frontend-development-MCP-tools-public",
