@@ -426,11 +426,14 @@ function serveHtml(res) {
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 20px;
-      overflow-y: auto;
+      /* Use internal editor scroll; avoid double-scroll on container */
+      overflow: hidden;
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
       display: flex;
       flex-direction: column;
       max-height: calc(100vh - var(--header-h) - var(--footer-h) - 40px);
+      /* Important: allow flex children to shrink properly */
+      min-height: 0;
     }
     
     .file { 
@@ -492,15 +495,35 @@ function serveHtml(res) {
       flex-direction: column;
       overflow: hidden;
       margin: 16px 0;
+      min-height: 0;
     }
     
     textarea.config-textarea {
       flex: 1;
       min-height: 400px;
+      height: 100%;
+      max-height: none;
       resize: none;
       font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
       font-size: 13px;
       line-height: 1.5;
+    }
+
+    /* Monaco Editor host */
+    #projects-editor {
+      flex: 1;
+      min-height: 400px;
+      height: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #0b1220;
+    }
+
+    /* Validation highlight for editor */
+    .editor-invalid #projects-editor {
+      border-color: var(--error) !important;
+      box-shadow: 0 0 0 1px var(--error) inset;
     }
     
     .examples-container {
@@ -977,11 +1000,32 @@ function serveHtml(res) {
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/markdown-it@13.0.1/dist/markdown-it.min.js"></script>
+  <!-- Monaco Editor Loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
   <script>
   const AFBT_LAUNCHED_BY_MAIN = ${launchedByMain ? "true" : "false"};
   let activeTab = 'dashboard';
   let DOCS_FILES = [];
   let __serverInfoCache = null;
+  let projectsEditor = null; // Monaco instance when available
+
+  function getProjectsText() {
+    const ta = document.getElementById('projects');
+    if (projectsEditor && typeof projectsEditor.getValue === 'function') {
+      return projectsEditor.getValue();
+    }
+    return ta ? ta.value : '';
+  }
+
+  function setProjectsText(text) {
+    const ta = document.getElementById('projects');
+    if (projectsEditor && typeof projectsEditor.setValue === 'function') {
+      // Only set if different to avoid resetting cursor/undo stack too often
+      if (projectsEditor.getValue() !== text) projectsEditor.setValue(text);
+    } else if (ta) {
+      ta.value = text;
+    }
+  }
   
   // Enhanced UI functions
   async function loadConfig() {
@@ -989,14 +1033,13 @@ function serveHtml(res) {
       const res = await fetch('/config');
       if (!res.ok) throw new Error('Failed to load config');
       const json = await res.json();
-      document.getElementById('projects').value = JSON.stringify(json, null, 2);
+      setProjectsText(JSON.stringify(json, null, 2));
       setStatus('Loaded current configuration.', 'success');
       
       // Update form-based configuration if available
       updateFormConfig(json);
     } catch {
-      const el = document.getElementById('projects');
-      if (el) el.value = '';
+      setProjectsText('');
       setStatus('No projects.json found. Open the Examples tab to copy a template, then paste here and Save.', 'warning');
     }
     await reloadEnv();
@@ -1068,7 +1111,7 @@ function serveHtml(res) {
   
   function getProjectsFromEditor() {
     try {
-      const txt = document.getElementById('projects')?.value || '{}';
+      const txt = getProjectsText() || '{}';
       const j = JSON.parse(txt);
       return Object.keys(j.projects || {});
     } catch { return []; }
@@ -1251,15 +1294,18 @@ function serveHtml(res) {
 
   function updateEditorValidation() {
     const ta = document.getElementById('projects');
+    const container = document.getElementById('config-editor-pane');
     const btn = document.getElementById('btn-save-config');
-    if (!ta) return;
-    const result = validateProjectsJson(ta.value || '');
+    const text = getProjectsText();
+    const result = validateProjectsJson(text || '');
     if (result.ok) {
-      ta.classList.remove('invalid');
+      if (ta) ta.classList.remove('invalid');
+      if (container) container.classList.remove('editor-invalid');
       if (btn) btn.disabled = false;
       setStatus('✅ JSON is valid. Ready to save.', 'success');
     } else {
-      ta.classList.add('invalid');
+      if (ta) ta.classList.add('invalid');
+      if (container) container.classList.add('editor-invalid');
       if (btn) btn.disabled = true;
       setStatus('❌ ' + result.error, 'error');
     }
@@ -1267,7 +1313,7 @@ function serveHtml(res) {
 
   async function saveConfig() {
     try {
-      const text = document.getElementById('projects').value;
+      const text = getProjectsText();
       const result = validateProjectsJson(text);
       if (!result.ok) {
         setStatus('❌ ' + result.error, 'error');
@@ -1641,7 +1687,37 @@ function serveHtml(res) {
     const search = document.getElementById('docs-search');
     if (search) search.addEventListener('input', (e) => renderDocsList(e.target.value));
     
-    // Live JSON validation for projects editor
+    // Initialize Monaco JSON editor (with textarea fallback)
+    (function initMonaco() {
+      const host = document.getElementById('projects-editor');
+      const ta = document.getElementById('projects');
+      if (!host) return;
+      if (window.require) {
+        window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+        window.require(['vs/editor/editor.main'], function () {
+          try {
+            const initial = ta ? (ta.value || '') : '';
+            projectsEditor = monaco.editor.create(host, {
+              value: initial,
+              language: 'json',
+              theme: 'vs-dark',
+              automaticLayout: true,
+              scrollBeyondLastLine: false,
+              wordWrap: 'on',
+              minimap: { enabled: false },
+              tabSize: 2,
+            });
+            // Hide textarea fallback once Monaco is ready
+            if (ta) ta.style.display = 'none';
+            // Validate as user types
+            projectsEditor.onDidChangeModelContent(() => updateEditorValidation());
+            updateEditorValidation();
+          } catch (_) {}
+        });
+      }
+    })();
+
+    // Live JSON validation for textarea fallback
     const ta = document.getElementById('projects');
     if (ta) {
       ta.addEventListener('input', updateEditorValidation);
@@ -1920,11 +1996,15 @@ function serveHtml(res) {
             <p>Edit your per-project configuration below. When finished, click "Save Configuration".</p>
           </div>
           <div class="editor-container">
-            <textarea id="projects" spellcheck="false" class="config-textarea"></textarea>
+            <!-- Monaco host; will fill available space -->
+            <div id="projects-editor"></div>
+            <!-- Fallback textarea (hidden when Monaco loads) -->
+            <textarea id="projects" spellcheck="false" class="config-textarea" style="display:none"></textarea>
           </div>
           <div class="actions">
             <button id="btn-save-config" onclick="saveConfig()">Save Configuration</button>
             <button class="secondary" onclick="loadConfig()">Reload</button>
+            <button class="secondary" onclick="(async ()=>{ try { const text = getProjectsText(); const parsed = JSON.parse(text); setProjectsText(JSON.stringify(parsed, null, 2)); setStatus('Formatted JSON.', 'success'); updateEditorValidation(); } catch(e){ setStatus('❌ Cannot format: ' + (e.message||e), 'error'); } })()">Format JSON</button>
             <button onclick="showTab('examples')">View Examples</button>
           </div>
           <div id="status" class="hint"></div>
