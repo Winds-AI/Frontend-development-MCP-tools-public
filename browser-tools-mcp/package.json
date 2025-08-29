@@ -26,6 +26,10 @@
   ],
   "author": "Winds AI",
   "license": "MIT",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.4.1",
     "body-parser": "^1.20.3",

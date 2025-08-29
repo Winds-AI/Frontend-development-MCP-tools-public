@@ -3,40 +3,14 @@ import path from "path";
 import os from "os";
 import { exec } from "child_process";
 import { fileURLToPath } from "url";
+import { getScreenshotStoragePath, getDefaultDownloadsFolder } from "./modules/shared.js";
 // Helper constants for ES module scope
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 export class ScreenshotService {
-    constructor() {
-        this.DEFAULT_BASE_FOLDER = "MCP_Screenshots";
-    }
-    /**
-     * Load project configuration from chrome-extension/projects.json
-     */
-    loadProjectConfig() {
-        try {
-            const configPath = path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json");
-            if (fs.existsSync(configPath)) {
-                const configData = fs.readFileSync(configPath, "utf8");
-                return JSON.parse(configData);
-            }
-        }
-        catch (error) {
-            console.error("Screenshot Service: Error loading projects config:", error);
-        }
-        return null;
-    }
-    /**
-     * Get screenshot storage path from project configuration
-     */
-    getProjectScreenshotPath() {
-        const projectsConfig = this.loadProjectConfig();
-        if (projectsConfig && projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH) {
-            console.log("Screenshot Service: Using project config screenshot path:", projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH);
-            return projectsConfig.DEFAULT_SCREENSHOT_STORAGE_PATH;
-        }
-        return undefined;
-    }
+    constructor() { }
+    // Project-level screenshot path is resolved centrally via modules/shared
+    // using DEFAULT_SCREENSHOT_STORAGE_PATH from root projects.json when present.
     static getInstance() {
         if (!ScreenshotService.instance) {
             ScreenshotService.instance = new ScreenshotService();
@@ -94,23 +68,32 @@ export class ScreenshotService {
     /**
      * Determine the base directory for screenshots
      */
-    resolveBaseDirectory(configuredPath) {
-        if (configuredPath && path.isAbsolute(configuredPath)) {
-            return configuredPath;
-        }
-        // Check environment variable
-        const envPath = process.env.SCREENSHOT_STORAGE_PATH;
-        if (envPath && path.isAbsolute(envPath)) {
-            return envPath;
-        }
-        // Check project configuration
-        const projectPath = this.getProjectScreenshotPath();
+    resolveBaseDirectory(_configuredPath) {
+        // Priority 1: DEFAULT_SCREENSHOT_STORAGE_PATH from projects.json (via shared)
+        const projectPath = getScreenshotStoragePath();
         if (projectPath && path.isAbsolute(projectPath)) {
-            return projectPath;
+            try {
+                if (fs.existsSync(projectPath) || this.canCreateDirectory(projectPath)) {
+                    console.log("[info] Screenshot Service: Using configured DEFAULT_SCREENSHOT_STORAGE_PATH:", projectPath);
+                    return projectPath;
+                }
+            }
+            catch (error) {
+                console.warn(`Screenshot Service: Invalid configured screenshot path ${projectPath}:`, error);
+            }
         }
-        // Default to Downloads/MCP_Screenshots
-        const downloadsFolder = this.getDefaultDownloadsFolder();
-        return path.join(downloadsFolder, this.DEFAULT_BASE_FOLDER);
+        // Priority 2: Default downloads folder from shared helper
+        const downloadsBase = getDefaultDownloadsFolder();
+        try {
+            if (!fs.existsSync(downloadsBase)) {
+                fs.mkdirSync(downloadsBase, { recursive: true });
+            }
+        }
+        catch (error) {
+            console.warn("Screenshot Service: Failed to ensure downloads folder:", downloadsBase, error);
+        }
+        console.log("[info] Screenshot Service: Using default downloads folder:", downloadsBase);
+        return downloadsBase;
     }
     /**
      * Determine project directory name
@@ -284,19 +267,26 @@ export class ScreenshotService {
         }
     }
     /**
-     * Get default downloads folder based on OS
+     * Check if a directory can be created (either doesn't exist but parent exists, or already exists)
      */
-    getDefaultDownloadsFolder() {
-        const homeDir = os.homedir();
-        switch (os.platform()) {
-            case "darwin": // macOS
-                return path.join(homeDir, "Downloads");
-            case "win32": // Windows
-                return path.join(homeDir, "Downloads");
-            default: // Linux and others
-                return path.join(homeDir, "Downloads");
+    canCreateDirectory(dirPath) {
+        try {
+            // If directory already exists, return true
+            if (fs.existsSync(dirPath)) {
+                return fs.statSync(dirPath).isDirectory();
+            }
+            // Check if parent directory exists
+            const parentDir = path.dirname(dirPath);
+            return fs.existsSync(parentDir) && fs.statSync(parentDir).isDirectory();
+        }
+        catch (error) {
+            return false;
         }
     }
+    /**
+     * Get default downloads folder based on OS
+     */
+    // Default downloads folder is provided by modules/shared helper
     /**
      * Sanitize directory name for filesystem
      */

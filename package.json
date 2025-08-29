@@ -1,12 +1,12 @@
 {
   "name": "@winds-ai/autonomous-frontend-browser-tools",
-  "version": "1.4.5",
+  "version": "1.4.15",
   "description": "Autonomous Frontend Browser Tools — npx setup UI, connector server, Chrome extension, MCP server bin",
   "license": "MIT",
   "homepage": "https://github.com/Winds-AI/Frontend-development-MCP-tools-public",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Winds-AI/Frontend-development-MCP-tools-public.git"
+    "url": "git+https://github.com/Winds-AI/Frontend-development-MCP-tools-public.git"
   },
   "keywords": [
     "mcp",
@@ -20,7 +20,7 @@
     "gemini"
   ],
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "scripts": {
     "setup": "node setup.js",
@@ -37,12 +37,14 @@
     "prepublishOnly": "pnpm build"
   },
   "bin": {
-    "@winds-ai/autonomous-frontend-browser-tools": "tools/afbt-entry.js",
     "afbt-setup": "tools/afbt-setup.js",
-    "afbt-mcp": "browser-tools-mcp/dist/mcp-server.js"
+    "afbt-mcp": "tools/afbt-mcp.js",
+    "autonomous-frontend-browser-tools": "tools/afbt-entry.js"
   },
   "files": [
     "tools/afbt-setup.js",
+    "tools/afbt-entry.js",
+    "tools/afbt-mcp.js",
     "browser-tools-server/dist/**/*",
     "browser-tools-server/package.json",
     "browser-tools-mcp/dist/**/*",

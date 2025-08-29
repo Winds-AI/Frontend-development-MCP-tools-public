@@ -50,6 +50,39 @@ await api.request({
 });
 ```
 
+### Cookies-based auth example
+
+When your token is stored as a cookie:
+
+1) In `projects.json` for the active project, configure:
+
+```json
+{
+  "projects": {
+    "my-frontend": {
+      "config": {
+        "API_BASE_URL": "https://api.example.com",
+        "AUTH_STORAGE_TYPE": "cookies",
+        "AUTH_TOKEN_KEY": "auth_token",
+        "AUTH_ORIGIN": "http://localhost:5173"
+      }
+    }
+  }
+}
+```
+
+2) Call with `includeAuthToken: true`:
+
+```typescript
+await api.request({
+  endpoint: "/auth/profile",
+  method: "GET",
+  includeAuthToken: true
+});
+```
+
+If the token cannot be retrieved, the tool returns a helpful error. Ensure the target app is open in Chrome, the extension is connected, and DevTools is open on the inspected tab.
+
 ## Tips
 
 - Use `api.searchEndpoints` first to find the right path and request shape

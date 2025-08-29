@@ -33,6 +33,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "CAPTURE_SCREENSHOT" && message.tabId) {
+    console.log("Background: Received CAPTURE_SCREENSHOT message:", message);
     // First get the server settings
     chrome.storage.local.get(["browserConnectorSettings"], (result) => {
       const settings = result.browserConnectorSettings || {
@@ -43,6 +44,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       // Validate server identity first
       validateServerIdentity(settings.serverHost, settings.serverPort)
         .then((isValid) => {
+          console.log("Background: Server validation result:", isValid);
           if (!isValid) {
             console.error(
               "Cannot capture screenshot: Not connected to a valid browser tools server"
@@ -56,14 +58,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
 
           // Continue with screenshot capture
+          console.log("Background: Proceeding with screenshot capture");
           captureAndSendScreenshot(message, settings, sendResponse);
         })
         .catch((error) => {
           console.error("Error validating server:", error);
-          sendResponse({
-            success: false,
-            error: "Failed to validate server identity: " + error.message,
-          });
+          // Still attempt to capture screenshot even if validation fails, but log the error
+          console.warn("Proceeding with screenshot capture despite validation error");
+          captureAndSendScreenshot(message, settings, sendResponse);
         });
     });
     return true; // Required to use sendResponse asynchronously
@@ -1005,6 +1007,7 @@ async function retestConnectionOnRefresh(tabId) {
 
 // Function to capture and send screenshot
 function captureAndSendScreenshot(message, settings, sendResponse) {
+  console.log("Background: In captureAndSendScreenshot function");
   // Get the inspected window's tab
   chrome.tabs.get(message.tabId, (tab) => {
     if (chrome.runtime.lastError) {
@@ -1015,12 +1018,14 @@ function captureAndSendScreenshot(message, settings, sendResponse) {
       });
       return;
     }
+    console.log("Background: Got tab info:", tab);
 
     // Get all windows to find the one containing our tab
     chrome.windows.getAll({ populate: true }, (windows) => {
       const targetWindow = windows.find((w) =>
         w.tabs.some((t) => t.id === message.tabId)
       );
+      console.log("Background: Found target window:", targetWindow);
 
       if (!targetWindow) {
         console.error("Could not find window containing the inspected tab");
@@ -1036,6 +1041,7 @@ function captureAndSendScreenshot(message, settings, sendResponse) {
         targetWindow.id,
         { format: "png" },
         (dataUrl) => {
+          console.log("Background: Screenshot captured, sending to server");
           // Ignore DevTools panel capture error if it occurs
           if (
             chrome.runtime.lastError &&

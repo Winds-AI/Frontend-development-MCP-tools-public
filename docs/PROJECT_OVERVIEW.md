@@ -1,6 +1,4 @@
-# Browser Tools MCP Extension - Complete Project Overview
-
-**🚀 Version 1.2.0 - Autonomous AI-Powered Frontend Development Platform**
+**🚀 Autonomous AI-Powered Frontend Development Platform**
 
 - Contents:
   - Executive Summary
@@ -10,11 +8,11 @@
 
 ## 📋 Executive Summary
 
-The Browser Tools MCP Extension is a comprehensive solution designed for **autonomous AI-powered frontend development workflows**. This system provides AI agents with reliable access to browser state, real-time debugging information, and seamless screenshot capabilities through enhanced WebSocket connections optimized for extended development sessions.
+This is a comprehensive solution designed for **autonomous AI-powered frontend development workflows**. This system provides AI agents the reliable access to browser state, real-time debugging information, and seamless screenshot capabilities through enhanced WebSocket connections optimized for extended development sessions.
 
 ### 🎯 Project Mission
 
-Enable AI development tools to work autonomously for hours without manual intervention by providing:
+Enable AI development tools to work autonomously for minutes without manual intervention by providing:
 
 - **Stable browser integration** with intelligent connection recovery
 - **Real-time context capture** (logs, network requests, screenshots)
@@ -67,7 +65,7 @@ flowchart TB
     SS -. Storage Path + Data .-> MCP
     LG -. Truncated Logs .-> MCP
     NS -- Authenticated Calls --> API(("Target APIs"))
-     SS -- Project Structure --> IMG["Image Storage<br>Downloads/MCP_Screenshots"]
+     SS -- Project Structure --> IMG["Image Storage<br>Downloads/AFBT_Screenshots"]
     BTS -- Status Report --> HC["Health Monitor<br>connection-health"]
     MCP -.-> PS
     CE -.-> WB
@@ -87,9 +85,6 @@ flowchart TB
     style WB fill:#ffe,stroke:#333,stroke-width:1px
     style PS fill:#ffe,stroke:#333,stroke-width:1px
     style ER fill:#ffe,stroke:#333,stroke-width:1px
-
-
-
 ```
 
 #### 1. **MCP Server** (`browser-tools-mcp/`)
@@ -111,7 +106,7 @@ flowchart TB
 - **Role**: Browser integration layer
 - **Function**: Real-time data capture, screenshot execution, DevTools integration
 - **Key Features**: Fast reconnection, exponential backoff, streamlined discovery
-- **UI**: DevTools panel with connection monitoring and manual controls
+- **UI**: DevTools panel with connection monitoring and manual controls (embedding management moved to Setup UI)
 
 ---
 
@@ -145,14 +140,26 @@ Real-time connection status at `/connection-health`:
 
 - Chrome extension installed and DevTools open on the inspected tab
 - Browser Tools Server running and discoverable (defaults to port 3025)
-- Project configuration in `chrome-extension/projects.json` (see cheat sheet below)
+- Project configuration in root `projects.json` and env in `.env`
 
 ---
 
 ## 🧭 Multi‑Project Selection
 
-- Resolution order: request header `X-ACTIVE-PROJECT` → `ACTIVE_PROJECT` env (MCP) → `defaultProject` in `chrome-extension/projects.json`.
+- Resolution order: request header `X-ACTIVE-PROJECT` → `ACTIVE_PROJECT` env (MCP) → `defaultProject` in root `projects.json`.
 - Each project has its own embedding index at `.vectra/<project>` and API doc source.
+
+### projects.json resolution
+
+The server resolves `projects.json` across common launch modes to avoid "projects.json not found" during reindex:
+
+- Env override: `AFBT_PROJECTS_JSON` (absolute path)
+- CWD: `./projects.json` (when started from repo root)
+- Parent of CWD: `../projects.json` (when started inside `browser-tools-server/`)
+- Module-relative repo root (local dev): `browser-tools-server/../../projects.json`
+- Home fallback: `~/.afbt/projects.json`
+
+This guarantees embeddings reindex works via both `pnpm run setup` and `npx afbt-setup`/direct server runs.
 
 ---
 
@@ -175,6 +182,10 @@ Notes:
 - Prefer `browser.network.inspect` for network errors; console tool does not capture HTTP failures.
 - Some MCP clients cache tool descriptions; dynamic updates are not always reflected live.
 
+Planned/disabled:
+
+- The `ui.interact` tool is planned but disabled in the current build. It appears in references for future workflows and may be enabled in a later release.
+
 ---
 
 ## 🔁 Common Workflows
@@ -193,22 +204,7 @@ Notes:
 
 - Automated UI interaction
   1. `browser.navigate` → 2) `ui.interact` (perform click/type/etc.) → 3) optional `browser.screenshot` → 4) verify via `browser.network.inspect`.
-
----
-
-## 🗂️ Configuration Cheat Sheet (`chrome-extension/projects.json`)
-
-- Per‑project `config`:
-  - `SWAGGER_URL` (required for API search/tag tools)
-  - `API_BASE_URL` (required for live API calls)
-  - `AUTH_STORAGE_TYPE` + `AUTH_TOKEN_KEY` (and optional `AUTH_ORIGIN`) for dynamic auth
-  - `requiresAuth` in search results indicates whether to set includeAuthToken
-  - `ROUTES_FILE_PATH` (optional; referenced in navigation tool description)
-  - Optional: `BROWSER_TOOLS_HOST`, `BROWSER_TOOLS_PORT`
-- Global: `DEFAULT_SCREENSHOT_STORAGE_PATH` (base screenshot directory)
-
-Embedding provider keys (env only, not in projects.json): `OPENAI_API_KEY`, `GEMINI_API_KEY` (+ optional model vars). Reindex from DevTools panel after provider/model changes.
-
+  
 ---
 
 ## 🧑‍⚕️ Health & Troubleshooting

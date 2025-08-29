@@ -2,34 +2,33 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import path from "path";
 import fs from "fs";
-import { fileURLToPath } from "url";
 import { z } from "zod";
-// Helper constants for ES module scope
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 // Load project configuration
 function loadProjectConfig() {
     try {
-        const possiblePaths = [
-            path.join(__dirname, "..", "chrome-extension", "projects.json"),
-            path.join(__dirname, "..", "..", "chrome-extension", "projects.json"),
-            path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json"),
-            path.resolve(process.cwd(), "chrome-extension", "projects.json"),
-        ];
-        for (const configPath of possiblePaths) {
-            console.log(`[DEBUG] Trying to load projects.json from: ${configPath}`);
-            if (fs.existsSync(configPath)) {
-                const configData = fs.readFileSync(configPath, "utf8");
-                console.log(`[DEBUG] Successfully loaded projects.json from: ${configPath}`);
-                return JSON.parse(configData);
-            }
+        const candidates = [];
+        if (process.env.AFBT_PROJECTS_JSON) {
+            candidates.push(path.resolve(process.env.AFBT_PROJECTS_JSON));
         }
-        console.log(`[DEBUG] projects.json not found in any of the tried paths`);
+        candidates.push(path.resolve(process.cwd(), "projects.json"));
+        try {
+            const home = require("os").homedir?.() || process.env.HOME;
+            if (home)
+                candidates.push(path.resolve(home, ".afbt", "projects.json"));
+        }
+        catch { }
+        const chosen = candidates.find((p) => fs.existsSync(p));
+        if (!chosen) {
+            console.error(`projects.json not found. Checked: ${candidates.join(", ")}. Set AFBT_PROJECTS_JSON or open the Setup UI to create and save it.`);
+            return null;
+        }
+        const configData = fs.readFileSync(chosen, "utf8");
+        return JSON.parse(configData);
     }
     catch (error) {
         console.error("Error loading projects config:", error);
+        return null;
     }
-    return null;
 }
 // Get configuration value with fallback priority:
 // 1. Environment variable (highest priority)
@@ -534,99 +533,94 @@ async function handleUiInteract(params) {
         }
     });
 }
-// // New name
-// server.tool(
-//   "ui.interact",
-//   "Interact with the active browser tab using semantic selectors (data-testid, role+name, label, placeholder, name, text, css, xpath). Supports actions: click, type, select, check/uncheck, keypress, hover, waitForSelector, scroll. Automatically scrolls into view and waits for visibility/enabled. Uses a CDP fallback in the extension when needed.",
-//   {
-//     action: z.enum([
-//       "click",
-//       "type",
-//       "select",
-//       "check",
-//       "uncheck",
-//       "keypress",
-//       "hover",
-//       "waitForSelector",
-//       "scroll",
-//     ]),
-//     target: z
-//       .object({
-//         by: z.enum([
-//           "testid",
-//           "role",
-//           "label",
-//           "text",
-//           "placeholder",
-//           "name",
-//           "css",
-//           "xpath",
-//         ]),
-//         value: z.string(),
-//         exact: z.boolean().optional(),
-//       })
-//       .describe("How to locate the element"),
-//     scopeTarget: z
-//       .object({
-//         by: z.enum([
-//           "testid",
-//           "role",
-//           "label",
-//           "text",
-//           "placeholder",
-//           "name",
-//           "css",
-//           "xpath",
-//         ]),
-//         value: z.string(),
-//         exact: z.boolean().optional(),
-//       })
-//       .optional()
-//       .describe("Optional container to scope the search (e.g., role=tablist)"),
-//     value: z
-//       .string()
-//       .optional()
-//       .describe("Text/value to type/select/keypress when applicable"),
-//     options: z
-//       .object({
-//         timeoutMs: z.number().optional(),
-//         waitForVisible: z.boolean().optional(),
-//         waitForEnabled: z.boolean().optional(),
-//         waitForNetworkIdleMs: z.number().optional(),
-//         postActionScreenshot: z.boolean().optional(),
-//         screenshotLabel: z.string().optional(),
-//         fallbackToCdp: z.boolean().optional(),
-//         frameSelector: z.string().optional(),
-//         // scroll-specific
-//         scrollX: z.number().optional(),
-//         scrollY: z.number().optional(),
-//         to: z.enum(["top", "bottom"]).optional(),
-//         smooth: z.boolean().optional(),
-//         // assertion helpers
-//         assertTarget: z
-//           .object({
-//             by: z.enum([
-//               "testid",
-//               "role",
-//               "label",
-//               "text",
-//               "placeholder",
-//               "name",
-//               "css",
-//               "xpath",
-//             ]),
-//             value: z.string(),
-//             exact: z.boolean().optional(),
-//           })
-//           .optional(),
-//         assertTimeoutMs: z.number().optional(),
-//         assertUrlContains: z.string().optional(),
-//         tabChangeWaitMs: z.number().optional(),
-//       })
-//       .optional(),
-//   },
-//   handleUiInteract
-// );
+// New name
+server.tool("ui.interact", "Interact with the active browser tab using semantic selectors (data-testid, role+name, label, placeholder, name, text, css, xpath). Supports actions: click, type, select, check/uncheck, keypress, hover, waitForSelector, scroll. Automatically scrolls into view and waits for visibility/enabled. Uses a CDP fallback in the extension when needed.", {
+    action: z.enum([
+        "click",
+        "type",
+        "select",
+        "check",
+        "uncheck",
+        "keypress",
+        "hover",
+        "waitForSelector",
+        "scroll",
+    ]),
+    target: z
+        .object({
+        by: z.enum([
+            "testid",
+            "role",
+            "label",
+            "text",
+            "placeholder",
+            "name",
+            "css",
+            "xpath",
+        ]),
+        value: z.string(),
+        exact: z.boolean().optional(),
+    })
+        .describe("How to locate the element"),
+    scopeTarget: z
+        .object({
+        by: z.enum([
+            "testid",
+            "role",
+            "label",
+            "text",
+            "placeholder",
+            "name",
+            "css",
+            "xpath",
+        ]),
+        value: z.string(),
+        exact: z.boolean().optional(),
+    })
+        .optional()
+        .describe("Optional container to scope the search (e.g., role=tablist)"),
+    value: z
+        .string()
+        .optional()
+        .describe("Text/value to type/select/keypress when applicable"),
+    options: z
+        .object({
+        timeoutMs: z.number().optional(),
+        waitForVisible: z.boolean().optional(),
+        waitForEnabled: z.boolean().optional(),
+        waitForNetworkIdleMs: z.number().optional(),
+        postActionScreenshot: z.boolean().optional(),
+        screenshotLabel: z.string().optional(),
+        fallbackToCdp: z.boolean().optional(),
+        frameSelector: z.string().optional(),
+        // scroll-specific
+        scrollX: z.number().optional(),
+        scrollY: z.number().optional(),
+        to: z.enum(["top", "bottom"]).optional(),
+        smooth: z.boolean().optional(),
+        // assertion helpers
+        assertTarget: z
+            .object({
+            by: z.enum([
+                "testid",
+                "role",
+                "label",
+                "text",
+                "placeholder",
+                "name",
+                "css",
+                "xpath",
+            ]),
+            value: z.string(),
+            exact: z.boolean().optional(),
+        })
+            .optional(),
+        assertTimeoutMs: z.number().optional(),
+        assertUrlContains: z.string().optional(),
+        tabChangeWaitMs: z.number().optional(),
+    })
+        .optional(),
+}, handleUiInteract);
 // =============================================
 // LIST API TAGS TOOL
 // =============================================

@@ -20,8 +20,8 @@ See the full consolidated overview and tools quick-reference here: [PROJECT_OVER
 
 ### Active project resolution (multi-project support)
 - The active project can differ across IDE instances:
-  - MCP side: `ACTIVE_PROJECT` env in Cursor MCP config.
-  - Server side (search API docs): Implicit per-request project via header `X-ACTIVE-PROJECT` (sent by MCP). Fallbacks to server `ACTIVE_PROJECT` or `defaultProject` in [projects.json](mdc:chrome-extension/projects.json).
+  - MCP side: `ACTIVE_PROJECT` env in Cursor MCP config governs config reads.
+  - Server side (semantic search only): Per-request header `X-ACTIVE-PROJECT` (or `active-project`) selects the project; falls back to server env/default.
 - Each project has its own embedding index folder in `.vectra/<project>` and its own cached Swagger.
 
 ### API documentation search (semantic)
@@ -33,7 +33,7 @@ See the full consolidated overview and tools quick-reference here: [PROJECT_OVER
   - `POST /api/embed/reindex` with `{ project }`
 
 ### Tools (high level)
-- `searchApiDocumentation`, `listApiTags`, `fetchLiveApiResponse`, `captureBrowserScreenshot`, `inspect*` tools live in [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts). See detailed rule “Tools Behavior and Business Logic”.
+- `api.searchEndpoints`, `api.listTags`, `api.request`, `browser.screenshot`, `browser.navigate`, `browser.console.read`, `browser.network.inspect`, `ui.inspectElement` live in [mcp-server.ts](mdc:browser-tools-mcp/mcp-server.ts). See detailed rule “Tools Behavior and Business Logic”.
 
 ### Logging and observability
 - Global colorized logging installed at server startup in [browser-connector.ts](mdc:browser-tools-server/browser-connector.ts) via [logger.ts](mdc:browser-tools-server/modules/logger.ts).
@@ -61,4 +61,22 @@ See the full consolidated overview and tools quick-reference here: [PROJECT_OVER
 - Index missing? Open DevTools panel → Reindex for the project.
 - Model mismatch warning? Reindex for current embedding provider/model.
 - 429 on embed? The server will back off; retry or switch provider/model.
+
+
+### Working cadence (applied by the assistant)
+- Plan: Create atomic todos; keep one active. Summarize scope, risks, and assumptions.
+- Discover: Use semantic search to locate relevant modules; read key files before editing.
+- Implement: Make focused edits; follow code style; guard clauses and meaningful names.
+- Validate: Lints on changed files must pass; verify error/empty/loading states.
+- Clean up: Remove dead code/unused imports; update localized docs.
+- Documentation & rules: Update `.cursor/rules/*` and `docs/` to reflect new features/changes; ensure naming/endpoint/header consistency.
+- Review: Provide concise summary and highlight impacted files and risks.
+- Done: Definition below must be satisfied before marking complete.
+
+### Definition of Done
+- All todos completed; no lints on changed files; builds/tests pass when applicable.
+- Edge cases and error handling implemented; external APIs align with official docs.
+- Old logic that was replaced is removed; no dead references remain.
+- Rules and docs updated for the change; superseded guidance removed; cross-file consistency verified.
+- Brief change summary recorded in the conversation with citations to files/lines when useful.
 

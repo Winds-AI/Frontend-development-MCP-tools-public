@@ -219,14 +219,33 @@ let hasLoggedProjectsConfig = false;
  * 3) Packaged fallback relative to this module (node_modules/...)
  */
 function resolveProjectsJsonPath() {
-    const envPath = process.env.AFBT_PROJECTS_JSON;
-    if (envPath && fs.existsSync(envPath))
-        return envPath;
-    const cwdPath = path.join(process.cwd(), "chrome-extension", "projects.json");
-    if (fs.existsSync(cwdPath))
-        return cwdPath;
-    // Packaged fallback (current behavior)
-    return path.join(__dirname, "..", "..", "..", "chrome-extension", "projects.json");
+    const candidates = [];
+    if (process.env.AFBT_PROJECTS_JSON) {
+        candidates.push(path.resolve(process.env.AFBT_PROJECTS_JSON));
+    }
+    // 1) Current working directory (works when server is started from repo root)
+    candidates.push(path.join(process.cwd(), "projects.json"));
+    // 2) Parent of CWD (works when server CWD is browser-tools-server/)
+    try {
+        candidates.push(path.resolve(process.cwd(), "..", "projects.json"));
+    }
+    catch { }
+    // 3) Module-relative repo root (dev/local builds)
+    try {
+        candidates.push(path.resolve(__dirname, "..", "..", "projects.json"));
+    }
+    catch { }
+    try {
+        const home = os.homedir();
+        if (home)
+            candidates.push(path.resolve(home, ".afbt", "projects.json"));
+    }
+    catch { }
+    const chosen = candidates.find((p) => fs.existsSync(p));
+    if (!chosen) {
+        throw new Error(`projects.json not found. Checked: ${candidates.join(", ")}. Set AFBT_PROJECTS_JSON or use the Setup UI.`);
+    }
+    return chosen;
 }
 export function loadProjectConfig() {
     try {

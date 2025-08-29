@@ -31,7 +31,7 @@ The tool uses a sophisticated directory structure for organizing screenshots:
 
 1. **Project config** `DEFAULT_SCREENSHOT_STORAGE_PATH` in `chrome-extension/projects.json`
 2. **Environment variable** `SCREENSHOT_STORAGE_PATH`
-3. **Default**: `~/Downloads/MCP_Screenshots`
+3. **Default**: `~/Downloads/AFBT_Screenshots`
 
 ### Project Directory
 
@@ -93,12 +93,12 @@ The tool always returns image data for analysis.
 
 **URL**: `http://localhost:3000/dashboard`
 **Git Repo**: `my-project`
-**Result**: `~/Downloads/MCP_Screenshots/my-project/dashboard/2024-01-15T10-30-45-123Z_dashboard.png`
+**Result**: `~/Downloads/AFBT_Screenshots/my-project/dashboard/2024-01-15T10-30-45-123Z_dashboard.png`
 
 ### Staging Environment
 
 **URL**: `https://staging.example.com/admin/users`
-**Result**: `~/Downloads/MCP_Screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
+**Result**: `~/Downloads/AFBT_Screenshots/default-project/staging/admin/2024-01-15T10-30-45-123Z_admin-users.png`
 
 ### Active Project Folder
 
@@ -106,7 +106,7 @@ The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultPr
 
 **URL**: `http://localhost:8080/api/auth/login`
 **ACTIVE_PROJECT**: `auth-service`
-**Result**: `~/Downloads/MCP_Screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
+**Result**: `~/Downloads/AFBT_Screenshots/auth-service/api/2024-01-15T10-30-45-123Z_login-page.png`
 
 ## Technical Architecture
 
@@ -151,7 +151,7 @@ The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultPr
 ### Common Errors
 
 - **"Chrome extension not connected"**: Extension not installed or not connected
-- **"Screenshot timeout"**: Extension didn't respond within 15 seconds
+- **"Screenshot timeout"**: Extension didn't respond within 30 seconds
 - **"Failed to save screenshot"**: File system permission issues
 
 ### Troubleshooting
@@ -160,6 +160,14 @@ The project folder is determined by `ACTIVE_PROJECT` or `projects.json.defaultPr
 2. Check browser connector server is running
 3. Verify file system permissions for screenshot directory
 4. Check WebSocket connection between extension and server
+
+### Connection health gating (reliability)
+
+The server now verifies connection health before attempting a capture:
+
+- Validates the WebSocket is OPEN and the last heartbeat is within the allowed window
+- Sends a quick heartbeat probe and waits briefly for a `heartbeat-response` to ensure the socket isn't mid-reconnect
+- If not healthy, returns `503` with an actionable message rather than waiting the full timeout
 
 ## Integration with Other Tools
 

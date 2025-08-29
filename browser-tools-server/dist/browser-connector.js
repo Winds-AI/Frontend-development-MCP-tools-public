@@ -233,6 +233,42 @@ app.post("/extension-log", (req, res) => {
     logDebug("=== End Extension Log ===\n");
     res.json({ status: "ok" });
 });
+// Endpoint for the extension to POST screenshot data
+app.post("/screenshot", async (req, res) => {
+    try {
+        const { data, path, url } = req.body;
+        if (!data) {
+            res.status(400).json({ error: "No screenshot data provided" });
+            return;
+        }
+        // Get the screenshot service instance
+        const screenshotService = ScreenshotService.getInstance();
+        // Get project configuration
+        const projectScreenshotPath = getScreenshotStoragePath();
+        const projectName = getActiveProjectName();
+        // Build screenshot configuration
+        const config = {
+            baseDirectory: projectScreenshotPath || path,
+            projectName: projectName,
+            returnImageData: false, // We don't need to return the image data back to the extension
+        };
+        // Save the screenshot using the service
+        const result = await screenshotService.saveScreenshot(data, url, config);
+        // Uniform info log for screenshots from both DevTools and MCP tool flows
+        logInfo(`Screenshot saved to ${result.filePath} (projectDir=${result.projectDirectory}, category=${result.urlCategory})`);
+        res.json({
+            success: true,
+            path: result.filePath,
+            filename: result.filename,
+        });
+    }
+    catch (error) {
+        console.error("Error saving screenshot:", error);
+        res.status(500).json({
+            error: error.message || "Failed to save screenshot"
+        });
+    }
+});
 // Update GET endpoints to use the new function
 app.get("/console-logs", (req, res) => {
     // Processing is handled by truncateLogsWithCurrentSettings
@@ -741,6 +777,54 @@ export class BrowserConnector {
             }
         }
     }
+    // Send a heartbeat and wait briefly for a heartbeat-response to verify liveness
+    async awaitHeartbeatResponse(timeoutMs = 1200) {
+        return new Promise((resolve) => {
+            if (!this.activeConnection ||
+                this.activeConnection.readyState !== WebSocket.OPEN) {
+                resolve(false);
+                return;
+            }
+            let settled = false;
+            const messageHandler = (message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    if (data && data.type === "heartbeat-response") {
+                        this.activeConnection?.removeListener("message", messageHandler);
+                        if (!settled) {
+                            settled = true;
+                            resolve(true);
+                        }
+                    }
+                }
+                catch (_) { }
+            };
+            this.activeConnection.on("message", messageHandler);
+            // Send a heartbeat probe
+            try {
+                this.activeConnection.send(JSON.stringify({
+                    type: "heartbeat",
+                    connectionId: this.connectionId,
+                    timestamp: Date.now(),
+                }));
+                try {
+                    this.activeConnection.ping?.();
+                }
+                catch { }
+            }
+            catch (_) {
+                this.activeConnection?.removeListener("message", messageHandler);
+                resolve(false);
+                return;
+            }
+            setTimeout(() => {
+                this.activeConnection?.removeListener("message", messageHandler);
+                if (!settled) {
+                    resolve(false);
+                }
+            }, Math.max(200, timeoutMs));
+        });
+    }
     handleConnectionClose() {
         const connectionInfo = this.connectionId || "unknown";
         logInfo(`Handling connection close event [${connectionInfo}]`);
@@ -804,11 +888,33 @@ export class BrowserConnector {
                 error: "Chrome extension not connected. Please open Chrome DevTools and ensure the extension is loaded.",
             });
         }
+        // Extra health checks to avoid sending requests into a stale socket during reconnects
+        if (!this.hasActiveConnection()) {
+            return res.status(503).json({
+                error: "Chrome extension not connected (WebSocket not open). Please open DevTools on the target tab.",
+            });
+        }
+        const timeSinceHeartbeat = Date.now() - this.lastHeartbeatTime;
+        if (timeSinceHeartbeat > this.HEARTBEAT_TIMEOUT) {
+            logInfo(`Browser Connector: Connection unhealthy (no heartbeat for ${timeSinceHeartbeat}ms)`);
+            return res.status(503).json({
+                error: "Chrome extension connection is unhealthy. Open DevTools on the page and try again.",
+            });
+        }
+        // Probe for a quick heartbeat response to ensure we're not racing a reconnect
+        const heartbeatOk = await this.awaitHeartbeatResponse(1200);
+        if (!heartbeatOk) {
+            return res.status(503).json({
+                error: "Chrome extension connection is not ready. Please ensure DevTools is open and retry.",
+            });
+        }
         try {
             // Extract parameters from request body
             logDebug("Browser Connector: Starting screenshot capture...");
             const { projectName, returnImageData, baseDirectory } = req.body || {};
-            const requestId = Date.now().toString();
+            const requestId = `${Date.now()}_${Math.random()
+                .toString(36)
+                .slice(2, 9)}`;
             logDebug("Browser Connector: Generated requestId:", requestId);
             // Create promise that will resolve when we get the screenshot data
             const screenshotPromise = new Promise((resolve, reject) => {
@@ -821,9 +927,9 @@ export class BrowserConnector {
                     if (screenshotCallbacks.has(requestId)) {
                         logInfo(`Browser Connector: Screenshot capture timed out for requestId: ${requestId} [${this.connectionId}]`);
                         screenshotCallbacks.delete(requestId);
-                        reject(new Error(`Screenshot capture timed out - no response from Chrome extension [${this.connectionId}] after 15 seconds`));
+                        reject(new Error(`Screenshot capture timed out - no response from Chrome extension [${this.connectionId}] after 30 seconds`));
                     }
-                }, 15000); // Increased from 10 to 15 seconds for autonomous operation stability
+                }, 30000);
             });
             // Send screenshot request to extension
             const message = JSON.stringify({
@@ -831,6 +937,10 @@ export class BrowserConnector {
                 requestId: requestId,
             });
             logDebug(`Browser Connector: Sending WebSocket message to extension:`, message);
+            if (!this.activeConnection ||
+                this.activeConnection.readyState !== WebSocket.OPEN) {
+                throw new Error("WebSocket connection is not open to send screenshot request");
+            }
             this.activeConnection.send(message);
             // Wait for screenshot data
             logDebug("Browser Connector: Waiting for screenshot data...");
