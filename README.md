@@ -1,5 +1,9 @@
 # Frontend Development Tools (AFBT)
 
+  <a href="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public/badge" alt="Browser Tools Extension MCP server" />
+</a>
+
 **🚀 Optimized for Autonomous AI-Powered Frontend Development Workflows**
 
 - Autonomous Frontend Browser Tools enables AI coding agents to interact with your browser for autonomous frontend development workflows. This document provides an overview of the available tools within the MCP server.
@@ -8,10 +12,6 @@
 - For few helper instructions on how to use these tools `HOW_TO_USE.md`.
 - How it works and architecture is in `PROJECT_OVERVIEW.md`.
 - For understandig how each tool works `each-tool-explained` directory.
-
-  <a href="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public/badge" alt="Browser Tools Extension MCP server" />
-</a>
 
 ## Prerequisites
 - Node.js 20+ (or 22 LTS) is required. Node 18 lacks the global `File` Web API used by `undici`, which will cause `ReferenceError: File is not defined` when launching via npx.
