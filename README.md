@@ -1,7 +1,7 @@
 # Frontend Development Tools (AFBT)
 
   <a href="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public">
-  <img width="380" height="200" src="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public/badge" alt="Browser Tools Extension MCP server" />
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public/badge" alt="autonomous-frontend-browser-tools" />
 </a>
 
 **🚀 Optimized for Autonomous AI-Powered Frontend Development Workflows**
