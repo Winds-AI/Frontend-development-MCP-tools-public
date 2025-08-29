@@ -49,8 +49,6 @@ Requires Node ≥ 20. Verify with `node -v`.
       "args": ["-y", "@winds-ai/autonomous-frontend-browser-tools"],
       "env": {
         "ACTIVE_PROJECT": "my-frontend",
-        "AFBT_PROJECTS_JSON": "/absolute/path/to/projects.json",
-        "BROWSER_TOOLS_PORT": "3025"
       }
     }
   }
