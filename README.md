@@ -10,9 +10,12 @@
 - For understandig how each tool works `each-tool-explained` directory.
 
 ## Prerequisites
-
 - Node.js 20+ (or 22 LTS) is required. Node 18 lacks the global `File` Web API used by `undici`, which will cause `ReferenceError: File is not defined` when launching via npx.
 - Recommended: pnpm (the setup script will install it if missing).
+
+<a href="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public/badge" alt="Browser Tools Extension MCP server" />
+</a>
 
 ## Quickstart (npx)
 
@@ -100,5 +103,3 @@ Now, to make Frontend development autonomous, we have to understand what a front
 A frontend developer uses API documentation, browser, browser logs, browser errors, the ability to make API calls, functional requirement documents, developer tools, and his/her visual capability to see the UI and make decisions. Considering these aspects of frontend development, we can create an MCP server that can provide context to AI IDEs at the right time. So, I made tools that can access all these aspects of frontend development and provide context to AI IDEs at the right time. These tools include: `browser.network.inspect`, `browser.screenshot`, `ui.interact`(planned), `browser.console.read`, `api.request`, `api.listTags`, `api.searchEndpoints`, `browser.navigate`... and more coming soon.
 
 I plan to make such workflows for backend and QA testers also, but primarily I am a frontend guy, so I chose this first. If you are interested in this project, please let me know, and I will be happy to help you. We can create something big and awesome.
-
----
