@@ -45,6 +45,7 @@
     "tools/afbt-setup.js",
     "tools/afbt-entry.js",
     "tools/afbt-mcp.js",
+    "tools/ui/**/*",
     "browser-tools-server/dist/**/*",
     "browser-tools-server/package.json",
     "browser-tools-mcp/dist/**/*",

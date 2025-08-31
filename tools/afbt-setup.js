@@ -126,8 +126,11 @@ function serveHtml(res) {
   let html;
 
   try {
-    // Read the HTML content from the setup-ui.html file
-    html = fs.readFileSync(join(__dirname, "setup-ui.html"), "utf8");
+    // Prefer the new minimal UI; fallback to legacy if missing
+    const newUiPath = join(__dirname, "ui", "new-setup-ui.html");
+    const legacyUiPath = join(__dirname, "setup-ui.html");
+    const chosen = fs.existsSync(newUiPath) ? newUiPath : legacyUiPath;
+    html = fs.readFileSync(chosen, "utf8");
     // Replace the placeholder with the actual boolean value
     html = html.replace(
       "/*AFBT_LAUNCHED_BY_MAIN_PLACEHOLDER*/false",
@@ -398,7 +401,7 @@ function listDocs() {
         if (dir === repoRoot && e.name !== "docs") continue;
         walk(full);
       } else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
-        const rel = join.relative(repoRoot, full);
+        const rel = path.relative(repoRoot, full);
         out.push(rel);
       }
     }
@@ -408,7 +411,7 @@ function listDocs() {
   if (fs.existsSync(join(repoRoot, "docs"))) walk(join(repoRoot, "docs"));
   // Also include packaged docs as absolute paths (namespaced under pkg/ for clarity)
   if (fs.existsSync(embeddedReadme))
-    out.push(join.relative(repoRoot, embeddedReadme));
+    out.push(path.relative(repoRoot, embeddedReadme));
   if (fs.existsSync(embeddedDocsDir)) {
     const stack = [embeddedDocsDir];
     while (stack.length) {
@@ -419,7 +422,7 @@ function listDocs() {
         if (e.isDirectory()) {
           stack.push(full);
         } else if (e.isFile() && e.name.toLowerCase().endsWith(".md")) {
-          out.push(join.relative(repoRoot, full));
+          out.push(path.relative(repoRoot, full));
         }
       }
     }

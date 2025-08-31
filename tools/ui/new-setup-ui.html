@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AFBT Setup</title>
+    <style>
+      :root {
+        --bg: #0b1020;
+        --panel: #121a2f;
+        --muted: #96a0b8;
+        --text: #e9eef7;
+        --accent: #4f8cff;
+        --accent-2: #79a7ff;
+        --ok: #12b886;
+        --warn: #f59f00;
+        --err: #f03e3e;
+        --border: #1d2947;
+        --radius: 10px;
+        --shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+        --gap: 14px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        color: var(--text);
+        background: linear-gradient(180deg, #0b1020 0%, #0f1630 100%);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+          Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+        line-height: 1.6;
+        font-size: 15px;
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: saturate(1.2) blur(8px);
+        background: rgba(10, 15, 35, 0.7);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 18px;
+        gap: 12px;
+      }
+
+      .title {
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        margin: 0;
+      }
+
+      nav {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .tab-btn {
+        appearance: none;
+        background: transparent;
+        color: var(--muted);
+        border: 1px solid transparent;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: 0.15s ease;
+      }
+      .tab-btn:hover {
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.04);
+      }
+      .tab-btn.active {
+        color: var(--text);
+        background: rgba(79, 140, 255, 0.12);
+        border-color: rgba(79, 140, 255, 0.22);
+      }
+
+      .primary {
+        background: linear-gradient(
+          180deg,
+          var(--accent) 0%,
+          var(--accent-2) 100%
+        );
+        color: #0a162d;
+        border: 0;
+        font-weight: 600;
+        padding: 10px 14px;
+        border-radius: 10px;
+        cursor: pointer;
+        box-shadow: 0 10px 24px rgba(79, 140, 255, 0.25);
+      }
+      .primary:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      main {
+        padding: 18px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+
+      .section {
+        display: none;
+      }
+      .section.active {
+        display: block;
+      }
+
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: var(--gap);
+      }
+      @media (max-width: 1100px) {
+        .grid-3 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .card {
+        background: linear-gradient(180deg, #111a33 0%, #0f1830 100%);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px;
+        box-shadow: var(--shadow);
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 16px;
+        letter-spacing: -0.01em;
+      }
+      .card p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      .rows {
+        display: grid;
+        gap: 10px;
+      }
+
+      .kpi {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 600;
+      }
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+      }
+      .ok {
+        background: var(--ok);
+      }
+      .warn {
+        background: var(--warn);
+      }
+      .err {
+        background: var(--err);
+      }
+      .muted {
+        color: var(--muted);
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid var(--border);
+        color: var(--text);
+        cursor: pointer;
+      }
+      .btn.secondary {
+        background: transparent;
+      }
+
+      .split {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: var(--gap);
+        align-items: start;
+      }
+      @media (max-width: 1100px) {
+        .split {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .list {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .list-item {
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border);
+      }
+      .list-item:last-child {
+        border-bottom: 0;
+      }
+      .list-item.active {
+        background: rgba(79, 140, 255, 0.12);
+      }
+
+      textarea,
+      input,
+      select {
+        width: 100%;
+        background: #0b1430;
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        outline: none;
+      }
+      textarea {
+        min-height: 260px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        font-size: 13px;
+      }
+
+      .hint {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .toast {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        padding: 12px 14px;
+        background: #0b1430;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: var(--shadow);
+        display: none;
+      }
+      .toast.show {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="bar">
+        <h1 class="title">Autonomous Frontend Browser Tools — Setup</h1>
+        <nav>
+          <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+          <button class="tab-btn" data-tab="projects">Projects</button>
+          <button class="tab-btn" data-tab="environment">Environment</button>
+          <button class="tab-btn" data-tab="embeddings">Embeddings</button>
+          <button class="tab-btn" data-tab="docs">Docs</button>
+        </nav>
+        <button id="finishBtn" class="primary">Finish</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="dashboard" class="section active">
+        <div class="grid-3">
+          <div class="card rows">
+            <h3>Connector</h3>
+            <div class="kpi">
+              <span id="conn-dot" class="dot warn"></span
+              ><span id="conn-text">Detecting…</span>
+            </div>
+            <p class="hint">
+              The connector runs persistently in your terminal. The Setup UI can
+              be closed anytime.
+            </p>
+            <div class="actions">
+              <a
+                id="healthLink"
+                class="btn"
+                href="#"
+                target="_blank"
+                rel="noreferrer"
+                >Open Health</a
+              >
+              <a
+                id="identityLink"
+                class="btn"
+                href="#"
+                target="_blank"
+                rel="noreferrer"
+                >Open Identity</a
+              >
+            </div>
+          </div>
+
+          <div class="card rows">
+            <h3>Configuration</h3>
+            <div class="kpi">
+              <span id="cfg-dot" class="dot warn"></span
+              ><span id="cfg-text">Checking…</span>
+            </div>
+            <p class="hint">
+              Projects live in <code>projects.json</code> at the repo root.
+            </p>
+            <div class="actions">
+              <button class="btn" data-nav="projects">Open Projects</button>
+            </div>
+          </div>
+
+          <div class="card rows">
+            <h3>Embeddings</h3>
+            <div class="kpi">
+              <span id="emb-dot" class="dot warn"></span
+              ><span id="emb-text">Awaiting project…</span>
+            </div>
+            <p class="hint">
+              Reindex when switching providers/models or after major API
+              changes.
+            </p>
+            <div class="actions">
+              <button class="btn" data-nav="embeddings">
+                Manage Embeddings
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style="height: 12px"></div>
+
+        <div class="card rows">
+          <h3>Quick Actions</h3>
+          <div class="actions">
+            <button class="btn" data-nav="projects">Configure Projects</button>
+            <button class="btn" data-nav="environment">Set Environment</button>
+            <button class="btn" data-nav="embeddings">Embeddings</button>
+            <button class="btn" data-nav="docs">Docs</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="projects" class="section">
+        <div class="split">
+          <div>
+            <div class="card rows">
+              <h3>Projects</h3>
+              <div class="actions">
+                <input id="newProjectName" placeholder="New project name" />
+                <button id="addProjectBtn" class="btn">Add</button>
+              </div>
+              <div
+                id="projectList"
+                class="list"
+                aria-label="Project list"
+              ></div>
+              <div class="actions">
+                <button id="renameBtn" class="btn secondary">Rename</button>
+                <button id="deleteBtn" class="btn secondary">Delete</button>
+                <button id="setDefaultBtn" class="btn">Set Default</button>
+              </div>
+            </div>
+            <p class="hint">
+              Required per-project config: SWAGGER_URL, API_BASE_URL,
+              AUTH_STORAGE_TYPE, AUTH_TOKEN_KEY. Optional: AUTH_ORIGIN,
+              API_AUTH_TOKEN_TTL_SECONDS, ROUTES_FILE_PATH. Global optional:
+              DEFAULT_SCREENSHOT_STORAGE_PATH.
+            </p>
+          </div>
+
+          <div class="card rows">
+            <h3>Configuration Editor</h3>
+            <textarea
+              id="projectsText"
+              spellcheck="false"
+              aria-label="projects.json editor"
+            ></textarea>
+            <div class="actions">
+              <button id="saveConfigBtn" class="primary">
+                Save Configuration
+              </button>
+              <button id="reloadConfigBtn" class="btn secondary">Reload</button>
+              <button id="formatConfigBtn" class="btn secondary">
+                Format JSON
+              </button>
+            </div>
+            <div class="hint">Path: projects.json (project root)</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="environment" class="section">
+        <div class="card rows">
+          <h3>Environment (.env)</h3>
+          <textarea
+            id="envText"
+            spellcheck="false"
+            aria-label=".env editor"
+          ></textarea>
+          <div class="actions">
+            <button id="saveEnvBtn" class="primary">Save .env</button>
+            <button id="reloadEnvBtn" class="btn secondary">Reload</button>
+          </div>
+          <div class="hint">
+            Stored at browser-tools-server/.env. Do not put embedding API keys
+            into projects.json.
+          </div>
+        </div>
+      </section>
+
+      <section id="embeddings" class="section">
+        <div class="card rows">
+          <h3>Embeddings</h3>
+          <div class="actions">
+            <select
+              id="embProjectSelect"
+              aria-label="Project selector"
+            ></select>
+            <button id="checkStatusBtn" class="btn">Check Status</button>
+            <button id="reindexBtn" class="primary">Reindex</button>
+          </div>
+          <div id="embStatus" class="rows">
+            <span class="muted"
+              >Select a project and click "Check Status".</span
+            >
+          </div>
+        </div>
+      </section>
+
+      <section id="docs" class="section">
+        <div class="split">
+          <div class="card rows">
+            <h3>Documents</h3>
+            <input id="docSearch" placeholder="Search docs" />
+            <div
+              id="docsList"
+              class="list"
+              style="max-height: 420px; overflow: auto"
+            ></div>
+          </div>
+          <div class="card rows">
+            <h3>Preview</h3>
+            <pre id="docContent" style="white-space: pre-wrap; margin: 0"></pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script>
+      const state = {
+        server: null,
+        config: null,
+        selectedProject: null,
+        docs: [],
+      };
+
+      function qs(sel) {
+        return document.querySelector(sel);
+      }
+      function qsa(sel) {
+        return Array.from(document.querySelectorAll(sel));
+      }
+      function toast(msg, type) {
+        const el = qs("#toast");
+        el.textContent = msg;
+        el.className = "toast show";
+        el.style.borderColor =
+          type === "error"
+            ? "var(--err)"
+            : type === "warn"
+            ? "var(--warn)"
+            : "var(--border)";
+        setTimeout(() => {
+          el.classList.remove("show");
+        }, 2500);
+      }
+
+      function setTab(name) {
+        qsa(".tab-btn").forEach((b) =>
+          b.classList.toggle("active", b.dataset.tab === name)
+        );
+        qsa(".section").forEach((s) =>
+          s.classList.toggle("active", s.id === name)
+        );
+      }
+
+      function navInit() {
+        qsa(".tab-btn").forEach((b) =>
+          b.addEventListener("click", () => setTab(b.dataset.tab))
+        );
+        qsa("[data-nav]").forEach((b) =>
+          b.addEventListener("click", () => setTab(b.getAttribute("data-nav")))
+        );
+        qs("#finishBtn").addEventListener("click", async () => {
+          try {
+            await fetch("/shutdown", { method: "POST" });
+          } catch {}
+          try {
+            window.close();
+          } catch {}
+          window.location.href = "about:blank";
+        });
+      }
+
+      async function fetchJson(url, opts) {
+        const res = await fetch(url, opts);
+        if (!res.ok) throw new Error("Request failed: " + res.status);
+        return res.json();
+      }
+
+      async function loadServerInfo() {
+        try {
+          const info = await fetchJson("/server/info");
+          state.server = info;
+          const running = !!info && info.running && info.port;
+          qs("#conn-dot").className = "dot " + (running ? "ok" : "warn");
+          qs("#conn-text").textContent = running
+            ? `Running on ${info.port}`
+            : "Not detected";
+          const base = running ? `http://127.0.0.1:${info.port}` : "#";
+          const healthHref = running ? base + "/connection-health" : "#";
+          const idHref = running ? base + "/.identity" : "#";
+          qs("#healthLink").href = healthHref;
+          qs("#identityLink").href = idHref;
+        } catch (e) {
+          qs("#conn-dot").className = "dot err";
+          qs("#conn-text").textContent = "Error";
+        }
+      }
+
+      async function loadConfig() {
+        let text = "";
+        try {
+          const j = await fetchJson("/config");
+          state.config = j;
+          text = JSON.stringify(j, null, 2);
+          qs("#cfg-dot").className = "dot ok";
+          const count = Object.keys(j?.projects || {}).length;
+          const def = j?.defaultProject || "—";
+          qs("#cfg-text").textContent = `Projects: ${count} • Default: ${def}`;
+        } catch (e) {
+          state.config = { defaultProject: "", projects: {} };
+          text = JSON.stringify(state.config, null, 2);
+          qs("#cfg-dot").className = "dot warn";
+          qs("#cfg-text").textContent = "No projects.json found";
+        }
+        qs("#projectsText").value = text;
+        renderProjectList();
+        populateEmbProjectSelect();
+        updateEmbDashboardText();
+      }
+
+      function renderProjectList() {
+        const list = qs("#projectList");
+        list.innerHTML = "";
+        const projects = state.config?.projects || {};
+        const def = state.config?.defaultProject;
+        Object.keys(projects)
+          .sort()
+          .forEach((name) => {
+            const item = document.createElement("div");
+            item.className =
+              "list-item" + (state.selectedProject === name ? " active" : "");
+            const label = document.createElement("div");
+            label.textContent = name + (name === def ? " (default)" : "");
+            const small = document.createElement("span");
+            small.className = "hint";
+            small.textContent = projects[name]?.config?.SWAGGER_URL
+              ? "SWAGGER set"
+              : "SWAGGER missing";
+            item.appendChild(label);
+            item.appendChild(small);
+            item.addEventListener("click", () => {
+              state.selectedProject = name;
+              renderProjectList();
+            });
+            list.appendChild(item);
+          });
+      }
+
+      function syncTextFromState() {
+        qs("#projectsText").value = JSON.stringify(state.config, null, 2);
+      }
+
+      function ensureConfigLoaded() {
+        if (!state.config) state.config = { defaultProject: "", projects: {} };
+        if (!state.config.projects) state.config.projects = {};
+      }
+
+      function addProject() {
+        ensureConfigLoaded();
+        const name = (qs("#newProjectName").value || "").trim();
+        if (!name) {
+          toast("Enter a project name", "warn");
+          return;
+        }
+        if (state.config.projects[name]) {
+          toast("Project already exists", "warn");
+          return;
+        }
+        state.config.projects[name] = {
+          config: {
+            SWAGGER_URL: "",
+            API_BASE_URL: "",
+            AUTH_STORAGE_TYPE: "localStorage",
+            AUTH_TOKEN_KEY: "",
+          },
+        };
+        if (!state.config.defaultProject) state.config.defaultProject = name;
+        state.selectedProject = name;
+        syncTextFromState();
+        renderProjectList();
+        populateEmbProjectSelect();
+        toast("Project added");
+      }
+
+      function renameProject() {
+        ensureConfigLoaded();
+        const curr = state.selectedProject;
+        if (!curr) {
+          toast("Select a project to rename", "warn");
+          return;
+        }
+        const next = prompt("New name for project", curr);
+        if (!next || next === curr) return;
+        if (state.config.projects[next]) {
+          toast("Name already exists", "warn");
+          return;
+        }
+        state.config.projects[next] = state.config.projects[curr];
+        delete state.config.projects[curr];
+        if (state.config.defaultProject === curr)
+          state.config.defaultProject = next;
+        state.selectedProject = next;
+        syncTextFromState();
+        renderProjectList();
+        populateEmbProjectSelect();
+        toast("Project renamed");
+      }
+
+      function deleteProject() {
+        ensureConfigLoaded();
+        const name = state.selectedProject;
+        if (!name) {
+          toast("Select a project to delete", "warn");
+          return;
+        }
+        if (!confirm(`Delete project "${name}"? This cannot be undone.`))
+          return;
+        delete state.config.projects[name];
+        if (state.config.defaultProject === name)
+          state.config.defaultProject =
+            Object.keys(state.config.projects)[0] || "";
+        state.selectedProject = "";
+        syncTextFromState();
+        renderProjectList();
+        populateEmbProjectSelect();
+        toast("Project deleted");
+      }
+
+      function setDefaultProject() {
+        ensureConfigLoaded();
+        const name = state.selectedProject;
+        if (!name) {
+          toast("Select a project to set default", "warn");
+          return;
+        }
+        state.config.defaultProject = name;
+        syncTextFromState();
+        renderProjectList();
+        populateEmbProjectSelect();
+        toast("Default project set");
+      }
+
+      async function saveConfig() {
+        try {
+          const text = qs("#projectsText").value;
+          const parsed = JSON.parse(text);
+          if (
+            typeof parsed.defaultProject !== "string" &&
+            parsed.defaultProject !== undefined
+          )
+            throw new Error("defaultProject must be a string");
+          const res = await fetch("/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(parsed),
+          });
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({ error: "Save failed" }));
+            throw new Error(j.error || "Save failed");
+          }
+          toast("Configuration saved");
+          await loadConfig();
+        } catch (e) {
+          toast("Save error: " + (e.message || e), "error");
+        }
+      }
+
+      function formatConfig() {
+        try {
+          const parsed = JSON.parse(qs("#projectsText").value);
+          qs("#projectsText").value = JSON.stringify(parsed, null, 2);
+          toast("Formatted");
+        } catch (e) {
+          toast("Format error: " + (e.message || e), "error");
+        }
+      }
+
+      async function loadEnv() {
+        try {
+          const d = await fetchJson("/env");
+          qs("#envText").value = d.content || "";
+          toast("Loaded .env");
+        } catch (e) {
+          qs("#envText").value =
+            "# OPENAI_API_KEY=\n# GEMINI_API_KEY=\n# LOG_LEVEL=info\n";
+        }
+      }
+
+      async function saveEnv() {
+        try {
+          const content = qs("#envText").value;
+          const res = await fetch("/env", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+          });
+          if (!res.ok) throw new Error("Save failed");
+          toast(".env saved");
+        } catch (e) {
+          toast(".env save error: " + (e.message || e), "error");
+        }
+      }
+
+      function populateEmbProjectSelect() {
+        const sel = qs("#embProjectSelect");
+        sel.innerHTML = "";
+        const projects = state.config?.projects || {};
+        const def = state.config?.defaultProject || "";
+        Object.keys(projects)
+          .sort()
+          .forEach((name) => {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            if (name === def) opt.selected = true;
+            sel.appendChild(opt);
+          });
+      }
+
+      function updateEmbDashboardText() {
+        const count = Object.keys(state.config?.projects || {}).length;
+        const def = state.config?.defaultProject || "";
+        const text = count
+          ? `Projects: ${count} • Default: ${def || "—"}`
+          : "No projects yet";
+        qs("#emb-text").textContent = text;
+        qs("#emb-dot").className = "dot " + (count ? "ok" : "warn");
+      }
+
+      function embeddingBase() {
+        const info = state.server;
+        if (!info || !info.port) return null;
+        return `http://127.0.0.1:${info.port}`;
+      }
+
+      async function checkEmbStatus() {
+        const base = embeddingBase();
+        const proj = qs("#embProjectSelect").value;
+        const box = qs("#embStatus");
+        box.innerHTML = "";
+        if (!base) {
+          box.innerHTML = '<span class="muted">Connector not detected.</span>';
+          return;
+        }
+        try {
+          const res = await fetch(
+            `${base}/api/embed/status?project=${encodeURIComponent(proj)}`
+          );
+          const data = await res.json();
+          if (data && data.error) throw new Error(data.error);
+          const ul = document.createElement("div");
+          ul.className = "rows";
+          const fields = [
+            ["Project", proj],
+            ["Exists", String(!!data?.exists)],
+            ["Provider", data?.provider || "—"],
+            ["Model", data?.model || "—"],
+            ["Vectors", String(data?.vectorCount ?? "—")],
+            ["Last Updated", data?.lastUpdated || "—"],
+          ];
+          fields.forEach(([k, v]) => {
+            const d = document.createElement("div");
+            d.innerHTML = `<span class="muted">${k}:</span> ${v}`;
+            ul.appendChild(d);
+          });
+          box.appendChild(ul);
+          toast("Status refreshed");
+        } catch (e) {
+          box.innerHTML = `<span class="muted">${e.message || e}</span>`;
+        }
+      }
+
+      async function reindexEmb() {
+        const base = embeddingBase();
+        const proj = qs("#embProjectSelect").value;
+        const box = qs("#embStatus");
+        box.innerHTML = '<span class="muted">Reindexing…</span>';
+        if (!base) {
+          box.innerHTML = '<span class="muted">Connector not detected.</span>';
+          return;
+        }
+        try {
+          const res = await fetch(`${base}/api/embed/reindex`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ project: proj }),
+          });
+          const data = await res.json();
+          if (!res.ok || data?.error)
+            throw new Error(data?.error || "Reindex failed");
+          toast("Reindex started");
+          setTimeout(checkEmbStatus, 1500);
+        } catch (e) {
+          box.innerHTML = `<span class="muted">${e.message || e}</span>`;
+          toast("Reindex error: " + (e.message || e), "error");
+        }
+      }
+
+      async function loadDocs() {
+        try {
+          const files = await fetchJson("/docs/list");
+          state.docs = Array.isArray(files) ? files : [];
+          renderDocsList();
+        } catch {}
+      }
+
+      function renderDocsList(filter = "") {
+        const list = qs("#docsList");
+        list.innerHTML = "";
+        const q = filter.toLowerCase();
+        state.docs
+          .filter((p) => !q || p.toLowerCase().includes(q))
+          .forEach((p) => {
+            const item = document.createElement("div");
+            item.className = "list-item";
+            item.textContent = p;
+            item.addEventListener("click", () => loadDocContent(p));
+            list.appendChild(item);
+          });
+      }
+
+      async function loadDocContent(path) {
+        try {
+          const res = await fetch(
+            `/docs/content?path=${encodeURIComponent(path)}`
+          );
+          if (!res.ok) throw new Error("Fetch failed");
+          const text = await res.text();
+          qs("#docContent").textContent = text;
+        } catch (e) {
+          qs("#docContent").textContent = e.message || e;
+        }
+      }
+
+      function bindHandlers() {
+        qs("#addProjectBtn").addEventListener("click", addProject);
+        qs("#renameBtn").addEventListener("click", renameProject);
+        qs("#deleteBtn").addEventListener("click", deleteProject);
+        qs("#setDefaultBtn").addEventListener("click", setDefaultProject);
+        qs("#saveConfigBtn").addEventListener("click", saveConfig);
+        qs("#reloadConfigBtn").addEventListener("click", loadConfig);
+        qs("#formatConfigBtn").addEventListener("click", formatConfig);
+        qs("#saveEnvBtn").addEventListener("click", saveEnv);
+        qs("#reloadEnvBtn").addEventListener("click", loadEnv);
+        qs("#checkStatusBtn").addEventListener("click", checkEmbStatus);
+        qs("#reindexBtn").addEventListener("click", reindexEmb);
+        qs("#docSearch").addEventListener("input", (e) =>
+          renderDocsList(e.target.value)
+        );
+      }
+
+      async function init() {
+        navInit();
+        bindHandlers();
+        await Promise.all([
+          loadServerInfo(),
+          loadConfig(),
+          loadEnv(),
+          loadDocs(),
+        ]);
+      }
+
+      // This placeholder may be replaced by the server if needed.
+      const AFBT_LAUNCHED_BY_MAIN = /*AFBT_LAUNCHED_BY_MAIN_PLACEHOLDER*/ false;
+
+      init();
+    </script>
+  </body>
+</html>
+
+
