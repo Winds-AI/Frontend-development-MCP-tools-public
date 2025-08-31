@@ -6,7 +6,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import os from "os";
 import ScreenshotService from "./screenshot-service.js";
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ override: true });
 // Install global colored logger (subtle)
 import { installGlobalLogger } from "./modules/logger.js";
 installGlobalLogger();
@@ -15,15 +15,12 @@ const logInfo = (...args) => console.log("[info]", ...args);
 const logDebug = (...args) => console.log("[debug]", ...args);
 // Local deps needed earlier that were removed when moving scaffolding
 // Moved scaffolding imports and helpers
-import { __filename as __top_filename, __dirname as __top_dirname, getScreenshotStoragePath, getActiveProjectName, MAX_DETAILED_NETWORK_LOG_CACHE, clearAllLogs as clearImportedLogs, detailedNetworkLogCache, truncateLogsToQueryLimit, } from "./modules/shared.js";
+import { __filename as __top_filename, __dirname as __top_dirname, getScreenshotStoragePath, getActiveProjectName, MAX_DETAILED_NETWORK_LOG_CACHE, detailedNetworkLogCache, truncateLogsToQueryLimit, } from "./modules/shared.js";
 import { buildScreenshotConfig, buildScreenshotResponse, } from "./modules/screenshot.js";
 import { buildNavigationMessage, parseNavigationResponse, } from "./modules/navigation.js";
 // (unused import removed) import { formatSelectedElementDebugText } from "./modules/element-inspector.js";
 import { filterNetworkLogs, sortNetworkLogs, projectNetworkLogDetails, limitResults, } from "./modules/network-activity.js";
 import { buildConsoleInspectionResponse, } from "./modules/console-inspector.js";
-// (unused types removed)
-// Semantic embedding index utilities
-import { rebuildIndex as rebuildSemanticIndex, getStatus as getEmbedStatus, searchSemantic, } from "./modules/semantic-index.js";
 // Preserve original helper constant names by aliasing
 const __filename = __top_filename;
 const __dirname = __top_dirname;
@@ -265,7 +262,7 @@ app.post("/screenshot", async (req, res) => {
     catch (error) {
         console.error("Error saving screenshot:", error);
         res.status(500).json({
-            error: error.message || "Failed to save screenshot"
+            error: error.message || "Failed to save screenshot",
         });
     }
 });
@@ -392,110 +389,6 @@ app.get("/network-request-details", (req, res) => {
         res
             .status(500)
             .json({ error: e?.message || "Failed to read network details" });
-    }
-});
-// Add function to clear all logs (local version that also clears imported logs)
-function clearAllLogs() {
-    logInfo("Wiping all logs...");
-    consoleLogs.length = 0;
-    consoleErrors.length = 0;
-    consoleWarnings.length = 0;
-    networkErrors.length = 0;
-    networkSuccess.length = 0;
-    selectedElement = null;
-    // Also clear imported logs from top-scaffold
-    clearImportedLogs();
-    logInfo("All logs have been wiped");
-}
-// Add endpoint to wipe logs
-app.post("/wipelogs", (req, res) => {
-    clearAllLogs();
-    res.json({ status: "ok", message: "All logs cleared successfully" });
-});
-// Add endpoint for the extension to report the current URL
-app.post("/current-url", (req, res) => {
-    if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
-        console.log("[debug] /current-url hit", req.body);
-    }
-    logDebug("Received current URL update request:", JSON.stringify(req.body, null, 2));
-    if (req.body && req.body.url) {
-        const oldUrl = currentUrl;
-        currentUrl = req.body.url;
-        // Update the current tab ID if provided
-        if (req.body.tabId) {
-            const oldTabId = currentTabId;
-            currentTabId = req.body.tabId;
-            logInfo(`Updated current tab ID: ${oldTabId} -> ${currentTabId}`);
-        }
-        // Log the source of the update if provided
-        const source = req.body.source || "unknown";
-        const tabId = req.body.tabId || "unknown";
-        const timestamp = req.body.timestamp
-            ? new Date(req.body.timestamp).toISOString()
-            : "unknown";
-        logInfo(`Updated current URL via dedicated endpoint: ${oldUrl} -> ${currentUrl}`);
-        logDebug(`URL update details: source=${source}, tabId=${tabId}, timestamp=${timestamp}`);
-        res.json({
-            status: "ok",
-            url: currentUrl,
-            tabId: currentTabId,
-            previousUrl: oldUrl,
-            updated: oldUrl !== currentUrl,
-        });
-    }
-    else {
-        logInfo("No URL provided in current-url request");
-        res.status(400).json({ status: "error", message: "No URL provided" });
-    }
-});
-// Add endpoint to get the current URL
-app.get("/current-url", (req, res) => {
-    logInfo("Current URL requested, returning:", currentUrl);
-    res.json({ url: currentUrl });
-});
-// Embeddings: index status
-app.get("/api/embed/status", async (req, res) => {
-    try {
-        const project = typeof req.query.project === "string" ? req.query.project : undefined;
-        const status = await getEmbedStatus(project);
-        res.json(status);
-    }
-    catch (e) {
-        res
-            .status(500)
-            .json({ error: e?.message || "Failed to get embedding index status" });
-    }
-});
-// Embeddings: rebuild index (manual only)
-app.post("/api/embed/reindex", async (req, res) => {
-    try {
-        const project = typeof req.query.project === "string"
-            ? req.query.project
-            : req.body?.project;
-        const meta = await rebuildSemanticIndex(project);
-        res.json({ status: "ok", meta });
-    }
-    catch (e) {
-        res
-            .status(500)
-            .json({ error: e?.message || "Failed to rebuild embedding index" });
-    }
-});
-// Embeddings: semantic search
-app.post("/api/embed/search", async (req, res) => {
-    try {
-        const { query, tag, method, limit } = req.body || {};
-        const lim = typeof limit === "number" ? limit : Number(limit) || undefined;
-        // Implicit multi-client routing: prefer header ACTIVE-PROJECT, then env/default
-        const projectFromHeader = req.headers["x-active-project"] ||
-            req.headers["active-project"];
-        const result = await searchSemantic({ query, tag, method, limit: lim }, projectFromHeader);
-        res.json(result);
-    }
-    catch (e) {
-        res
-            .status(500)
-            .json({ error: e?.message || "Failed to perform semantic search" });
     }
 });
 export class BrowserConnector {
