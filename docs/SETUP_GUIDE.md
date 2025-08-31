@@ -22,17 +22,17 @@ pnpm run setup
 ## 🔎 Embeddings
 
 - Use Setup UI → Embeddings tab:
-  - `GET /api/embed/status?project=<name>` for status
-  - `POST /api/embed/reindex` with `{ project }` to rebuild
+  - `GET /api/embed/status?project=<name>` for status.
+  - `POST /api/embed/reindex` with `{ project }` to rebuild.
 - Index is stored per-project in `.vectra/<project>`.
 
 ## 🔧 Health & Troubleshooting
 
-- Identity: `GET /.identity` returns signature and version
-- Health: `GET /connection-health` shows heartbeat and connection details
+- Identity: `GET /.identity` returns signature and version.
+- Health: `GET /connection-health` shows heartbeat and connection details.
 - If tools don't respond, verify:
-  - Server is running and extension is loaded (DevTools open on the tab)
-  - Extension reloaded after npx updates
+  - Server is running and extension is loaded (DevTools open on the tab).
+  - Extension reloaded after npx updates.
 
 ## 🧪 Notes
 
@@ -45,6 +45,7 @@ pnpm run setup
 If you change the embedding provider or model (e.g., switch between OpenAI and Gemini, or change model IDs), the existing semantic index may not match. Symptoms include an error like “Index settings mismatch” or empty/poor results.
 
 Fix:
+
 - Open the Setup UI → Embeddings tab → Reindex for the active project.
 - Ensure the correct embedding API key is present in `browser-tools-server/.env`.
 

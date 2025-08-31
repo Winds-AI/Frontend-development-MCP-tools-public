@@ -194,6 +194,94 @@
         background: transparent;
       }
 
+      /* Config reference list */
+      .ref {
+        display: grid;
+        gap: 10px;
+      }
+      .ref-item {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+        overflow: hidden;
+      }
+      .ref-header {
+        padding: 10px 12px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        user-select: none;
+        transition: background 0.15s ease;
+        position: relative;
+        padding-right: 30px;
+      }
+      .ref-header:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .ref-header::after {
+        content: "▶";
+        font-size: 14px;
+        color: var(--text-secondary);
+        transition: transform 0.2s ease;
+        position: absolute;
+        right: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        pointer-events: none;
+      }
+      .ref-item.expanded .ref-header::after {
+        transform: rotate(90deg);
+      }
+
+      .ref-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease, padding 0.3s ease;
+        padding: 0 12px;
+      }
+      .ref-item.expanded .ref-content {
+        max-height: 200px;
+        padding: 0 12px 12px 12px;
+      }
+      .ref-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .ref-key {
+        font-weight: 650;
+        letter-spacing: -0.01em;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          "Liberation Mono", "Courier New", monospace;
+        margin-bottom: 2px;
+      }
+      .ref-chips {
+        display: inline-flex;
+        gap: 6px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(79, 140, 255, 0.12);
+        color: var(--accent-2);
+        font-size: 12px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .ref-desc {
+        margin-top: 6px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
       .split {
         display: grid;
         grid-template-columns: 320px 1fr;
@@ -349,6 +437,37 @@
         <div style="height: 12px"></div>
 
         <div class="card rows">
+          <div
+            style="
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              margin-bottom: 12px;
+            "
+          >
+            <span style="font-size: 18px">⚠️</span>
+            <h4 style="margin: 0; color: var(--text-secondary)">
+              Setup Complexity Warning
+            </h4>
+          </div>
+          <p class="hint" style="margin: 0; font-size: 14px; line-height: 1.5">
+            <strong>This is a complex multi-component setup.</strong> Please
+            read the setup instructions carefully before proceeding. The system
+            involves interconnected components (MCP server, browser tools
+            server, Chrome extension) that must be properly configured for the
+            tools to work correctly. Take your time with each step and ensure
+            all prerequisites are met.
+          </p>
+          <p>
+            Also after doing the setup make sure to close this setup ui only by
+            clicking the finish button ( this will save you some resource
+            consumption).
+          </p>
+        </div>
+
+        <div style="height: 12px"></div>
+
+        <div class="card rows">
           <h3>Quick Actions</h3>
           <div class="actions">
             <button class="btn" data-nav="projects">Configure Projects</button>
@@ -379,12 +498,147 @@
                 <button id="setDefaultBtn" class="btn">Set Default</button>
               </div>
             </div>
-            <p class="hint">
-              Required per-project config: SWAGGER_URL, API_BASE_URL,
-              AUTH_STORAGE_TYPE, AUTH_TOKEN_KEY. Optional: AUTH_ORIGIN,
-              API_AUTH_TOKEN_TTL_SECONDS, ROUTES_FILE_PATH. Global optional:
-              DEFAULT_SCREENSHOT_STORAGE_PATH.
-            </p>
+            <div class="card rows">
+              <h3>Config Reference</h3>
+              <div class="ref" aria-label="Configuration reference">
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">SWAGGER_URL</div>
+                    <div class="ref-chips">
+                      <span class="chip">api.searchEndpoints</span>
+                      <span class="chip">api.listTags</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      URL or file path to your OpenAPI/Swagger specification.
+                      Required to build and query embeddings per project.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">API_BASE_URL</div>
+                    <div class="ref-chips">
+                      <span class="chip">api.request</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      Base URL used to make live API requests. Endpoint paths
+                      from Swagger are appended when testing calls.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">AUTH_STORAGE_TYPE</div>
+                    <div class="ref-chips">
+                      <span class="chip">api.request</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      Where the auth token is stored in the browser
+                      (localStorage, sessionStorage, cookies). Enables automatic
+                      Authorization: Bearer.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">AUTH_TOKEN_KEY</div>
+                    <div class="ref-chips">
+                      <span class="chip">api.request</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      Storage key (or cookie name) used to read the bearer
+                      token.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">AUTH_ORIGIN</div>
+                    <div class="ref-chips">
+                      <span class="chip">api.request (cookies)</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      Required for cookie-based tokens: the browser origin to
+                      read cookies from (e.g., https://staging.example.com).
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">API_AUTH_TOKEN_TTL_SECONDS</div>
+                    <div class="ref-chips">
+                      <span class="chip">api.request (auth cache)</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      TTL for token cache in seconds (overrides JWT exp-based
+                      caching if set).
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">ROUTES_FILE_PATH</div>
+                    <div class="ref-chips">
+                      <span class="chip">browser.navigate</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      Optional path hint to your app's route definitions to
+                      improve navigation descriptions.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">SCREENSHOT_STORAGE_PATH</div>
+                    <div class="ref-chips">
+                      <span class="chip">browser.screenshot</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      Per-project directory for saving screenshots captured by
+                      the connector.
+                    </div>
+                  </div>
+                </div>
+
+                <div class="ref-item">
+                  <div class="ref-header">
+                    <div class="ref-key">DEFAULT_SCREENSHOT_STORAGE_PATH</div>
+                    <div class="ref-chips">
+                      <span class="chip">browser.screenshot</span>
+                    </div>
+                  </div>
+                  <div class="ref-content">
+                    <div class="ref-desc">
+                      Global default base directory for screenshots (used when
+                      per-project path is not set).
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="card rows">
@@ -900,6 +1154,15 @@
         qs("#docSearch").addEventListener("input", (e) =>
           renderDocsList(e.target.value)
         );
+
+        // Accordion functionality
+        qsa(".ref-header").forEach((header) => {
+          header.addEventListener("click", () => {
+            const item = header.parentElement;
+            const isExpanded = item.classList.contains("expanded");
+            item.classList.toggle("expanded", !isExpanded);
+          });
+        });
       }
 
       async function init() {
@@ -920,5 +1183,3 @@
     </script>
   </body>
 </html>
-
-

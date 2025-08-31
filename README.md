@@ -6,22 +6,25 @@
 
 **🚀 Optimized for Autonomous AI-Powered Frontend Development Workflows**
 
-- Autonomous Frontend Browser Tools enables AI coding agents to interact with your browser for autonomous frontend development workflows. This document provides an overview of the available tools within the MCP server.
-- For indetail setup instructions, please refer to `SETUP_GUIDE.md` in docs folder, readme has quickstart guide below.
+> **⚠️ IMPORTANT NOTE:** This is a **complex setup** requiring careful configuration. Please **read setup process carefully** before proceeding. The setup involves multiple components (MCP server, browser tools server, Chrome extension) that must be properly configured for the tools to work correctly.
+
+- Autonomous Frontend Browser Tools enables AI coding agents to interact with your browser for autonomous frontend development workflows by giving them context that is needed and used by actual developers. This document provides an overview of the available tools within the MCP server.
+- For indetail setup instructions, please refer to `SETUP_GUIDE.md`, this readme has quickstart guide below.
 - For future plans refer to `FUTURE_PLANS.md`.
 - For few helper instructions on how to use these tools `HOW_TO_USE.md`.
 - How it works and architecture is in `PROJECT_OVERVIEW.md`.
 - For understandig how each tool works `each-tool-explained` directory.
 
 ## Prerequisites
+
 - Node.js 20+ (or 22 LTS) is required. Node 18 lacks the global `File` Web API used by `undici`, which will cause `ReferenceError: File is not defined` when launching via npx.
 - Recommended: pnpm (the setup script will install it if missing).
 
 ## Quickstart (npx)
 
-1) Make a new folder at your prefered location and then open terminal in that folder
+1. Make a new folder at your prefered location and then open terminal in that folder, making a new folder is necessary.
 
-2) Start the connector + setup UI
+2. Start the connector + setup UI
 
 ```bash
 npx @winds-ai/autonomous-frontend-browser-tools
@@ -31,15 +34,15 @@ Requires Node ≥ 20. Verify with `node -v`.
 
 - The Browser Connector runs in your terminal, you can see the logs there.
 - A Setup UI opens at `http://127.0.0.1:5055`.
-- Configure `projects.json` and `.env` via the Setup UI by taking refrence of the examples given.
-- Click "Save" and then remember to close the UI by clicking on "Close" button ( this way it will save background resources) — the UI stops; the connector keeps running.
+- Configure `projects.json` and `.env` via the Setup UI.
+- verify everything then remember to close the UI by clicking on "finish" button ( this way it will save background resources) — the UI stops; the connector keeps running.
 - Check the folder that you made, it will now have a chrome extension for you to load in chrome and use.
 
-2) Load the Chrome extension (manual once)
+2. Load the Chrome extension (manual once)
 
 - Open `chrome://extensions` → Enable Developer mode → "Load unpacked" → select `chrome-extension/` (npx overlays the packaged folder on updates; click Reload after updates)
 
-3) Configure your MCP client (Cursor example)
+3. Configure your MCP client (Cursor example)
 
 ```json
 {
@@ -48,7 +51,7 @@ Requires Node ≥ 20. Verify with `node -v`.
       "command": "npx",
       "args": ["-y", "@winds-ai/autonomous-frontend-browser-tools"],
       "env": {
-        "ACTIVE_PROJECT": "my-frontend",
+        "ACTIVE_PROJECT": "my-frontend"
       }
     }
   }
@@ -56,10 +59,11 @@ Requires Node ≥ 20. Verify with `node -v`.
 ```
 
 Notes:
+
 - The single entry auto-detects mode: non-interactive (MCP) vs interactive (Setup UI). You can force with `mcp`/`setup` subcommands.
 - Node 20 is used automatically when the system Node is older.
 
-4) Open DevTools on your target tab (localhost:3000 or any other port) and start using tools
+4. Open DevTools on your target tab (localhost:3000 or any other port) and start using tools
 
 ### Active Project gotchas
 
@@ -75,6 +79,7 @@ Notes:
   - `GEMINI_API_KEY` (+ optional `GEMINI_EMBED_MODEL`)
 
 Notes:
+
 - Health shows disconnected until DevTools is open on the inspected tab
 
 ### Troubleshooting (quick)

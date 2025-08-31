@@ -1,76 +1,128 @@
-# List of All Tools
+# How to Use Autonomous Frontend Browser Tools
 
-1. [`api.searchEndpoints`](./each-tool-explained/api_searchEndpoints.md)
-2. [`api.request`](./each-tool-explained/api_request.md)
-3. [`browser.screenshot`](./each-tool-explained/browser_screenshot.md)
-4. [`ui.inspectElement`](./each-tool-explained/ui_inspectElement.md)
-5. [`browser.network.inspect`](./each-tool-explained/browser_network_inspect.md)
-6. [`browser.navigate`](./each-tool-explained/browser_navigate.md)
-7. [`api.listTags`](./each-tool-explained/api_listTags.md)
-8. [`browser.console.read`](./each-tool-explained/browser_console_read.md)
+This guide helps you understand and effectively use the Autonomous Frontend Browser Tools for autonomous frontend development workflows.
 
-# How to Use Browser Tools MCP
+## Prerequisites
 
-To use these tools at their 100% potential you need to understand how all of these fit in the flow and how to explain that to LLM until I perfect the description and names of all tools and make it self-explanatory for most LLMs.
+Before using these tools:
+
+- ✅ **Setup Complete**: Run `pnpm run setup` or `npx @winds-ai/autonomous-frontend-browser-tools`
+- ✅ **Chrome Extension**: Load the extension from `chrome-extension/` folder
+- ✅ **DevTools Open**: Keep Chrome DevTools open when using browser tools
+- ✅ **Project Configured**: Set up `projects.json` with your API endpoints and auth settings
+
+## Available Tools
+
+| Tool                                                                          | Purpose                               | Key Parameters                           |
+| ----------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------- |
+| [`api.searchEndpoints`](./each-tool-explained/api_searchEndpoints.md)         | Find API endpoints by semantic search | `query`, `tag`, `method`, `limit`        |
+| [`api.request`](./each-tool-explained/api_request.md)                         | Make authenticated API calls          | `endpoint`, `method`, `includeAuthToken` |
+| [`browser.screenshot`](./each-tool-explained/browser_screenshot.md)           | Capture browser screenshots           | `randomString`                           |
+| [`ui.inspectElement`](./each-tool-explained/ui_inspectElement.md)             | Analyze DOM elements                  | _(from DevTools selection)_              |
+| [`browser.network.inspect`](./each-tool-explained/browser_network_inspect.md) | Monitor network requests              | `urlFilter`, `details`, `timeOffset`     |
+| [`browser.navigate`](./each-tool-explained/browser_navigate.md)               | Navigate to URLs                      | `url`                                    |
+| [`api.listTags`](./each-tool-explained/api_listTags.md)                       | List API tags                         | _(no parameters)_                        |
+| [`browser.console.read`](./each-tool-explained/browser_console_read.md)       | Read console logs                     | `level`, `limit`, `timeOffset`, `search` |
 
 ## Updated Workflow with Unified API Testing
 
 ### **Workflow 1: API Integration**
 
-tell agent to use `api.searchEndpoints` to identify endpoints required for specific feature and then use `api.request` to validate the real responses and use those to do api integration with error handling and user feedback handling.
-Tip: most models will halucinate the user feedback toast every time and will not use the toast setup you have done so always mention the refrence of where to find this for accurate api integration.
+**Tell the agent** to use `api.searchEndpoints` to identify endpoints required for specific features, then use `api.request` to validate real responses for API integration with error handling.
 
-1. **Live API Test**
+**💡 Pro Tip:** Most LLMs will hallucinate user feedback toast notifications. Always reference your existing toast implementation to ensure accurate API integration.
 
-   ```
-   Tool: api.request
-   - endpoint: "/api/users"
-   - method: "GET"
-   - includeAuthToken: true // dynamic token retrieval when AUTH_STORAGE_TYPE + AUTH_TOKEN_KEY (+ optional AUTH_ORIGIN) are configured
-   ```
+#### **Live API Testing Example:**
 
-   - Builds URL using `API_BASE_URL`
-   - If `includeAuthToken` is true, retrieves a token via the extension and caches it per project (TTL from `API_AUTH_TOKEN_TTL_SECONDS` or JWT exp)
-   - Returns structured details (status, headers, timing) and parsed data
+```javascript
+// Tool: api.request
+{
+  endpoint: "/api/users",
+  method: "GET",
+  includeAuthToken: true  // Dynamic token retrieval
+}
+```
 
-2. **Development & Integration**
-   - Define accurate TypeScript interfaces
-   - Use your project’s helpers/hooks
-   - Create components with proper data handling
+**Features:**
+
+#### **Development Integration:**
+
+- Define accurate TypeScript interfaces from API responses
+- Use your project's helpers and custom hooks
+- Implement proper error handling and loading states
+- Reference existing UI patterns for consistency
 
 ### **Workflow 2: UI Development & Debugging**
 
-- Use `browser.screenshot` for UI analysis (requires a dummy `randomString` param; always returns image)
-- Use `ui.inspectElement` for CSS/layout context of the DevTools-selected element
-- Use `browser.network.inspect` to inspect recent API calls
-- Use `browser.console.read` to capture JS errors/warnings/logs with filters
+**Perfect for visual testing and debugging frontend issues:**
 
-### **Workflow 3: Recursive UI Improvements**
+- **`browser.screenshot`**: Capture UI state (use any `randomString`)
+- **`ui.inspectElement`**: Analyze CSS/layout of selected elements
+- **`browser.network.inspect`**: Monitor API calls and responses
+- **`browser.console.read`**: Capture JavaScript errors and logs
 
-- Loop `browser.screenshot({ randomString: "anything" })` → analyze → apply edits → repeat along with `browser.console.read` to capture JS errors/warnings/logs with filters. 
+### **Workflow 3: Automated UI Testing**
 
-### **Workflow 4: Automated Testing & Navigation**
+**Iterative improvement loop for UI development:**
 
-- Use `browser.navigate` for multi-step workflows
-- Combine with `browser.screenshot` for visual checks
-- Example:
+1. **Take Screenshot**: `browser.screenshot({ randomString: "ui-test" })`
+2. **Analyze Issues**: Use LLM to identify UI/UX problems
+3. **Apply Fixes**: Implement CSS/JavaScript changes
+4. **Verify Results**: Screenshot again + `browser.console.read` for errors
+5. **Repeat**: Continue until UI meets requirements
 
-  ```
-  1. browser.navigate({ url: "https://app.example.com/login" })
-  2. browser.screenshot({ randomString: "any" })
-  3. browser.navigate({ url: "https://app.example.com/dashboard" })
-  4. browser.screenshot({ randomString: "any" })
-  ```
+### **Workflow 4: Navigation & E2E Testing**
 
-- For environment/config setup, see `docs/SETUP_GUIDE.md` (root `projects.json`, `browser-tools-server/.env`, Setup UI tabs). For architecture and features, see `docs/PROJECT_OVERVIEW.md`.
+**Multi-step user journey testing:**
 
-### End-to-end Example (API + UI)
+```javascript
+// Navigate through user flows
+browser.navigate({ url: "https://app.example.com/login" });
+browser.screenshot({ randomString: "login-page" });
 
-1. Search docs: [`api.searchEndpoints`](./each-tool-explained/api_searchEndpoints.md) for "users" endpoints
-2. Validate live response: [`api.request`](./each-tool-explained/api_request.md) with `includeAuthToken` if needed
-3. Open page: [`browser.navigate`](./each-tool-explained/browser_navigate.md) to your feature URL
-4. Visual check: [`browser.screenshot`](./each-tool-explained/browser_screenshot.md) with `{ randomString: "any" }`
-5. Inspect failures: [`browser.network.inspect`](./each-tool-explained/browser_network_inspect.md) and [`browser.console.read`](./each-tool-explained/browser_console_read.md)
-6. Debug CSS: [`ui.inspectElement`](./each-tool-explained/ui_inspectElement.md)
+browser.navigate({ url: "https://app.example.com/dashboard" });
+browser.screenshot({ randomString: "dashboard" });
 
-Note: `ui.interact` is planned but disabled in the current build.
+// Monitor throughout the journey
+browser.network.inspect({ urlFilter: "/api/", timeOffset: 30000 });
+browser.console.read({ level: "error", limit: 10 });
+```
+
+## Configuration & Setup
+
+- **Projects**: Configure in `projects.json` (see `docs/SETUP_GUIDE.md`)
+- **Environment**: Set API keys in `browser-tools-server/.env`
+- **Chrome Extension**: Required for browser tools functionality
+- **DevTools**: Keep open when using browser inspection tools
+
+## Complete Example: API + UI Integration
+
+**Scenario**: Building a user management feature
+
+1. **Discover API**: `api.searchEndpoints({ query: "users", method: "GET" })`
+2. **Validate Endpoint**: `api.request({ endpoint: "/api/users", method: "GET", includeAuthToken: true })`
+3. **Navigate to Page**: `browser.navigate({ url: "/users" })`
+4. **Visual Verification**: `browser.screenshot({ randomString: "users-page" })`
+5. **Monitor Network**: `browser.network.inspect({ urlFilter: "/api/users" })`
+6. **Check Console**: `browser.console.read({ level: "error" })`
+7. **Inspect Elements**: Select element in DevTools → `ui.inspectElement()`
+
+## Troubleshooting
+
+### Common Issues:
+
+- **🔴 "Tool not available"**: Ensure Chrome extension is loaded and DevTools is open
+- **🔴 "Authentication failed"**: Check `AUTH_STORAGE_TYPE` and `AUTH_TOKEN_KEY` in projects.json
+- **🔴 "Screenshot failed"**: Verify DevTools panel is open and extension is active
+- **🔴 "Network requests empty"**: Make sure to trigger the requests before inspecting
+- **🔴 "API endpoints not found"**: Ensure `SWAGGER_URL` is correctly configured
+
+### Getting Help:
+
+- 📖 **Documentation**: Check `docs/` folder for detailed guides
+- 🔧 **Setup Issues**: Run `pnpm run setup:ui` for configuration help
+- 🐛 **Bug Reports**: Check existing issues or create new ones
+
+---
+
+**Note**: `ui.interact` tool is currently planned but not yet implemented. Check future releases for interactive UI automation capabilities.

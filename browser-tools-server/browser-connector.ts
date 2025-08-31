@@ -8,7 +8,7 @@ import { Socket } from "net";
 import os from "os";
 import ScreenshotService from "./screenshot-service.js";
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ override: true });
 
 // Install global colored logger (subtle)
 import { installGlobalLogger } from "./modules/logger.js";
@@ -325,7 +325,7 @@ app.post("/extension-log", (req, res) => {
 app.post("/screenshot", async (req, res) => {
   try {
     const { data, path, url } = req.body;
-    
+
     if (!data) {
       res.status(400).json({ error: "No screenshot data provided" });
       return;
@@ -333,11 +333,11 @@ app.post("/screenshot", async (req, res) => {
 
     // Get the screenshot service instance
     const screenshotService = ScreenshotService.getInstance();
-    
+
     // Get project configuration
     const projectScreenshotPath = getScreenshotStoragePath();
     const projectName = getActiveProjectName();
-    
+
     // Build screenshot configuration
     const config = {
       baseDirectory: projectScreenshotPath || path,
@@ -352,7 +352,7 @@ app.post("/screenshot", async (req, res) => {
     logInfo(
       `Screenshot saved to ${result.filePath} (projectDir=${result.projectDirectory}, category=${result.urlCategory})`
     );
-    
+
     res.json({
       success: true,
       path: result.filePath,
@@ -360,8 +360,8 @@ app.post("/screenshot", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Error saving screenshot:", error);
-    res.status(500).json({ 
-      error: error.message || "Failed to save screenshot" 
+    res.status(500).json({
+      error: error.message || "Failed to save screenshot",
     });
   }
 });
@@ -524,133 +524,6 @@ app.get("/network-request-details", (req, res) => {
     res
       .status(500)
       .json({ error: e?.message || "Failed to read network details" });
-  }
-});
-
-// Add function to clear all logs (local version that also clears imported logs)
-function clearAllLogs() {
-  logInfo("Wiping all logs...");
-  consoleLogs.length = 0;
-  consoleErrors.length = 0;
-  consoleWarnings.length = 0;
-  networkErrors.length = 0;
-  networkSuccess.length = 0;
-  selectedElement = null;
-
-  // Also clear imported logs from top-scaffold
-  clearImportedLogs();
-
-  logInfo("All logs have been wiped");
-}
-
-// Add endpoint to wipe logs
-app.post("/wipelogs", (req, res) => {
-  clearAllLogs();
-  res.json({ status: "ok", message: "All logs cleared successfully" });
-});
-
-// Add endpoint for the extension to report the current URL
-app.post("/current-url", (req, res) => {
-  if ((process.env.LOG_LEVEL || "info").toLowerCase() === "debug") {
-    console.log("[debug] /current-url hit", req.body);
-  }
-  logDebug(
-    "Received current URL update request:",
-    JSON.stringify(req.body, null, 2)
-  );
-
-  if (req.body && req.body.url) {
-    const oldUrl = currentUrl;
-    currentUrl = req.body.url;
-
-    // Update the current tab ID if provided
-    if (req.body.tabId) {
-      const oldTabId = currentTabId;
-      currentTabId = req.body.tabId;
-      logInfo(`Updated current tab ID: ${oldTabId} -> ${currentTabId}`);
-    }
-
-    // Log the source of the update if provided
-    const source = req.body.source || "unknown";
-    const tabId = req.body.tabId || "unknown";
-    const timestamp = req.body.timestamp
-      ? new Date(req.body.timestamp).toISOString()
-      : "unknown";
-
-    logInfo(
-      `Updated current URL via dedicated endpoint: ${oldUrl} -> ${currentUrl}`
-    );
-    logDebug(
-      `URL update details: source=${source}, tabId=${tabId}, timestamp=${timestamp}`
-    );
-
-    res.json({
-      status: "ok",
-      url: currentUrl,
-      tabId: currentTabId,
-      previousUrl: oldUrl,
-      updated: oldUrl !== currentUrl,
-    });
-  } else {
-    logInfo("No URL provided in current-url request");
-    res.status(400).json({ status: "error", message: "No URL provided" });
-  }
-});
-
-// Add endpoint to get the current URL
-app.get("/current-url", (req, res) => {
-  logInfo("Current URL requested, returning:", currentUrl);
-  res.json({ url: currentUrl });
-});
-
-// Embeddings: index status
-app.get("/api/embed/status", async (req, res) => {
-  try {
-    const project =
-      typeof req.query.project === "string" ? req.query.project : undefined;
-    const status = await getEmbedStatus(project);
-    res.json(status);
-  } catch (e: any) {
-    res
-      .status(500)
-      .json({ error: e?.message || "Failed to get embedding index status" });
-  }
-});
-
-// Embeddings: rebuild index (manual only)
-app.post("/api/embed/reindex", async (req, res) => {
-  try {
-    const project =
-      typeof req.query.project === "string"
-        ? req.query.project
-        : (req.body?.project as string | undefined);
-    const meta = await rebuildSemanticIndex(project);
-    res.json({ status: "ok", meta });
-  } catch (e: any) {
-    res
-      .status(500)
-      .json({ error: e?.message || "Failed to rebuild embedding index" });
-  }
-});
-
-// Embeddings: semantic search
-app.post("/api/embed/search", async (req, res) => {
-  try {
-    const { query, tag, method, limit } = req.body || {};
-    const lim = typeof limit === "number" ? limit : Number(limit) || undefined;
-    // Implicit multi-client routing: prefer header ACTIVE-PROJECT, then env/default
-    const projectFromHeader =
-      (req.headers["x-active-project"] as string | undefined) ||
-      (req.headers["active-project"] as string | undefined);
-    const result = await searchSemantic(
-      { query, tag, method, limit: lim },
-      projectFromHeader
-    );
-    res.json(result);
-  } catch (e: any) {
-    res
-      .status(500)
-      .json({ error: e?.message || "Failed to perform semantic search" });
   }
 });
 

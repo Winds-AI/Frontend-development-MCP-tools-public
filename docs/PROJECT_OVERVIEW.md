@@ -48,7 +48,7 @@ flowchart TB
  subgraph subGraph3["Connection Management"]
         HM["Health Monitoring<br>Unique Conn IDs"]
         WB["WebSocket<br>25s Heartbeat<br>60s Timeout"]
-        PS["Port Discovery<br>3025-3035<br>5 Retries"]
+        PC["Port Config<br>Default: 3025<br>Via PORT env"]
         ER["Error Recovery<br>3-15s Backoff<br>Max 10 Retries"]
   end
     AI <-- MCP Protocol --> MCP
@@ -67,7 +67,7 @@ flowchart TB
     NS -- Authenticated Calls --> API(("Target APIs"))
      SS -- Project Structure --> IMG["Image Storage<br>Downloads/AFBT_Screenshots"]
     BTS -- Status Report --> HC["Health Monitor<br>connection-health"]
-    MCP -.-> PS
+    MCP -.-> PC
     CE -.-> WB
     BTS -.-> HM
     WS -.-> ER
@@ -112,11 +112,11 @@ flowchart TB
 
 ## 🔧 Server Features
 
-- Auto-port detection (starts at 3025, selects 3026–3035 as needed)
-- Connection health endpoint at `/connection-health`
-- Heartbeat 25s, timeout 60s; fast reconnection (3–15s)
-- Identity endpoint at `/.identity`
-- Individual request tracking and improved callback cleanup
+- **Port Configuration**: Server runs on port 3025 (configurable via `PORT` environment variable)
+- **Connection Health**: Real-time monitoring endpoint at `/connection-health`
+- **Heartbeat System**: 25s heartbeat interval, 60s timeout; fast reconnection (3–15s backoff)
+- **Identity Endpoint**: Service identification at `/.identity`
+- **Request Tracking**: Individual request tracking and improved callback cleanup
 
 ### 📊 Health Monitoring API
 
@@ -153,13 +153,13 @@ Real-time connection status at `/connection-health`:
 
 The server resolves `projects.json` across common launch modes to avoid "projects.json not found" during reindex:
 
-- Env override: `AFBT_PROJECTS_JSON` (absolute path)
-- CWD: `./projects.json` (when started from repo root)
-- Parent of CWD: `../projects.json` (when started inside `browser-tools-server/`)
-- Module-relative repo root (local dev): `browser-tools-server/../../projects.json`
-- Home fallback: `~/.afbt/projects.json`
+- **Env Override**: `AFBT_PROJECTS_JSON` (absolute path)
+- **CWD**: `./projects.json` (when started from repo root)
+- **Parent of CWD**: `../projects.json` (when started inside `browser-tools-server/`)
+- **Module-relative**: `browser-tools-server/../../projects.json` (local dev builds)
+- **Home Fallback**: `~/.afbt/projects.json`
 
-This guarantees embeddings reindex works via both `pnpm run setup` and `npx afbt-setup`/direct server runs.
+This ensures embeddings reindex works via both `pnpm run setup` and `npx afbt-setup`/direct server runs.
 
 ---
 
@@ -181,10 +181,7 @@ Notes:
 
 - Prefer `browser.network.inspect` for network errors; console tool does not capture HTTP failures.
 - Some MCP clients cache tool descriptions; dynamic updates are not always reflected live.
-
-Planned/disabled:
-
-- The `ui.interact` tool is planned but disabled in the current build. It appears in references for future workflows and may be enabled in a later release.
+- `ui.interact` provides automated UI interaction capabilities for common web application patterns.
 
 ---
 
@@ -204,14 +201,14 @@ Planned/disabled:
 
 - Automated UI interaction
   1. `browser.navigate` → 2) `ui.interact` (perform click/type/etc.) → 3) optional `browser.screenshot` → 4) verify via `browser.network.inspect`.
-  
+
 ---
 
 ## 🧑‍⚕️ Health & Troubleshooting
 
-- Identity: `GET /.identity` → `{ signature: "mcp-browser-connector-24x7", ... }`
-- Connection health: `GET /connection-health` → heartbeat status, uptime, pending screenshots, etc.
-- Ports: auto‑select in range 3025–3035 (first free).
+- **Identity Endpoint**: `GET /.identity` → `{ signature: "mcp-browser-connector-24x7", port: 3025, name: "frontend-browser-tools-server", version: "1.2.0" }`
+- **Connection Health**: `GET /connection-health` → heartbeat status, uptime, pending screenshots, connection ID
+- **Port Configuration**: Server runs on port 3025 (configurable via `PORT` environment variable)
 
 ---
 

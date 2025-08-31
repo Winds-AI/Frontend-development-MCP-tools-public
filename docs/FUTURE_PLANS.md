@@ -12,13 +12,13 @@ Feature Requests:
 - Prompt field is resetted
 - Add a wait time tool call that has a check button to continue when I see fit
 
-# Future Plans for Frontend Development Tools MCP Extension
+# Future Plans for Autonomous Frontend Browser Tools
 
-This document outlines the future direction and planned enhancements for the Frontend Development Tools MCP Extension. The goal is to further empower AI coding assistants by providing them with richer context and more intuitive tools, ultimately leading to more autonomous and efficient frontend development.
+This document outlines the future direction and planned enhancements for the Autonomous Frontend Browser Tools project. The goal is to further empower AI coding assistants by providing them with richer context and more intuitive tools, ultimately leading to more autonomous and efficient frontend development.
 
 ## Enhancing Tool Synergy and LLM Understanding
 
-Currently, I have all the tools set up, but LLMs still struggle to understand how to use these tools together in sync with each other and code autonomously. For now, when I prompt, I give it instructions on how to do this separately. To overcome that, I have to update the names and descriptions of tools so that the LLM can understand that it can use these tools in conjunction with each other and other tools and models needs to be improved to support using more and complex tools properly.
+Currently, I have all the tools set up, but LLMs still struggle to understand how to use these tools together in sync with each other and code autonomously. For now, when I prompt, I give it instructions on how to do this separately. To overcome that, I have to update the names and descriptions of tools so that the LLM can understand that it can use these tools in conjunction with each other and other tools and models needs to be improved to support using more and complex tools properly with their agentic behaviours. Gpt-5 works well with these tools.
 
 ## Automated Project Context Setup (Memories/Rules)
 
@@ -41,6 +41,12 @@ _This also requires a lot of credits and funds to create the agent, so I have to
 ## Giving LLM Component and UI context
 
 Till now, I have focused on API integration and to work you have to have components setup to get the exact code and UI you want to get But the Reality is that we don't want that, we want our code to be based on our rules and components so that we can debug it anytime and make chnages even if we are not using LLM. If we give all that control to LLM then the output will be un-deterministic. For this, I think we need to make something like a directory of components accessible to the LLM, like how shadcn uses it's npx commnads to sever this network of components. What if we make an traversable file that has list of all the components and their configurable parameters like custom styles, props, etc. and then we can call this tool for the component and then it will return that data. so it would be better if all components library like MUI, antd, chakra, etc. have their own MCP tool that can do this. For now, I will try to make this tool by myself, let's see how this goes. Also to get accurate UI we need to maintain this information of whcih type of component are we using for which type of work. At the end it all comes down to memory efficiency and effectiveness
+
+## Custom MCP Client Development
+
+Another significant limitation is that current IDE clients like Cursor, Windsurf, and others don't provide full MCP server functionality, particularly around advanced features like prompts, resource management, and extended tool capabilities. To unlock the full potential of our Autonomous Frontend Browser Tools, we might need to fork Cline and build our own custom MCP client.
+
+This would involve creating a specialized client with enhanced MCP protocol support, better tool orchestration, and seamless integration with our browser automation tools for truly autonomous frontend development workflows.
 
 ---
 
