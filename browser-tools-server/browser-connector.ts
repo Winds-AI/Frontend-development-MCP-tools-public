@@ -58,6 +58,7 @@ import {
   rebuildIndex as rebuildSemanticIndex,
   getStatus as getEmbedStatus,
   searchSemantic,
+  resolveEmbeddingProvider,
 } from "./modules/semantic-index.js";
 
 // Preserve original helper constant names by aliasing
@@ -469,6 +470,41 @@ app.get("/.identity", (req, res) => {
     version: "1.2.0",
     signature: "mcp-browser-connector-24x7",
   });
+});
+
+// Embedding API endpoints
+app.get("/api/embed/status", async (req, res) => {
+  try {
+    const project = req.query.project as string;
+    const status = await getEmbedStatus(project);
+
+    // Transform the response to match UI expectations
+    const response = {
+      exists: status.exists,
+      provider: status.meta ? resolveEmbeddingProvider() : undefined,
+      model: status.meta?.model || undefined,
+      vectorCount: status.meta?.vectorCount || undefined,
+      lastUpdated: status.meta?.builtAt || undefined,
+    };
+
+    res.json(response);
+  } catch (error: any) {
+    console.error("[error] Failed to get embed status:", error);
+    res.status(500).json({ error: error.message || "Failed to get status" });
+  }
+});
+
+app.post("/api/embed/reindex", async (req, res) => {
+  try {
+    const { project } = req.body;
+    console.log(`[index] Starting reindex for project: ${project}`);
+    const result = await rebuildSemanticIndex(project);
+    console.log(`[index] Reindex completed for project: ${project}`);
+    res.json(result);
+  } catch (error: any) {
+    console.error("[error] Failed to reindex:", error);
+    res.status(500).json({ error: error.message || "Failed to reindex" });
+  }
 });
 
 /**

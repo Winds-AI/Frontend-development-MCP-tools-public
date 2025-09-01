@@ -80,7 +80,7 @@ function hydrateOperationTypes(swagger, method, apiPath) {
     const requiresAuth = op.security !== undefined ? hasAuth(op.security) : hasAuth(swagger.security);
     return { request, response, requiresAuth };
 }
-function resolveEmbeddingProvider() {
+export function resolveEmbeddingProvider() {
     const env = (process.env.EMBEDDING_PROVIDER || "").toLowerCase();
     if (env === "openai")
         return "openai";

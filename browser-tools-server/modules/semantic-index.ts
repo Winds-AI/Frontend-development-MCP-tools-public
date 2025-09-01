@@ -108,7 +108,7 @@ interface EmbedResponse {
 // Embedding provider configuration
 type Provider = "openai" | "gemini";
 
-function resolveEmbeddingProvider(): Provider {
+export function resolveEmbeddingProvider(): Provider {
   const env = (process.env.EMBEDDING_PROVIDER || "").toLowerCase();
   if (env === "openai") return "openai";
   if (env === "gemini") return "gemini";
