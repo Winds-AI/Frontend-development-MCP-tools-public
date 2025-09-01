@@ -17,6 +17,8 @@ let settings = {
 let isDebuggerAttached = false;
 let attachDebuggerRetries = 0;
 const currentTabId = chrome.devtools.inspectedWindow.tabId;
+// Track network requestId → URL to enrich error messages
+const requestIdToUrl = new Map();
 const MAX_ATTACH_RETRIES = 3;
 const ATTACH_RETRY_DELAY = 1000; // 1 second
 
@@ -549,6 +551,37 @@ function performAttach() {
         console.log("Runtime API successfully enabled");
       }
     );
+
+    // Enable Log domain to capture browser-generated console messages
+    chrome.debugger.sendCommand(
+      { tabId: currentTabId },
+      "Log.enable",
+      {},
+      () => {
+        if (chrome.runtime.lastError) {
+          console.warn("Failed to enable Log domain:", chrome.runtime.lastError);
+        } else {
+          console.log("Log domain successfully enabled");
+        }
+      }
+    );
+
+    // Enable Network domain to capture loading failures and map request URLs
+    chrome.debugger.sendCommand(
+      { tabId: currentTabId },
+      "Network.enable",
+      {},
+      () => {
+        if (chrome.runtime.lastError) {
+          console.warn(
+            "Failed to enable Network domain:",
+            chrome.runtime.lastError
+          );
+        } else {
+          console.log("Network domain successfully enabled");
+        }
+      }
+    );
   });
 }
 
@@ -644,14 +677,99 @@ const consoleMessageListener = (source, method, params) => {
       messageType = "console-warn";
     }
 
+    // Append stack trace (top frames) when available for better debugging context
+    let stackText = "";
+    const stack = params.stackTrace?.callFrames || params.stackTrace || [];
+    try {
+      const frames = Array.isArray(stack)
+        ? stack
+        : stack.callFrames && Array.isArray(stack.callFrames)
+        ? stack.callFrames
+        : [];
+      if (frames.length > 0) {
+        const top = frames
+          .slice(0, 6)
+          .map(
+            (f) =>
+              `at ${f.functionName || '<anonymous>'} (${f.url || 'unknown'}:${
+                f.lineNumber ?? '?'
+              }:${f.columnNumber ?? '?'})`
+          )
+          .join("\n");
+        stackText = `\n${top}`;
+      }
+    } catch (_) {}
+
     const entry = {
       type: messageType,
       level: params.type,
-      message: formattedMessage,
+      message: formattedMessage + stackText,
       timestamp: Date.now(),
     };
     console.log("Sending console entry:", entry);
     sendToBrowserConnector(entry);
+  }
+
+  // Capture browser-generated console messages (e.g., network 4xx/5xx, CSP, deprecations)
+  if (method === "Log.entryAdded") {
+    const entry = params?.entry || {};
+    const level = (entry.level || "info").toLowerCase();
+    // Include location info if present
+    const location = entry?.source ? `[${entry.source}]` : "";
+    const lineInfo =
+      entry?.lineNumber !== undefined && entry?.url
+        ? ` (${entry.url}:${entry.lineNumber})`
+        : entry?.url
+        ? ` (${entry.url})`
+        : "";
+    const text = [entry.text, location].filter(Boolean).join(" ") + lineInfo;
+
+    let messageType = "console-log";
+    if (level === "error") messageType = "console-error";
+    else if (level === "warning" || level === "warn") messageType = "console-warn";
+
+    const payload = {
+      type: messageType,
+      level: level,
+      message: text || "",
+      timestamp: Date.now(),
+    };
+    console.log("Sending Log.entryAdded:", payload);
+    sendToBrowserConnector(payload);
+  }
+
+  // Track request URL for better loadingFailed messages
+  if (method === "Network.requestWillBeSent") {
+    try {
+      const requestId = params?.requestId;
+      const url = params?.request?.url;
+      if (requestId && url) {
+        requestIdToUrl.set(requestId, url);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  // Capture network loading failures (DNS, blocked, aborted, etc.)
+  if (method === "Network.loadingFailed") {
+    try {
+      const requestId = params?.requestId;
+      const errorText = params?.errorText || "loading failed";
+      const url = requestIdToUrl.get(requestId);
+      const msg = url ? `Network loading failed (${errorText}) — ${url}` : `Network loading failed (${errorText})`;
+
+      const payload = {
+        type: "console-error",
+        level: "error",
+        message: msg,
+        timestamp: Date.now(),
+      };
+      console.log("Sending Network.loadingFailed:", payload);
+      sendToBrowserConnector(payload);
+    } catch (e) {
+      // ignore
+    }
   }
 };
 

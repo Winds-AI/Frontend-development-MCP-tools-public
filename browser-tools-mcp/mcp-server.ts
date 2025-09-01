@@ -1708,7 +1708,7 @@ server.tool(
 // Tool 7: inspectBrowserConsole
 server.tool(
   "browser.console.read",
-  "Read browser console logs with filters; returns formatted summary + stats. Use for JS errors/warnings/logs. Note: Does not include HTTP failures (use 'browser.network.inspect').",
+  "Read browser console logs with filters; returns formatted summary + stats. Captures JS errors/warnings/logs and browser-generated network errors (e.g., 'Failed to load resource'). For full HTTP payloads and headers, use 'browser.network.inspect'.",
   {
     level: z
       .enum(["log", "error", "warn", "info", "debug", "all"])
