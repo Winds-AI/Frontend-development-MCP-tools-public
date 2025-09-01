@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import path from "path";
+import { fileURLToPath } from "url";
 import fs from "fs";
 import { z } from "zod";
 
@@ -35,7 +36,17 @@ function loadProjectConfig(): ProjectsConfig | null {
     if (process.env.AFBT_PROJECTS_JSON) {
       candidates.push(path.resolve(process.env.AFBT_PROJECTS_JSON));
     }
+    // Common locations when running MCP from various working directories
     candidates.push(path.resolve(process.cwd(), "projects.json"));
+    candidates.push(path.resolve(process.cwd(), "..", "projects.json"));
+    candidates.push(path.resolve(process.cwd(), "..", "..", "projects.json"));
+    // Module-relative repo root (works when executing dist/mcp-server.js)
+    try {
+      const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+      candidates.push(path.resolve(moduleDir, "..", "projects.json"));
+      candidates.push(path.resolve(moduleDir, "..", "..", "projects.json"));
+    } catch {}
+    // Home override written by the Setup UI
     try {
       const home = require("os").homedir?.() || process.env.HOME;
       if (home) candidates.push(path.resolve(home, ".afbt", "projects.json"));

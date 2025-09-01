@@ -494,6 +494,46 @@ app.get("/api/embed/status", async (req, res) => {
   }
 });
 
+// Semantic search endpoint used by MCP tool api.searchEndpoints
+app.post("/api/embed/search", async (req, res) => {
+  try {
+    const projectHeader =
+      (req.header("X-ACTIVE-PROJECT") as string) ||
+      (req.header("active-project") as string) ||
+      undefined;
+    const { query, tag, method, limit } = req.body || {};
+
+    // Short info log
+    logInfo(
+      `[embed] Search request project=${projectHeader || "<default>"} query=${
+        query ? "yes" : "no"
+      } tag=${tag || "none"} method=${method || "all"} limit=${
+        typeof limit === "number" ? limit : 10
+      }`
+    );
+
+    // Detailed debug log
+    logDebug("[embed] Search request details:", {
+      headers: {
+        xActiveProject: req.header("X-ACTIVE-PROJECT"),
+        activeProject: req.header("active-project"),
+      },
+      body: req.body,
+    });
+
+    const results = await searchSemantic(
+      { query, tag, method, limit },
+      projectHeader
+    );
+    res.json(results);
+  } catch (error: any) {
+    console.error("[error] /api/embed/search failed:", error);
+    res
+      .status(500)
+      .json({ error: error?.message || "Failed to perform embed search" });
+  }
+});
+
 app.post("/api/embed/reindex", async (req, res) => {
   try {
     const { project } = req.body;
