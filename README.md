@@ -3,7 +3,8 @@
   <a href="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public/badge" alt="autonomous-frontend-browser-tools" />
 </a>
-![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/Winds-AI/autonomous-frontend-browser-tools?utm_source=oss&utm_medium=github&utm_campaign=Winds-AI%2Fautonomous-frontend-browser-tools&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
+
+[CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/Winds-AI/autonomous-frontend-browser-tools?utm_source=oss&utm_medium=github&utm_campaign=Winds-AI%2Fautonomous-frontend-browser-tools&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)
 
 **🚀 Optimized for Autonomous AI-Powered Frontend Development Workflows**
 
