@@ -1,6 +1,6 @@
 # Frontend Development Tools (AFBT)
 
-  <a href="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public">
+  <a href="[https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public](https://img.shields.io/coderabbit/prs/github/Winds-AI/autonomous-frontend-browser-tools?utm_source=oss&utm_medium=github&utm_campaign=Winds-AI%2Fautonomous-frontend-browser-tools&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)">
   <img width="380" height="200" src="https://glama.ai/mcp/servers/@Winds-AI/Frontend-development-MCP-tools-public/badge" alt="autonomous-frontend-browser-tools" />
 </a>
 
