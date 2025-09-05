@@ -1,3 +1,10 @@
+import {
+  fetchServerIdentity,
+  validateServerIdentity,
+} from "./common/serverIdentity.js";
+import { registerPanelScreenshot } from "./panel/screenshot.js";
+import { registerWipeLogs, createInfoLogger } from "./panel/logs.js";
+
 // Store settings
 let settings = {
   logLimit: 50,
@@ -939,44 +946,18 @@ discoverServerButton.addEventListener("click", () => discoverServer(false));
 // Attempt initial status refresh (will show not connected until server is found)
 refreshAllProjectStatuses();
 
-// Screenshot capture functionality
-captureScreenshotButton.addEventListener("click", () => {
-  console.log("Capture button clicked!");
-  captureScreenshotButton.textContent = "Capturing...";
+// Utilities for panel actions
+function getSettings() {
+  return settings;
+}
+const logInfoToBrowserConnector = createInfoLogger(getSettings);
 
-  // Send message to background script to capture screenshot
-  chrome.runtime.sendMessage(
-    {
-      type: "CAPTURE_SCREENSHOT",
-      tabId: chrome.devtools.inspectedWindow.tabId,
-      screenshotPath: settings.screenshotPath,
-    },
-    (response) => {
-      console.log("Screenshot capture response:", response);
-      if (chrome.runtime.lastError) {
-        captureScreenshotButton.textContent = "Failed to capture!";
-        console.error("Screenshot capture failed: Runtime error:", chrome.runtime.lastError);
-      } else if (!response) {
-        captureScreenshotButton.textContent = "Failed to capture!";
-        console.error("Screenshot capture failed: No response received");
-      } else if (!response.success) {
-        captureScreenshotButton.textContent = "Failed to capture!";
-        console.error("Screenshot capture failed:", response.error);
-      } else {
-        captureScreenshotButton.textContent = `Captured: ${response.title}`;
-        console.log("Screenshot captured successfully:", response.path);
-        // Add info level log to browser connector
-        logInfoToBrowserConnector("Screenshot captured successfully", {
-          path: response.path,
-          title: response.title
-        });
-      }
-      setTimeout(() => {
-        captureScreenshotButton.textContent = "Capture Screenshot";
-      }, 2000);
-    }
-  );
-});
+// Screenshot capture functionality
+registerPanelScreenshot(
+  captureScreenshotButton,
+  getSettings,
+  logInfoToBrowserConnector
+);
 
 // Function to log info level messages to browser connector
 function logInfoToBrowserConnector(message, data = {}) {
@@ -986,60 +967,37 @@ function logInfoToBrowserConnector(message, data = {}) {
     data: data,
     timestamp: Date.now(),
   };
-  
+
   // Get current settings
   chrome.storage.local.get(["browserConnectorSettings"], (result) => {
     const settings = result.browserConnectorSettings || {
       serverHost: "localhost",
       serverPort: 3025,
     };
-    
+
     const serverUrl = `http://${settings.serverHost}:${settings.serverPort}/extension-log`;
     console.log(`Sending info log to ${serverUrl}:`, logData);
-    
+
     fetch(serverUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ data: logData }),
     })
-    .then((response) => {
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
-      }
-      return response.json();
-    })
-    .then((data) => {
-      console.log("Info log sent successfully:", data);
-    })
-    .catch((error) => {
-      console.error("Error sending info log:", error);
-    });
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((data) => {
+        console.log("Info log sent successfully:", data);
+      })
+      .catch((error) => {
+        console.error("Error sending info log:", error);
+      });
   });
 }
 
 // Add wipe logs functionality
 const wipeLogsButton = document.getElementById("wipe-logs");
-wipeLogsButton.addEventListener("click", () => {
-  const serverUrl = `http://${settings.serverHost}:${settings.serverPort}/wipelogs`;
-  console.log(`Sending wipe request to ${serverUrl}`);
-
-  fetch(serverUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-  })
-    .then((response) => response.json())
-    .then((result) => {
-      console.log("Logs wiped successfully:", result.message);
-      wipeLogsButton.textContent = "Logs Wiped!";
-      setTimeout(() => {
-        wipeLogsButton.textContent = "Wipe All Logs";
-      }, 2000);
-    })
-    .catch((error) => {
-      console.error("Failed to wipe logs:", error);
-      wipeLogsButton.textContent = "Failed to Wipe Logs";
-      setTimeout(() => {
-        wipeLogsButton.textContent = "Wipe All Logs";
-      }, 2000);
-    });
-});
+registerWipeLogs(wipeLogsButton, getSettings);

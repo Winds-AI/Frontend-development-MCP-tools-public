@@ -1,4 +1,7 @@
-// devtools.js
+// devtools.js (ESM entry)
+import { fetchServerIdentity } from "./common/serverIdentity.js";
+import { installNetworkCapture } from "./devtools/network-capture.js";
+import { installElementCapture } from "./devtools/element-capture.js";
 
 // Store settings with defaults
 let settings = {
@@ -111,133 +114,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Utility to recursively truncate strings in any data structure
-function truncateStringsInData(data, maxLength, depth = 0, path = "") {
-  // Add depth limit to prevent circular references
-  if (depth > 100) {
-    console.warn("Max depth exceeded at path:", path);
-    return "[MAX_DEPTH_EXCEEDED]";
-  }
-
-  console.log(`Processing at path: ${path}, type:`, typeof data);
-
-  if (typeof data === "string") {
-    if (data.length > maxLength) {
-      console.log(
-        `Truncating string at path ${path} from ${data.length} to ${maxLength}`
-      );
-      return data.substring(0, maxLength) + "... (truncated)";
-    }
-    return data;
-  }
-
-  if (Array.isArray(data)) {
-    console.log(`Processing array at path ${path} with length:`, data.length);
-    return data.map((item, index) =>
-      truncateStringsInData(item, maxLength, depth + 1, `${path}[${index}]`)
-    );
-  }
-
-  if (typeof data === "object" && data !== null) {
-    console.log(
-      `Processing object at path ${path} with keys:`,
-      Object.keys(data)
-    );
-    const result = {};
-    for (const [key, value] of Object.entries(data)) {
-      try {
-        result[key] = truncateStringsInData(
-          value,
-          maxLength,
-          depth + 1,
-          path ? `${path}.${key}` : key
-        );
-      } catch (e) {
-        console.error(`Error processing key ${key} at path ${path}:`, e);
-        result[key] = "[ERROR_PROCESSING]";
-      }
-    }
-    return result;
-  }
-
-  return data;
-}
-
-// Helper to calculate the size of an object
-function calculateObjectSize(obj) {
-  return JSON.stringify(obj).length;
-}
-
-// Helper to process array of objects with size limit
-function processArrayWithSizeLimit(array, maxTotalSize, processFunc) {
-  let currentSize = 0;
-  const result = [];
-
-  for (const item of array) {
-    // Process the item first
-    const processedItem = processFunc(item);
-    const itemSize = calculateObjectSize(processedItem);
-
-    // Check if adding this item would exceed the limit
-    if (currentSize + itemSize > maxTotalSize) {
-      console.log(
-        `Reached size limit (${currentSize}/${maxTotalSize}), truncating array`
-      );
-      break;
-    }
-
-    // Add item and update size
-    result.push(processedItem);
-    currentSize += itemSize;
-    console.log(
-      `Added item of size ${itemSize}, total size now: ${currentSize}`
-    );
-  }
-
-  return result;
-}
-
-// Modified processJsonString to handle arrays with size limit
-function processJsonString(jsonString, maxLength) {
-  console.log("Processing string of length:", jsonString?.length);
-  try {
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonString);
-      console.log(
-        "Successfully parsed as JSON, structure:",
-        JSON.stringify(Object.keys(parsed))
-      );
-    } catch (e) {
-      console.log("Not valid JSON, treating as string");
-      return truncateStringsInData(jsonString, maxLength, 0, "root");
-    }
-
-    // If it's an array, process with size limit
-    if (Array.isArray(parsed)) {
-      console.log("Processing array of objects with size limit");
-      const processed = processArrayWithSizeLimit(
-        parsed,
-        settings.maxLogSize,
-        (item) => truncateStringsInData(item, maxLength, 0, "root")
-      );
-      const result = JSON.stringify(processed);
-      console.log(
-        `Processed array: ${parsed.length} -> ${processed.length} items`
-      );
-      return result;
-    }
-
-    // Otherwise process as before
-    const processed = truncateStringsInData(parsed, maxLength, 0, "root");
-    const result = JSON.stringify(processed);
-    console.log("Processed JSON string length:", result.length);
-    return result;
-  } catch (e) {
-    console.error("Error in processJsonString:", e);
-    return jsonString.substring(0, maxLength) + "... (truncated)";
-  }
-}
+import {
+  truncateStringsInData,
+  processJsonString,
+} from "./devtools/payload-processor.js";
 
 // Helper to send logs to browser-connector
 async function sendToBrowserConnector(logData) {
@@ -354,80 +234,42 @@ async function sendToBrowserConnector(logData) {
     });
 }
 
-// Validate server identity
+// Validate server identity using shared helper and keep message side-effects
 async function validateServerIdentity() {
   try {
     console.log(
       `Validating server identity at ${settings.serverHost}:${settings.serverPort}...`
     );
-
-    // Use fetch with a timeout to prevent long-hanging requests
-    const response = await fetch(
-      `http://${settings.serverHost}:${settings.serverPort}/.identity`,
-      {
-        signal: AbortSignal.timeout(3000), // 3 second timeout
-      }
+    const identity = await fetchServerIdentity(
+      settings.serverHost,
+      settings.serverPort,
+      3000
     );
-
-    if (!response.ok) {
-      console.error(
-        `Server identity validation failed: HTTP ${response.status}`
-      );
-
-      // Notify about the connection failure
-      chrome.runtime.sendMessage({
-        type: "SERVER_VALIDATION_FAILED",
-        reason: "http_error",
-        status: response.status,
-        serverHost: settings.serverHost,
-        serverPort: settings.serverPort,
-      });
-
-      return false;
-    }
-
-    const identity = await response.json();
-
-    // Validate signature
-    if (identity.signature !== "mcp-browser-connector-24x7") {
-      console.error("Server identity validation failed: Invalid signature");
-
-      // Notify about the invalid signature
-      chrome.runtime.sendMessage({
-        type: "SERVER_VALIDATION_FAILED",
-        reason: "invalid_signature",
-        serverHost: settings.serverHost,
-        serverPort: settings.serverPort,
-      });
-
-      return false;
-    }
-
     console.log(
       `Server identity confirmed: ${identity.name} v${identity.version}`
     );
-
-    // Notify about successful validation
     chrome.runtime.sendMessage({
       type: "SERVER_VALIDATION_SUCCESS",
       serverInfo: identity,
       serverHost: settings.serverHost,
       serverPort: settings.serverPort,
     });
-
     return true;
   } catch (error) {
-    console.error("Server identity validation failed:", error);
-
-    // Notify about the connection error
+    const reason =
+      error?.name === "HttpError"
+        ? "http_error"
+        : error?.name === "InvalidSignature"
+        ? "invalid_signature"
+        : "connection_error";
     chrome.runtime.sendMessage({
       type: "SERVER_VALIDATION_FAILED",
-      reason: "connection_error",
-      error: error.message,
+      reason,
+      status: error?.name === "HttpError" ? error.message : undefined,
+      error: error?.message,
       serverHost: settings.serverHost,
       serverPort: settings.serverPort,
     });
-
     return false;
   }
 }
@@ -480,23 +322,7 @@ chrome.devtools.network.onNavigated.addListener((url) => {
 });
 
 // 1) Listen for network requests
-chrome.devtools.network.onRequestFinished.addListener((request) => {
-  if (request._resourceType === "xhr" || request._resourceType === "fetch") {
-    request.getContent((responseBody) => {
-      const entry = {
-        type: "network-request",
-        url: request.request.url,
-        method: request.request.method,
-        status: request.response.status,
-        requestHeaders: request.request.headers,
-        responseHeaders: request.response.headers,
-        requestBody: request.request.postData?.text ?? "",
-        responseBody: responseBody ?? "",
-      };
-      sendToBrowserConnector(entry);
-    });
-  }
-});
+installNetworkCapture(sendToBrowserConnector);
 
 // Helper function to attach debugger
 async function attachDebugger() {
@@ -559,7 +385,10 @@ function performAttach() {
       {},
       () => {
         if (chrome.runtime.lastError) {
-          console.warn("Failed to enable Log domain:", chrome.runtime.lastError);
+          console.warn(
+            "Failed to enable Log domain:",
+            chrome.runtime.lastError
+          );
         } else {
           console.log("Log domain successfully enabled");
         }
@@ -691,9 +520,9 @@ const consoleMessageListener = (source, method, params) => {
           .slice(0, 6)
           .map(
             (f) =>
-              `at ${f.functionName || '<anonymous>'} (${f.url || 'unknown'}:${
-                f.lineNumber ?? '?'
-              }:${f.columnNumber ?? '?'})`
+              `at ${f.functionName || "<anonymous>"} (${f.url || "unknown"}:${
+                f.lineNumber ?? "?"
+              }:${f.columnNumber ?? "?"})`
           )
           .join("\n");
         stackText = `\n${top}`;
@@ -726,7 +555,8 @@ const consoleMessageListener = (source, method, params) => {
 
     let messageType = "console-log";
     if (level === "error") messageType = "console-error";
-    else if (level === "warning" || level === "warn") messageType = "console-warn";
+    else if (level === "warning" || level === "warn")
+      messageType = "console-warn";
 
     const payload = {
       type: messageType,
@@ -757,7 +587,9 @@ const consoleMessageListener = (source, method, params) => {
       const requestId = params?.requestId;
       const errorText = params?.errorText || "loading failed";
       const url = requestIdToUrl.get(requestId);
-      const msg = url ? `Network loading failed (${errorText}) — ${url}` : `Network loading failed (${errorText})`;
+      const msg = url
+        ? `Network loading failed (${errorText}) — ${url}`
+        : `Network loading failed (${errorText})`;
 
       const payload = {
         type: "console-error",
@@ -1080,9 +912,7 @@ function captureAndSendElement() {
 }
 
 // Listen for element selection in the Elements panel
-chrome.devtools.panels.elements.onSelectionChanged.addListener(() => {
-  captureAndSendElement();
-});
+installElementCapture(sendToBrowserConnector);
 
 // WebSocket connection management - optimized for autonomous operation
 let ws = null;

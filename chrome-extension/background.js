@@ -1,3 +1,16 @@
+import { validateServerIdentity } from "./common/serverIdentity.js";
+import {
+  handleRetrieveAuthToken,
+  tabUrls as authTabUrls,
+} from "./background/auth.js";
+import { registerScreenshotHandler } from "./background/screenshot.js";
+import {
+  installUrlTracking,
+  getCurrentTabUrl,
+  updateServerWithUrl,
+  tabUrls,
+} from "./background/url-tracking.js";
+
 // Listen for messages from the devtools panel
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "GET_CURRENT_URL" && message.tabId) {
@@ -32,44 +45,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Required to use sendResponse asynchronously
   }
 
-  if (message.type === "CAPTURE_SCREENSHOT" && message.tabId) {
-    console.log("Background: Received CAPTURE_SCREENSHOT message:", message);
-    // First get the server settings
-    chrome.storage.local.get(["browserConnectorSettings"], (result) => {
-      const settings = result.browserConnectorSettings || {
-        serverHost: "localhost",
-        serverPort: 3025,
-      };
-
-      // Validate server identity first
-      validateServerIdentity(settings.serverHost, settings.serverPort)
-        .then((isValid) => {
-          console.log("Background: Server validation result:", isValid);
-          if (!isValid) {
-            console.error(
-              "Cannot capture screenshot: Not connected to a valid browser tools server"
-            );
-            sendResponse({
-              success: false,
-              error:
-                "Not connected to a valid browser tools server. Please check your connection settings.",
-            });
-            return;
-          }
-
-          // Continue with screenshot capture
-          console.log("Background: Proceeding with screenshot capture");
-          captureAndSendScreenshot(message, settings, sendResponse);
-        })
-        .catch((error) => {
-          console.error("Error validating server:", error);
-          // Still attempt to capture screenshot even if validation fails, but log the error
-          console.warn("Proceeding with screenshot capture despite validation error");
-          captureAndSendScreenshot(message, settings, sendResponse);
-        });
-    });
-    return true; // Required to use sendResponse asynchronously
-  }
+  // CAPTURE_SCREENSHOT handled via registerScreenshotHandler
 
   if (message.type === "NAVIGATE_TAB" && message.url) {
     console.log("Background: Received navigation request:", message);
@@ -104,7 +80,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Required to use sendResponse asynchronously
   }
 
-  if (message.type === "PERFORM_DOM_ACTION" && message.tabId && message.payload) {
+  if (
+    message.type === "PERFORM_DOM_ACTION" &&
+    message.tabId &&
+    message.payload
+  ) {
     try {
       const { tabId, payload } = message;
       // Default to DOM-injection path using scripting API
@@ -117,15 +97,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         },
         (results) => {
           if (chrome.runtime.lastError) {
-            sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            sendResponse({
+              success: false,
+              error: chrome.runtime.lastError.message,
+            });
             return;
           }
           try {
             const first = Array.isArray(results) ? results[0] : results;
             const value = first && first.result ? first.result : first;
-            sendResponse(value || { success: false, error: "No result returned" });
+            sendResponse(
+              value || { success: false, error: "No result returned" }
+            );
           } catch (e) {
-            sendResponse({ success: false, error: e?.message || "Failed to parse result" });
+            sendResponse({
+              success: false,
+              error: e?.message || "Failed to parse result",
+            });
           }
         }
       );
@@ -137,128 +125,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "RETRIEVE_AUTH_TOKEN") {
-    // message: { origin?: string, storageType: 'localStorage'|'sessionStorage'|'cookies', tokenKey: string, tabId?, requestId? }
-    const targetTabId = message.tabId || chrome.devtools?.inspectedWindow?.tabId;
-    const storageType = message.storageType;
-    const tokenKey = message.tokenKey;
-    const origin = message.origin; // required for cookies; preferred context URL for storage
-
-    if (!storageType || !tokenKey) {
-      sendResponse({ success: false, error: "Missing storageType or tokenKey" });
-      return true;
-    }
-
-    // Helper to respond uniformly
-    const respond = (ok, payload) => {
-      if (ok) sendResponse({ success: true, token: payload });
-      else sendResponse({ success: false, error: payload });
-    };
-
-    try {
-      if (storageType === "cookies") {
-        // Use chrome.cookies API; requires hostPermissions
-        try {
-          const query = {};
-          if (origin) query.url = origin;
-          // If origin not provided, best-effort: infer from current tab URL
-          const ensureUrl = async () => {
-            if (query.url) return query.url;
-            const url = await getCurrentTabUrl(targetTabId);
-            return url || undefined;
-          };
-          (async () => {
-            const url = await ensureUrl();
-            if (!url) {
-              respond(false, "Unable to resolve URL for cookie lookup");
-              return;
-            }
-            chrome.cookies.get({ url, name: tokenKey }, (cookie) => {
-              if (chrome.runtime.lastError) {
-                respond(false, chrome.runtime.lastError.message);
-                return;
-              }
-              if (cookie && cookie.value) respond(true, cookie.value);
-              else respond(false, "Cookie not found");
-            });
-          })();
-        } catch (e) {
-          respond(false, e?.message || "Cookie retrieval failed");
-        }
-        return true;
-      }
-
-      // For localStorage/sessionStorage we must execute in page context; if origin provided, try to find/match that tab first
-      const executeInTab = (tabId) => chrome.scripting.executeScript(
-        {
-          target: { tabId },
-          world: "MAIN",
-          func: (type, key) => {
-            try {
-              if (type === "localStorage") {
-                return { ok: true, value: window.localStorage.getItem(key) };
-              }
-              if (type === "sessionStorage") {
-                return { ok: true, value: window.sessionStorage.getItem(key) };
-              }
-              return { ok: false, error: "Unsupported storageType" };
-            } catch (e) {
-              return { ok: false, error: e?.message || "Storage access error" };
-            }
-          },
-          args: [storageType, tokenKey],
-        },
-        (results) => {
-          if (chrome.runtime.lastError) {
-            respond(false, chrome.runtime.lastError.message);
-            return;
-          }
-          try {
-            const first = Array.isArray(results) ? results[0] : results;
-            const r = first && first.result ? first.result : first;
-            if (r && r.ok && typeof r.value === "string" && r.value.length > 0) {
-              respond(true, r.value);
-            } else {
-              respond(false, r?.error || "Token not found");
-            }
-          } catch (e) {
-            respond(false, e?.message || "Failed to parse result");
-          }
-        }
-      );
-
-      // Strategy: if origin provided, try to locate a tab with matching origin (host);
-      // else use provided tabId or active tab.
-      if (origin) {
-        chrome.tabs.query({}, (tabs) => {
-          const match = (tabs || []).find((t) => {
-            try {
-              const u = new URL(t.url || "");
-              const want = new URL(origin);
-              return u.origin === want.origin;
-            } catch { return false; }
-          });
-          if (match && match.id) {
-            executeInTab(match.id);
-          } else if (targetTabId) {
-            executeInTab(targetTabId);
-          } else {
-            respond(false, "No matching tab for provided origin");
-          }
-        });
-        return true;
-      }
-
-      if (!targetTabId) {
-        respond(false, "No target tab ID available");
-        return true;
-      }
-
-      executeInTab(targetTabId);
-      return true;
-    } catch (e) {
-      respond(false, e?.message || "Unexpected error");
-      return true;
-    }
+    return handleRetrieveAuthToken(message, sendResponse);
   }
 });
 
@@ -276,10 +143,11 @@ function performDomAction(payload) {
       style.display !== "none"
     );
   };
-  const isDisabled = (el) => !!(el && (el.disabled || el.getAttribute('aria-disabled') === 'true'));
+  const isDisabled = (el) =>
+    !!(el && (el.disabled || el.getAttribute("aria-disabled") === "true"));
   const hasPointerEvents = (el) => {
     const style = window.getComputedStyle(el);
-    return style.pointerEvents !== 'none';
+    return style.pointerEvents !== "none";
   };
   const isCenterOnTop = (el) => {
     const rect = el.getBoundingClientRect();
@@ -293,27 +161,32 @@ function performDomAction(payload) {
     const style = window.getComputedStyle(el);
     const overflowY = style.overflowY;
     const overflowX = style.overflowX;
-    const canScrollY = (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
-    const canScrollX = (overflowX === 'auto' || overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
+    const canScrollY =
+      (overflowY === "auto" || overflowY === "scroll") &&
+      el.scrollHeight > el.clientHeight;
+    const canScrollX =
+      (overflowX === "auto" || overflowX === "scroll") &&
+      el.scrollWidth > el.clientWidth;
     return canScrollY || canScrollX;
   };
   const findPrimaryScrollContainer = () => {
     // Prefer explicit containers
     const candidates = [
-      document.querySelector('main'),
+      document.querySelector("main"),
       document.querySelector('[role="main"]'),
-      document.querySelector('[data-scroll-container]')
+      document.querySelector("[data-scroll-container]"),
     ].filter(Boolean);
     for (const c of candidates) if (isScrollable(c)) return c;
     // Heuristic: pick visible element with largest (scrollHeight - clientHeight)
     let best = null;
     let bestDelta = 0;
-    const all = document.querySelectorAll('*');
+    const all = document.querySelectorAll("*");
     for (const el of all) {
       if (!isVisible(el)) continue;
       const delta = Math.max(0, el.scrollHeight - el.clientHeight);
       if (delta > bestDelta && isScrollable(el)) {
-        best = el; bestDelta = delta;
+        best = el;
+        bestDelta = delta;
       }
     }
     return best || document.scrollingElement || document.documentElement;
@@ -321,12 +194,12 @@ function performDomAction(payload) {
   const closestClickable = (el) => {
     if (!el) return null;
     const selector = [
-      'button',
+      "button",
       'input[type="button"]',
       'input[type="submit"]',
       'input[type="reset"]',
       '[role="button"]',
-      'a[href]',
+      "a[href]",
       '[role="link"]',
       '[role="tab"]',
       '[role="menuitem"]',
@@ -334,26 +207,31 @@ function performDomAction(payload) {
       '[role="menuitemradio"]',
       '[role="option"]',
       '[role="switch"]',
-      '[onclick]',
-      '[tabindex]'
-    ].join(', ');
+      "[onclick]",
+      "[tabindex]",
+    ].join(", ");
     const node = el.closest(selector) || el;
     return node;
   };
   const getAccessibleName = (el) => {
-    if (!el) return '';
+    if (!el) return "";
     return (
-      el.getAttribute('aria-label') ||
-      (el.getAttribute('aria-labelledby') ? (document.getElementById(el.getAttribute('aria-labelledby'))?.textContent || '') : '') ||
+      el.getAttribute("aria-label") ||
+      (el.getAttribute("aria-labelledby")
+        ? document.getElementById(el.getAttribute("aria-labelledby"))
+            ?.textContent || ""
+        : "") ||
       el.innerText ||
       el.textContent ||
-      ''
+      ""
     ).trim();
   };
   const byText = (text, exact) => {
     const hay = exact ? [text] : [text, text.trim()];
     // Prefer interactive candidates first (broad set)
-    const interactive = document.querySelectorAll("button, input[type='button'], input[type='submit'], input[type='reset'], [role='button'], a[href], [role='link'], [role='tab'], [role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option'], [role='switch'], [onclick], [tabindex]");
+    const interactive = document.querySelectorAll(
+      "button, input[type='button'], input[type='submit'], input[type='reset'], [role='button'], a[href], [role='link'], [role='tab'], [role='menuitem'], [role='menuitemcheckbox'], [role='menuitemradio'], [role='option'], [role='switch'], [onclick], [tabindex]"
+    );
     for (const el of interactive) {
       const name = getAccessibleName(el);
       if (!name || isDisabled(el) || !isVisible(el)) continue;
@@ -371,7 +249,9 @@ function performDomAction(payload) {
   const byLabel = (labelText, exact) => {
     const labels = Array.from(document.querySelectorAll("label"));
     const match = labels.find((l) =>
-      exact ? l.textContent === labelText : (l.textContent || "").includes(labelText)
+      exact
+        ? l.textContent === labelText
+        : (l.textContent || "").includes(labelText)
     );
     if (!match) return null;
     const forId = match.getAttribute("for");
@@ -384,16 +264,19 @@ function performDomAction(payload) {
     let candidates = [];
     const matchRole = (el, role) => {
       if (el.getAttribute("role") === role) return true;
-      if (role === 'button' && el.tagName === 'BUTTON') return true;
-      if (role === 'link' && (el.tagName === 'A' && el.hasAttribute('href'))) return true;
+      if (role === "button" && el.tagName === "BUTTON") return true;
+      if (role === "link" && el.tagName === "A" && el.hasAttribute("href"))
+        return true;
       return false;
     };
     candidates = qAll.filter((el) => matchRole(el, role));
     // Prefer enabled candidates
     candidates = candidates.filter((el) => !isDisabled(el) && isVisible(el));
-    if (role === 'tab') {
+    if (role === "tab") {
       // Prefer tabs that are not already selected
-      const unselected = candidates.filter((el) => el.getAttribute('aria-selected') !== 'true');
+      const unselected = candidates.filter(
+        (el) => el.getAttribute("aria-selected") !== "true"
+      );
       if (unselected.length) candidates = unselected;
     }
     if (!name) return candidates[0] || null;
@@ -403,52 +286,83 @@ function performDomAction(payload) {
     });
     return pick || null;
   };
-  const byTestId = (value) => document.querySelector(`[data-testid="${CSS.escape(value)}"]`);
-  const byPlaceholder = (value, exact) => Array.from(document.querySelectorAll("input,textarea"))
-    .find((el) => {
+  const byTestId = (value) =>
+    document.querySelector(`[data-testid="${CSS.escape(value)}"]`);
+  const byPlaceholder = (value, exact) =>
+    Array.from(document.querySelectorAll("input,textarea")).find((el) => {
       const ph = el.getAttribute("placeholder") || "";
       return exact ? ph === value : ph.includes(value);
     }) || null;
-  const byName = (value, exact) => Array.from(document.querySelectorAll("input,textarea,select"))
-    .find((el) => {
-      const nm = el.getAttribute("name") || "";
-      return exact ? nm === value : nm.includes(value);
-    }) || null;
+  const byName = (value, exact) =>
+    Array.from(document.querySelectorAll("input,textarea,select")).find(
+      (el) => {
+        const nm = el.getAttribute("name") || "";
+        return exact ? nm === value : nm.includes(value);
+      }
+    ) || null;
 
   const queryWithin = (root, sel) => {
     const { by, value, exact } = sel || {};
     if (!by || !value) return null;
-    if (by === "testid") return root.querySelector(`[data-testid="${CSS.escape(value)}"]`);
+    if (by === "testid")
+      return root.querySelector(`[data-testid="${CSS.escape(value)}"]`);
     if (by === "role") {
       const parts = value.split(":");
       const role = parts[0];
       const name = parts.slice(1).join(":") || undefined;
-      let candidates = Array.from(root.querySelectorAll("*"))
-        .filter((el) => el.getAttribute("role") === role || (role === "button" && (el.tagName === "BUTTON" || el.getAttribute("role") === "button")));
-      candidates = candidates.filter((el) => el.getAttribute('aria-disabled') !== 'true' && !el.disabled);
-      if (role === 'tab') {
-        const unselected = candidates.filter((el) => el.getAttribute('aria-selected') !== 'true');
+      let candidates = Array.from(root.querySelectorAll("*")).filter(
+        (el) =>
+          el.getAttribute("role") === role ||
+          (role === "button" &&
+            (el.tagName === "BUTTON" || el.getAttribute("role") === "button"))
+      );
+      candidates = candidates.filter(
+        (el) => el.getAttribute("aria-disabled") !== "true" && !el.disabled
+      );
+      if (role === "tab") {
+        const unselected = candidates.filter(
+          (el) => el.getAttribute("aria-selected") !== "true"
+        );
         if (unselected.length) candidates = unselected;
       }
       if (!name) return candidates[0] || null;
-      return candidates.find((el) => {
-        const txt = getAccessibleName(el);
-        return exact ? txt === name : txt.includes(name);
-      }) || null;
+      return (
+        candidates.find((el) => {
+          const txt = getAccessibleName(el);
+          return exact ? txt === name : txt.includes(name);
+        }) || null
+      );
     }
     if (by === "label") {
       const labels = Array.from(root.querySelectorAll("label"));
-      const match = labels.find((l) => exact ? l.textContent === value : (l.textContent || "").includes(value));
+      const match = labels.find((l) =>
+        exact ? l.textContent === value : (l.textContent || "").includes(value)
+      );
       if (!match) return null;
       const forId = match.getAttribute("for");
-      if (forId) return root.getElementById ? root.getElementById(forId) : document.getElementById(forId);
+      if (forId)
+        return root.getElementById
+          ? root.getElementById(forId)
+          : document.getElementById(forId);
       return match.querySelector("input,textarea,select");
     }
-    if (by === "placeholder") return Array.from(root.querySelectorAll("input,textarea")).find((el) => (el.getAttribute("placeholder") || "").includes(value)) || null;
-    if (by === "name") return Array.from(root.querySelectorAll("input,textarea,select")).find((el) => (el.getAttribute("name") || "").includes(value)) || null;
+    if (by === "placeholder")
+      return (
+        Array.from(root.querySelectorAll("input,textarea")).find((el) =>
+          (el.getAttribute("placeholder") || "").includes(value)
+        ) || null
+      );
+    if (by === "name")
+      return (
+        Array.from(root.querySelectorAll("input,textarea,select")).find((el) =>
+          (el.getAttribute("name") || "").includes(value)
+        ) || null
+      );
     if (by === "text") {
       const hay = exact ? [value] : [value, value.trim()];
-      const interactive = root.querySelectorAll("button, [role='tab'], [role='button'], a, [onclick], [tabindex]");
+      const interactive = root.querySelectorAll(
+        "button, [role='tab'], [role='button'], a, [onclick], [tabindex]"
+      );
       for (const el of interactive) {
         const name = getAccessibleName(el);
         if (hay.some((t) => t && name.includes(t))) return el;
@@ -463,9 +377,17 @@ function performDomAction(payload) {
     if (by === "css") return root.querySelector(value);
     if (by === "xpath") {
       try {
-        const r = document.evaluate(value, root === document ? document : root, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+        const r = document.evaluate(
+          value,
+          root === document ? document : root,
+          null,
+          XPathResult.FIRST_ORDERED_NODE_TYPE,
+          null
+        );
         return r.singleNodeValue;
-      } catch (_) { return null; }
+      } catch (_) {
+        return null;
+      }
     }
     return null;
   };
@@ -481,14 +403,10 @@ function performDomAction(payload) {
     return queryWithin(root, target);
   };
 
-  const {
-    action,
-    target,
-    value,
-    options = {}
-  } = payload || {};
+  const { action, target, value, options = {} } = payload || {};
 
-  const timeoutMs = typeof options.timeoutMs === "number" ? options.timeoutMs : 5000;
+  const timeoutMs =
+    typeof options.timeoutMs === "number" ? options.timeoutMs : 5000;
   const waitForVisible = options.waitForVisible !== false;
   const waitForEnabled = options.waitForEnabled !== false;
 
@@ -505,36 +423,44 @@ function performDomAction(payload) {
     el.scrollIntoView({ block: "center", inline: "center" });
     await wait(50);
 
-    if (waitForEnabled && (el.disabled || el.getAttribute("aria-disabled") === "true")) {
-      return { success: false, error: "NOT_ENABLED", details: { selectorUsed: target?.by + "=" + target?.value } };
+    if (
+      waitForEnabled &&
+      (el.disabled || el.getAttribute("aria-disabled") === "true")
+    ) {
+      return {
+        success: false,
+        error: "NOT_ENABLED",
+        details: { selectorUsed: target?.by + "=" + target?.value },
+      };
     }
 
     const rect = el.getBoundingClientRect();
 
     const clickSequence = (node) => {
       // Ensure in-viewport and not covered
-      node.scrollIntoView({ block: 'center', inline: 'center' });
+      node.scrollIntoView({ block: "center", inline: "center" });
       if (!hasPointerEvents(node)) return;
       const rect2 = node.getBoundingClientRect();
       // If center point is not on the element (covered), try top-left fallback
       if (!isCenterOnTop(node)) {
-        const ev = (type, opts) => node.dispatchEvent(new MouseEvent(type, { bubbles: true, ...opts }));
-        ev('mousemove', { clientX: rect2.left + 1, clientY: rect2.top + 1 });
-        ev('mousedown', { clientX: rect2.left + 1, clientY: rect2.top + 1 });
-        ev('mouseup', { clientX: rect2.left + 1, clientY: rect2.top + 1 });
-        ev('click', { clientX: rect2.left + 1, clientY: rect2.top + 1 });
+        const ev = (type, opts) =>
+          node.dispatchEvent(new MouseEvent(type, { bubbles: true, ...opts }));
+        ev("mousemove", { clientX: rect2.left + 1, clientY: rect2.top + 1 });
+        ev("mousedown", { clientX: rect2.left + 1, clientY: rect2.top + 1 });
+        ev("mouseup", { clientX: rect2.left + 1, clientY: rect2.top + 1 });
+        ev("click", { clientX: rect2.left + 1, clientY: rect2.top + 1 });
       } else {
         node.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
         node.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
         node.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
         node.dispatchEvent(new MouseEvent("click", { bubbles: true }));
       }
-      if (typeof node.click === 'function') node.click();
+      if (typeof node.click === "function") node.click();
     };
 
     if (action === "click") {
       const node = closestClickable(el) || el;
-      if (node.getAttribute && (node.getAttribute('aria-disabled') === 'true')) {
+      if (node.getAttribute && node.getAttribute("aria-disabled") === "true") {
         return { success: false, error: "DISABLED_ELEMENT" };
       }
       clickSequence(node);
@@ -544,18 +470,34 @@ function performDomAction(payload) {
         while (performance.now() < endBy) {
           let ok = true;
           if (options.assertTarget) {
-            const assertEl = resolveElement(options.assertTarget, payload.scopeTarget);
+            const assertEl = resolveElement(
+              options.assertTarget,
+              payload.scopeTarget
+            );
             ok = !!assertEl && (!waitForVisible || isVisible(assertEl));
           }
           if (ok && options.assertUrlContains) {
-            ok = (location.href || '').includes(options.assertUrlContains);
+            ok = (location.href || "").includes(options.assertUrlContains);
           }
           if (ok) break;
           await wait(100);
         }
       }
-      if (options && options.tabChangeWaitMs) await wait(options.tabChangeWaitMs);
-      return { success: true, details: { selectorUsed: `${target.by}=${target.value}`, matchedCount: 1, boundingBox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } } };
+      if (options && options.tabChangeWaitMs)
+        await wait(options.tabChangeWaitMs);
+      return {
+        success: true,
+        details: {
+          selectorUsed: `${target.by}=${target.value}`,
+          matchedCount: 1,
+          boundingBox: {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+          },
+        },
+      };
     }
     if (action === "type") {
       el.focus();
@@ -568,17 +510,25 @@ function performDomAction(payload) {
         el.dispatchEvent(new Event("input", { bubbles: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
       }
-      return { success: true, details: { selectorUsed: `${target.by}=${target.value}` } };
+      return {
+        success: true,
+        details: { selectorUsed: `${target.by}=${target.value}` },
+      };
     }
     if (action === "select") {
       if (el.tagName === "SELECT" && typeof value === "string") {
         const sel = el;
-        const opt = Array.from(sel.options).find(o => o.value === value || o.text === value);
+        const opt = Array.from(sel.options).find(
+          (o) => o.value === value || o.text === value
+        );
         if (opt) {
           sel.value = opt.value;
           sel.dispatchEvent(new Event("input", { bubbles: true }));
           sel.dispatchEvent(new Event("change", { bubbles: true }));
-          return { success: true, details: { selectorUsed: `${target.by}=${target.value}` } };
+          return {
+            success: true,
+            details: { selectorUsed: `${target.by}=${target.value}` },
+          };
         }
         return { success: false, error: "OPTION_NOT_FOUND" };
       }
@@ -592,7 +542,10 @@ function performDomAction(payload) {
           el.dispatchEvent(new Event("input", { bubbles: true }));
           el.dispatchEvent(new Event("change", { bubbles: true }));
         }
-        return { success: true, details: { selectorUsed: `${target.by}=${target.value}` } };
+        return {
+          success: true,
+          details: { selectorUsed: `${target.by}=${target.value}` },
+        };
       }
       return { success: false, error: "UNSUPPORTED_CHECK_TARGET" };
     }
@@ -602,16 +555,24 @@ function performDomAction(payload) {
       el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
       el.dispatchEvent(new KeyboardEvent("keypress", { key, bubbles: true }));
       el.dispatchEvent(new KeyboardEvent("keyup", { key, bubbles: true }));
-      return { success: true, details: { selectorUsed: `${target.by}=${target.value}` } };
+      return {
+        success: true,
+        details: { selectorUsed: `${target.by}=${target.value}` },
+      };
     }
     if (action === "hover") {
       el.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
       el.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
-      return { success: true, details: { selectorUsed: `${target.by}=${target.value}` } };
+      return {
+        success: true,
+        details: { selectorUsed: `${target.by}=${target.value}` },
+      };
     }
     if (action === "scroll") {
       const behavior = options.smooth ? "smooth" : "auto";
-      const hasOffsets = typeof options.scrollX === "number" || typeof options.scrollY === "number";
+      const hasOffsets =
+        typeof options.scrollX === "number" ||
+        typeof options.scrollY === "number";
       const dx = typeof options.scrollX === "number" ? options.scrollX : 0;
       const dy = typeof options.scrollY === "number" ? options.scrollY : 0;
 
@@ -619,91 +580,125 @@ function performDomAction(payload) {
       if (target && el) {
         if (hasOffsets && isScrollable(el)) {
           el.scrollBy({ left: dx, top: dy, behavior });
-          return { success: true, details: { selectorUsed: `${target.by}=${target.value}`, offset: { x: dx, y: dy } } };
+          return {
+            success: true,
+            details: {
+              selectorUsed: `${target.by}=${target.value}`,
+              offset: { x: dx, y: dy },
+            },
+          };
         }
         if (options && options.to === "top") {
           if (isScrollable(el)) {
             el.scrollTo({ top: 0, behavior });
           } else {
-            el.scrollIntoView({ behavior, block: 'start', inline: 'nearest' });
+            el.scrollIntoView({ behavior, block: "start", inline: "nearest" });
           }
-          return { success: true, details: { selectorUsed: `${target.by}=${target.value}`, to: "top" } };
+          return {
+            success: true,
+            details: {
+              selectorUsed: `${target.by}=${target.value}`,
+              to: "top",
+            },
+          };
         }
         if (options && options.to === "bottom") {
           if (isScrollable(el)) {
             el.scrollTo({ top: el.scrollHeight, behavior });
           } else {
-            el.scrollIntoView({ behavior, block: 'end', inline: 'nearest' });
+            el.scrollIntoView({ behavior, block: "end", inline: "nearest" });
           }
-          return { success: true, details: { selectorUsed: `${target.by}=${target.value}`, to: "bottom" } };
+          return {
+            success: true,
+            details: {
+              selectorUsed: `${target.by}=${target.value}`,
+              to: "bottom",
+            },
+          };
         }
         // Default: bring it into view
         el.scrollIntoView({ behavior, block: "center", inline: "center" });
-        return { success: true, details: { selectorUsed: `${target.by}=${target.value}` } };
+        return {
+          success: true,
+          details: { selectorUsed: `${target.by}=${target.value}` },
+        };
       }
 
       // No specific target: use primary scroll container or window
       const container = findPrimaryScrollContainer();
       if (hasOffsets) {
-        if (container && container !== document.scrollingElement && container !== document.documentElement && container !== document.body && isScrollable(container)) {
+        if (
+          container &&
+          container !== document.scrollingElement &&
+          container !== document.documentElement &&
+          container !== document.body &&
+          isScrollable(container)
+        ) {
           container.scrollBy({ left: dx, top: dy, behavior });
         } else {
           window.scrollBy({ left: dx, top: dy, behavior });
         }
-        return { success: true, details: { offset: { x: dx, y: dy }, container: container?.tagName?.toLowerCase() || 'window' } };
+        return {
+          success: true,
+          details: {
+            offset: { x: dx, y: dy },
+            container: container?.tagName?.toLowerCase() || "window",
+          },
+        };
       }
       if (options && options.to === "top") {
-        if (container && container !== document.scrollingElement && isScrollable(container)) {
+        if (
+          container &&
+          container !== document.scrollingElement &&
+          isScrollable(container)
+        ) {
           container.scrollTo({ top: 0, behavior });
         } else {
           window.scrollTo({ top: 0, behavior });
         }
-        return { success: true, details: { to: "top", container: container?.tagName?.toLowerCase() || 'window' } };
+        return {
+          success: true,
+          details: {
+            to: "top",
+            container: container?.tagName?.toLowerCase() || "window",
+          },
+        };
       }
       if (options && options.to === "bottom") {
-        if (container && container !== document.scrollingElement && isScrollable(container)) {
+        if (
+          container &&
+          container !== document.scrollingElement &&
+          isScrollable(container)
+        ) {
           container.scrollTo({ top: container.scrollHeight, behavior });
         } else {
           window.scrollTo({ top: document.body.scrollHeight, behavior });
         }
-        return { success: true, details: { to: "bottom", container: container?.tagName?.toLowerCase() || 'window' } };
+        return {
+          success: true,
+          details: {
+            to: "bottom",
+            container: container?.tagName?.toLowerCase() || "window",
+          },
+        };
       }
       return { success: false, error: "INVALID_SCROLL_PARAMS" };
     }
     if (action === "waitForSelector") {
-      return { success: true, details: { selectorUsed: `${target.by}=${target.value}`, matchedCount: el ? 1 : 0 } };
+      return {
+        success: true,
+        details: {
+          selectorUsed: `${target.by}=${target.value}`,
+          matchedCount: el ? 1 : 0,
+        },
+      };
     }
 
     return { success: false, error: "UNSUPPORTED_ACTION" };
   })();
 }
 
-// Validate server identity
-async function validateServerIdentity(host, port) {
-  try {
-    const response = await fetch(`http://${host}:${port}/.identity`, {
-      signal: AbortSignal.timeout(3000), // 3 second timeout
-    });
-
-    if (!response.ok) {
-      console.error(`Invalid server response: ${response.status}`);
-      return false;
-    }
-
-    const identity = await response.json();
-
-    // Validate the server signature
-    if (identity.signature !== "mcp-browser-connector-24x7") {
-      console.error("Invalid server signature - not the browser tools server");
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error("Error validating server identity:", error);
-    return false;
-  }
-}
+// validateServerIdentity now imported from common/serverIdentity.js
 
 // Track URLs for each tab
 const tabUrls = new Map();
@@ -760,53 +755,7 @@ async function getCurrentTabUrl(tabId) {
   }
 }
 
-// Listen for tab updates to detect page refreshes and URL changes
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Track URL changes
-  if (changeInfo.url) {
-    console.log(`URL changed in tab ${tabId} to ${changeInfo.url}`);
-    tabUrls.set(tabId, changeInfo.url);
-
-    // Send URL update to server if possible
-    updateServerWithUrl(tabId, changeInfo.url, "tab_url_change");
-  }
-
-  // Check if this is a page refresh (status becoming "complete")
-  if (changeInfo.status === "complete") {
-    // Update URL in our cache
-    if (tab.url) {
-      tabUrls.set(tabId, tab.url);
-      // Send URL update to server if possible
-      updateServerWithUrl(tabId, tab.url, "page_complete");
-    }
-
-    retestConnectionOnRefresh(tabId);
-  }
-});
-
-// Listen for tab activation (switching between tabs)
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  const tabId = activeInfo.tabId;
-  console.log(`Tab activated: ${tabId}`);
-
-  // Get the URL of the newly activated tab
-  chrome.tabs.get(tabId, (tab) => {
-    if (chrome.runtime.lastError) {
-      console.error("Error getting tab info:", chrome.runtime.lastError);
-      return;
-    }
-
-    if (tab && tab.url) {
-      console.log(`Active tab changed to ${tab.url}`);
-
-      // Update our cache
-      tabUrls.set(tabId, tab.url);
-
-      // Send URL update to server
-      updateServerWithUrl(tabId, tab.url, "tab_activated");
-    }
-  });
-});
+// URL tracking moved to background/url-tracking.js
 
 // Function to update the server with the current URL
 async function updateServerWithUrl(tabId, url, source = "background_update") {
@@ -925,6 +874,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   tabUrls.delete(tabId);
 });
 
+// Register screenshot message handler and install URL tracking listeners
+registerScreenshotHandler();
+installUrlTracking();
+
 // Function to retest connection when a page is refreshed
 async function retestConnectionOnRefresh(tabId) {
   console.log(`Page refreshed in tab ${tabId}, retesting connection...`);
@@ -1005,98 +958,4 @@ async function retestConnectionOnRefresh(tabId) {
   });
 }
 
-// Function to capture and send screenshot
-function captureAndSendScreenshot(message, settings, sendResponse) {
-  console.log("Background: In captureAndSendScreenshot function");
-  // Get the inspected window's tab
-  chrome.tabs.get(message.tabId, (tab) => {
-    if (chrome.runtime.lastError) {
-      console.error("Error getting tab:", chrome.runtime.lastError);
-      sendResponse({
-        success: false,
-        error: chrome.runtime.lastError.message,
-      });
-      return;
-    }
-    console.log("Background: Got tab info:", tab);
-
-    // Get all windows to find the one containing our tab
-    chrome.windows.getAll({ populate: true }, (windows) => {
-      const targetWindow = windows.find((w) =>
-        w.tabs.some((t) => t.id === message.tabId)
-      );
-      console.log("Background: Found target window:", targetWindow);
-
-      if (!targetWindow) {
-        console.error("Could not find window containing the inspected tab");
-        sendResponse({
-          success: false,
-          error: "Could not find window containing the inspected tab",
-        });
-        return;
-      }
-
-      // Capture screenshot of the window containing our tab
-      chrome.tabs.captureVisibleTab(
-        targetWindow.id,
-        { format: "png" },
-        (dataUrl) => {
-          console.log("Background: Screenshot captured, sending to server");
-          // Ignore DevTools panel capture error if it occurs
-          if (
-            chrome.runtime.lastError &&
-            !chrome.runtime.lastError.message.includes("devtools://")
-          ) {
-            console.error(
-              "Error capturing screenshot:",
-              chrome.runtime.lastError
-            );
-            sendResponse({
-              success: false,
-              error: chrome.runtime.lastError.message,
-            });
-            return;
-          }
-
-          // Send screenshot data to browser connector using configured settings
-          const serverUrl = `http://${settings.serverHost}:${settings.serverPort}/screenshot`;
-          console.log(`Sending screenshot to ${serverUrl}`);
-
-          fetch(serverUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              data: dataUrl,
-              path: message.screenshotPath,
-              url: tab.url, // Added tab.url for filename generation
-            }),
-          })
-            .then((response) => response.json())
-            .then((result) => {
-              if (result.error) {
-                console.error("Error from server:", result.error);
-                sendResponse({ success: false, error: result.error });
-              } else {
-                console.log("Screenshot saved successfully:", result.path);
-                // Send success response even if DevTools capture failed
-                sendResponse({
-                  success: true,
-                  path: result.path,
-                  title: tab.title || "Current Tab",
-                });
-              }
-            })
-            .catch((error) => {
-              console.error("Error sending screenshot data:", error);
-              sendResponse({
-                success: false,
-                error: error.message || "Failed to save screenshot",
-              });
-            });
-        }
-      );
-    });
-  });
-}
+// Screenshot handling moved to background/screenshot.js
